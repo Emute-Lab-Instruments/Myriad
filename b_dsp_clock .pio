@@ -1,0 +1,22 @@
+
+
+.program b_dsp_clock
+    pull block
+    out y, 32
+.wrap_target
+    mov x, y
+    irq nowait 1     ; send out an interrupt
+lp1:
+    jmp x-- lp1   ; Delay for (x + 1) cycles, x is a 32 bit number
+.wrap             ; 
+
+
+
+
+% c-sdk {
+
+void b_dsp_clock_program_init(PIO pio, uint sm, uint offset, uint pin) {
+   pio_sm_config c = b_dsp_clock_program_get_default_config(offset);
+   pio_sm_init(pio, sm, offset, &c);
+}
+%}
