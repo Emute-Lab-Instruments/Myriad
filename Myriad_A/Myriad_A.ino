@@ -241,10 +241,11 @@ void encoder3_callback() {
 
 
 void setup() {
-  // tft.begin();
-  // tft.setRotation(3);
-  // tft.fillScreen(TFT_BLACK);
-  // tft.setFreeFont(&FreeMono9pt7b);
+  tft.begin();
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+  tft.setFreeFont(&FreeMono9pt7b);
+
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 1);
@@ -291,10 +292,10 @@ void loop() {
   /* Dessine la fractale */
   // draw_Julia(-0.8,+0.156,zoom);
   // tft.fillRect(0, 0, 150, 20, TFT_BLACK);
-  // tft.setCursor(0,15);
-  // tft.setTextColor(TFT_WHITE);
-  // tft.print(" Zoom = ");
-  // tft.println(zoom);
+  tft.fillScreen(TFT_BLACK);
+  tft.setCursor(120,120);
+  tft.setTextColor(TFT_WHITE);
+  tft.println(encoderValues[0]);
   // delay(2000);
   // zoom *= 1.5;
   // if (zoom > 100) zoom = 0.5;
@@ -303,12 +304,8 @@ void loop() {
   // Serial.println(capture_buf[2]);
   // Serial.println(capture_buf[3]);
 
-  // Serial.println(digitalRead(QUADRATURE1_A_PIN));
-  // Serial.println(digitalRead(QUADRATURE1_B_PIN));
-  // int a = digitalRead(14);
-  // Serial.println(a);
 
-  delay(10);
+  delay(20);
 }
 
 
