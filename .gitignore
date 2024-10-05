@@ -51,3 +51,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+
+jlcpcb
+myriad-backups
+*.lck
+fp-info-cache
+.ipynb_checkpoints
