@@ -1,3 +1,4 @@
+extern "C" {
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
@@ -11,12 +12,13 @@
 #include "hardware/adc.h"
 #include "hardware/dma.h"
 #include "hardware/spi.h"
+#include <stdlib.h>
+}
 
 #include "freqlookup.h"
 
 #include "saw.h"
 
-#include <stdlib.h>
 
 // #define RUNCORE0_OSCS
 // #define RUNCORE1_OSCS 
@@ -24,7 +26,6 @@
 //extra optimisations: https://stackoverflow.com/questions/14492436/g-optimization-beyond-o3-ofast
 //https://forums.raspberrypi.com/viewtopic.php?t=323982 
 
-#include <stdio.h>
 
 
 #define CAPTURE_CHANNEL 0
