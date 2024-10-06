@@ -1,0 +1,3 @@
+#pragma once
+
+enum messageTypes {WAVELEN3=0, WAVELEN4, WAVELEN5, WAVELEN6, WAVELEN7, WAVELEN8};

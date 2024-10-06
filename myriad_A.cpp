@@ -49,8 +49,6 @@ static size_t __not_in_flash("mydata") octave5=0;
 
 
 void __not_in_flash_func(setFrequencies)(size_t base, const size_t detune, const size_t acc) {
-  // float adj = base * 1.1;
-  // base = (size_t)adj;
   wavelen0 = base;
   wavelen1 = wavelen0 + detune + acc;
   wavelen2 = wavelen1 + detune + acc;
@@ -209,8 +207,7 @@ size_t lastOctaveIdx = 0;
 bool __not_in_flash_func(repeating_timer_callback)(__unused struct repeating_timer *t) {
     // printf("Repeat at %lld\n", time_us_64());
   
-    //use hardware divide?
-    size_t octaveIdx = capture_buf[3] / 256;  // 16 divisions
+    size_t octaveIdx = capture_buf[3] >> 8;  // div by 256 -> 16 divisions
     if (octaveIdx != lastOctaveIdx) {
       lastOctaveIdx = octaveIdx;
       switch(octaveIdx) {

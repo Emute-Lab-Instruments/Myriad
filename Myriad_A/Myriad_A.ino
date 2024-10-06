@@ -7,12 +7,20 @@
 #include "hardware/dma.h"
 #include "hardware/spi.h"
 
+#include "MedianFilter.h"
+#include "MAFilter.h"
 
-
+#include "mode_saw.h"
+#include "freqlookup.h"
+#include "myriad_messages.h"
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
 const uint16_t MAX_ITERATION = 300;  // Nombre de couleurs
+
+const size_t BUF_LEN = 5;
+uint8_t spi_out_buf[BUF_LEN];
+
 
 #define SCREEN_WIDTH tft.width()    //
 #define SCREEN_HEIGHT tft.height()  // Taille de l'écran
@@ -34,6 +42,9 @@ const uint16_t MAX_ITERATION = 300;  // Nombre de couleurs
 #define ENCODER3_SWITCH 23
 
 int encoderValues[3] = {0,0,0};
+
+MovingAverageFilter<int> adcFilters[4];
+int controlValues[4] = {0,0,0,0};
 
 
 static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
@@ -78,6 +89,36 @@ void __not_in_flash_func(draw_Julia)(float c_r, float c_i, float zoom) {
     }
   }
 }
+
+static size_t __not_in_flash("mydata") octave0=0;
+static size_t __not_in_flash("mydata") octave1=0;
+static size_t __not_in_flash("mydata") octave2=0;
+static size_t __not_in_flash("mydata") octave3=0;
+static size_t __not_in_flash("mydata") octave4=0;
+static size_t __not_in_flash("mydata") octave5=0;
+
+
+void __not_in_flash_func(setFrequencies)(size_t base, const size_t detune, const size_t acc) {
+  wavelen0 = base;
+  wavelen1 = wavelen0 + detune + acc;
+  wavelen2 = wavelen1 + detune + acc;
+  wavelen3 = wavelen2 + detune + acc;
+  wavelen4 = wavelen3 + detune + acc;
+  wavelen5 = wavelen4 + detune + acc;
+  wavelen6 = wavelen5 + detune + acc;
+  wavelen7 = wavelen6 + detune + acc;
+  wavelen8 = wavelen7 + detune + acc;
+  wavelen0 = wavelen0 << octave0;
+  wavelen1 = wavelen1 << octave1;
+  wavelen2 = wavelen2 << octave2;
+  wavelen3 = wavelen3 >> octave3;
+  wavelen4 = wavelen4 >> octave4;
+  wavelen5 = wavelen5 >> octave5;
+  wavelen6 = wavelen6 >> octave3;
+  wavelen7 = wavelen7 >> octave4;
+  wavelen8 = wavelen8 >> octave5;
+}
+
 
 void setup_adcs() {
   adc_init();
@@ -129,70 +170,222 @@ void setup_adcs() {
   adc_run(true);
 }
 
-static int __not_in_flash("mydata") wavelen0 = 40000;
-static int __not_in_flash("mydata") wavelen1 = 39400;
-static int __not_in_flash("mydata") wavelen2 = 40600;
-static int __not_in_flash("mydata") wavelen3 = 41100;
-static int __not_in_flash("mydata") wavelen4 = 41500;
-static int __not_in_flash("mydata") wavelen5 = 41900;
 
-static int __not_in_flash("mydata") phase0 = 0;
-static bool __not_in_flash("mydata") y_0 = 0;
-static int __not_in_flash("mydata") err0 = 0;
+void sendToMyriadB (int msgType, size_t value) {
+    //___encode to bytes
+    //send message type
+    spi_out_buf[0] = static_cast<uint8_t>(msgType);
 
-static int __not_in_flash("mydata") phase1 = 0;
-static bool __not_in_flash("mydata") y_1 = 0;
-static int __not_in_flash("mydata") err1 = 0;
+    //decode and send val
+    uint8_t* byteArray = reinterpret_cast<uint8_t*>(&value);
+    spi_out_buf[1] = byteArray[0];
+    spi_out_buf[2] = byteArray[1];
+    spi_out_buf[3] = byteArray[2];
+    spi_out_buf[4] = byteArray[3];
 
-static int __not_in_flash("mydata") phase2 = 0;
-static bool __not_in_flash("mydata") y_2 = 0;
-static int __not_in_flash("mydata") err2 = 0;
-
-
-static inline void __isr irq_handler_saw() {
-
-  if (phase0 >= wavelen0) {
-    phase0 = 0;
-  }
-  phase0++;
-
-
-  y_0 = phase0 >= err0 ? 1 : 0;
-  err0 = (y_0 ? wavelen0 : 0) - phase0 + err0;
-  gpio_put(OSC1_PIN, y_0);
-
-
-  ////// OSC 2
-
-
-  if (phase1 >= wavelen1) {
-    phase1 = 0;
-  }
-  phase1++;
-
-  y_1 = phase1 >= err1 ? 1 : 0;
-  err1 = (y_1 ? wavelen1 : 0) - phase1 + err1;
-  gpio_put(OSC2_PIN, y_1);
-
-
-  ////// OSC 3
-
-
-  if (phase2 >= wavelen2) {
-    phase2 = 0;
-  }
-  phase2++;
-
-  y_2 = phase2 >= err2 ? 1 : 0;
-  err2 = (y_2 ? wavelen2 : 0) - phase2 + err2;
-  gpio_put(OSC3_PIN, y_2);
-
-  pio_interrupt_clear(pio1, 0);
+    spi_write_blocking(spi1, spi_out_buf, BUF_LEN);
 }
 
-bool __not_in_flash_func(repeating_timer_callback)(__unused struct repeating_timer *t) {
+size_t lastOctaveIdx = 0;
+bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
+  controlValues[0] = adcFilters[0].process(capture_buf[0]);
+  controlValues[1] = adcFilters[1].process(capture_buf[1]);
+  controlValues[2] = adcFilters[2].process(capture_buf[2]);
+  controlValues[3] = adcFilters[3].process(capture_buf[3]);
+
+  size_t octaveIdx = controlValues[3] >> 8;  // div by 256 -> 16 divisions
+  if (octaveIdx != lastOctaveIdx) {
+    lastOctaveIdx = octaveIdx;
+    switch(octaveIdx) {
+      case 0:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 0;
+        break;
+      }
+      case 1:
+      {
+        octave0 = 1;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 0;
+        break;
+      }
+      case 2:
+      {
+        octave0 = 2;
+        octave1 = 1;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 0;
+        break;
+      }
+      case 3:
+      {
+        octave0 = 3;
+        octave1 = 2;
+        octave2 = 1;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 0;
+        break;
+      }
+      case 4:
+      {
+        octave0 = 3;
+        octave1 = 2;
+        octave2 = 1;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 1;
+        break;
+      }
+      case 5:
+      {
+        octave0 = 3;
+        octave1 = 2;
+        octave2 = 1;
+        octave3 = 0;
+        octave4 = 1;
+        octave5 = 2;
+        break;
+      }
+      case 6:
+      {
+        octave0 = 3;
+        octave1 = 2;
+        octave2 = 1;
+        octave3 = 1;
+        octave4 = 2;
+        octave5 = 3;
+        break;
+      }
+      case 7:
+      {
+        octave0 = 2;
+        octave1 = 2;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 2;
+        octave5 = 2;
+        break;
+      }
+      case 8:
+      {
+        octave0 = 2;
+        octave1 = 1;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 1;
+        octave5 = 2;
+        break;
+      }
+      case 9:
+      {
+        octave0 = 2;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 1;
+        break;
+      }
+      case 10:
+      {
+        octave0 = 1;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 2;
+        break;
+      }
+      case 11:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 2;
+        octave5 = 2;
+        break;
+      }
+      case 12:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 2;
+        octave5 = 3;
+        break;
+      }
+      case 13:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 1;
+        octave4 = 2;
+        octave5 = 3;
+        break;
+      }
+      case 14:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 1;
+        octave5 = 2;
+        break;
+      }
+      case 15:
+      {
+        octave0 = 0;
+        octave1 = 0;
+        octave2 = 0;
+        octave3 = 0;
+        octave4 = 0;
+        octave5 = 1;
+        break;
+      }
+      default:;
+    }
+  }
+
+  setFrequencies(freqtable[controlValues[0]], controlValues[1] >> 2, controlValues[2] >> 2);
+
+  
+  sendToMyriadB(messageTypes::WAVELEN3, wavelen3);
+  sendToMyriadB(messageTypes::WAVELEN4, wavelen4);
+  sendToMyriadB(messageTypes::WAVELEN5, wavelen5);
+  sendToMyriadB(messageTypes::WAVELEN6, wavelen6);
+  sendToMyriadB(messageTypes::WAVELEN7, wavelen7);
+  sendToMyriadB(messageTypes::WAVELEN8, wavelen8);
+
+  
   return true;
 }
+
+bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
+  tft.fillScreen(TFT_BLACK);
+  tft.setCursor(120,120);
+  tft.setTextColor(TFT_WHITE);
+  tft.println(encoderValues[0]);
+
+  tft.setCursor(120,150);
+  tft.println(controlValues[0]);
+  return true;
+}
+
 
 
 int8_t read_rotary(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
@@ -240,6 +433,9 @@ void encoder3_callback() {
 }
 
 
+struct repeating_timer timerAdcProcessor;
+struct repeating_timer timerDisplay;
+
 void setup() {
   tft.begin();
   tft.setRotation(3);
@@ -251,9 +447,14 @@ void setup() {
   digitalWrite(LED_PIN, 1);
 
   //ADCs
+  const size_t filterSize=5;
+  for(auto &filter: adcFilters) {
+    filter.init(filterSize);
+  }
   setup_adcs();
-  // struct repeating_timer timer;
-  // add_repeating_timer_ms(10, repeating_timer_callback, NULL, &timer);
+
+  add_repeating_timer_ms(-10, adcProcessor, NULL, &timerAdcProcessor);
+  add_repeating_timer_ms(-100, displayUpdate, NULL, &timerDisplay);
 
   //Encoders
   pinMode(ENCODER1_A_PIN, INPUT_PULLUP);
@@ -265,6 +466,14 @@ void setup() {
   pinMode(ENCODER3_A_PIN, INPUT_PULLUP);
   pinMode(ENCODER3_B_PIN, INPUT_PULLUP);
   pinMode(ENCODER3_SWITCH, INPUT_PULLUP);
+  
+  //SPI 
+  spi_init(spi1, 1000 * 1000);
+  gpio_set_function(10, GPIO_FUNC_SPI); //SCK
+  gpio_set_function(11, GPIO_FUNC_SPI); //TX
+  gpio_set_function(12, GPIO_FUNC_SPI); //RX
+  gpio_set_function(13, GPIO_FUNC_SPI); //CS
+
 
   Serial.begin(115200);
 
@@ -288,45 +497,25 @@ void setup() {
 
 /* Fonction loop() */
 void loop() {
-
-  /* Dessine la fractale */
-  // draw_Julia(-0.8,+0.156,zoom);
-  // tft.fillRect(0, 0, 150, 20, TFT_BLACK);
-  tft.fillScreen(TFT_BLACK);
-  tft.setCursor(120,120);
-  tft.setTextColor(TFT_WHITE);
-  tft.println(encoderValues[0]);
-  // delay(2000);
-  // zoom *= 1.5;
-  // if (zoom > 100) zoom = 0.5;
-  // Serial.println(capture_buf[0]);
-  // Serial.println(capture_buf[1]);
-  // Serial.println(capture_buf[2]);
-  // Serial.println(capture_buf[3]);
-
-
-  delay(20);
+  __wfi();
 }
 
 
-void encoderSwitchInterrupt() {
-  Serial.println("switch");
-}
 void setup1() {
-  //oscillator pings
-  // setupOscPin(OSC1_PIN);
-  // setupOscPin(OSC2_PIN);
-  // setupOscPin(OSC3_PIN);
+  //oscillator pins
+  setupOscPin(OSC1_PIN);
+  setupOscPin(OSC2_PIN);
+  setupOscPin(OSC3_PIN);
 
-  // //oscillator clock state machine
-  // uint offset = pio_add_program(pio1, &dsp_clock_program);
-  // dsp_clock_forever(pio1, 0, offset, pdmFreq);
+  //oscillator clock state machine
+  uint offset = pio_add_program(pio1, &dsp_clock_program);
+  dsp_clock_forever(pio1, 0, offset, pdmFreq);
 
-  // //oscillator clock interrupt
-  // irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_saw);
-  // irq_set_enabled(PIO1_IRQ_0, true);
-  // irq_set_priority(PIO1_IRQ_0, 40);
-  // pio1->inte0 = PIO_IRQ0_INTE_SM0_BITS;
+  //oscillator clock interrupt
+  irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_saw_coreA1);
+  irq_set_enabled(PIO1_IRQ_0, true);
+  irq_set_priority(PIO1_IRQ_0, 40);
+  pio1->inte0 = PIO_IRQ0_INTE_SM0_BITS;
 }
 
 void loop1() {
