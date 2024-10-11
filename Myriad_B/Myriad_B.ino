@@ -75,7 +75,26 @@ void readSpi() {
             SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
             // Serial.println(decodeMsg.msg);
             // Serial.println(decodeMsg.value);
+            // wavelen0 = 15000;
             switch(decodeMsg.msg) {
+              case WAVELEN0:
+              {
+                wavelen0 = decodeMsg.value;
+                // Serial.println(decodeMsg.value);
+              }
+              break;        
+              case WAVELEN1:
+              {
+                wavelen1 = decodeMsg.value;
+                // Serial.println(decodeMsg.value);
+              }
+              break;        
+              case WAVELEN2:
+              {
+                wavelen2 = decodeMsg.value;
+                // Serial.println(decodeMsg.value);
+              }
+              break;        
               case WAVELEN3:
               {
                 wavelen3 = decodeMsg.value;
@@ -112,7 +131,7 @@ void setup() {
 
   queue_init(&coreCommsQueue, sizeof(queueItem), 3);
 
-  spi_init(spi1, 1000 * 1000);
+  spi_init(spi1, spiFrequency);
   spi_set_slave(spi1, true);
   gpio_set_function(10, GPIO_FUNC_SPI); //SCK
   gpio_set_function(11, GPIO_FUNC_SPI); //TX
@@ -145,8 +164,8 @@ void setup() {
 /* Fonction loop() */
 void __not_in_flash_func(loop)() {
   //decode
-  // readSpi();
- __wfi();
+  readSpi();
+//  __wfi();
 }
 
 

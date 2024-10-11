@@ -34,10 +34,6 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #define SCREEN_WIDTH tft.width()    //
 #define SCREEN_HEIGHT tft.height()  // Taille de l'écran
 
-#define OSC1_PIN 5
-#define OSC2_PIN 6
-#define OSC3_PIN 7
-
 #define ENCODER1_A_PIN 9
 #define ENCODER1_B_PIN 14
 #define ENCODER1_SWITCH 8
@@ -329,21 +325,16 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   int new_wavelen0 = freqtable[controlValues[0]];
   int new_wavelen1 = new_wavelen0 + detune + acc;
   int new_wavelen2 = new_wavelen1 + detune + acc;
-  // int new_wavelen3 = new_wavelen2 + detune + acc;
-  // int new_wavelen4 = new_wavelen3 + detune + acc;
-  // int new_wavelen5 = new_wavelen4 + detune + acc;
-  // int new_wavelen6 = new_wavelen5 + detune + acc;
-  // int new_wavelen7 = new_wavelen6 + detune + acc;
-  // int new_wavelen8 = new_wavelen7 + detune + acc;
+  int new_wavelen3 = new_wavelen2 + detune + acc;
+  int new_wavelen4 = new_wavelen3 + detune + acc;
+  int new_wavelen5 = new_wavelen4 + detune + acc;
+
   new_wavelen0 = new_wavelen0 << octave0;
   new_wavelen1 = new_wavelen1 << octave1;
   new_wavelen2 = new_wavelen2 << octave2;
-  // new_wavelen3 = new_wavelen3 >> octave3;
-  // new_wavelen4 = new_wavelen4 >> octave4;
-  // new_wavelen5 = new_wavelen5 >> octave5;
-  // new_wavelen6 = new_wavelen6 >> octave3;
-  // new_wavelen7 = new_wavelen7 >> octave4;
-  // new_wavelen8 = new_wavelen8 >> octave5;
+  new_wavelen3 = new_wavelen3 >> octave3;
+  new_wavelen4 = new_wavelen4 >> octave4;
+  new_wavelen5 = new_wavelen5 >> octave5;
 
   //send new values
 
@@ -359,18 +350,18 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // queueItem msg {2, new_wavelen2};
   // queue_try_add(&coreCommsQueue, &msg);
   // }
-  wavelen0 = new_wavelen0;  
-  wavelen1 = new_wavelen1;  
-  wavelen2 = new_wavelen2;  
+  // wavelen0 = new_wavelen0;  
+  // wavelen1 = new_wavelen1;  
+  // wavelen2 = new_wavelen2;  
   // wavelen0 = 30000;  
   // wavelen1 = 30010;  
   // wavelen2 = 30020;  
-  // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
-  // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
-  // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
-  // sendToMyriadB(messageTypes::WAVELEN6, new_wavelen6);
-  // sendToMyriadB(messageTypes::WAVELEN7, new_wavelen7);
-  // sendToMyriadB(messageTypes::WAVELEN8, new_wavelen8);
+  sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
+  sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
+  sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
+  sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
+  sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
+  sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
   // Serial.print("1: ");
   // Serial.println(new_wavelen1);
@@ -509,7 +500,7 @@ void setup() {
   pinMode(ENCODER3_SWITCH, INPUT_PULLUP);
   
   //SPI 
-  spi_init(spi1, 1000 * 1000);
+  spi_init(spi1, 400 * 1000);
   gpio_set_function(10, GPIO_FUNC_SPI); //SCK
   gpio_set_function(11, GPIO_FUNC_SPI); //TX
   gpio_set_function(12, GPIO_FUNC_SPI); //RX
@@ -571,9 +562,9 @@ void loop() {
 
 void setup1() {
   // oscillator pins
-  setupOscPin(OSC1_PIN);
-  setupOscPin(OSC2_PIN);
-  setupOscPin(OSC3_PIN);
+  // setupOscPin(OSC1_PIN);
+  // setupOscPin(OSC2_PIN);
+  // setupOscPin(OSC3_PIN);
 
   // add_repeating_timer_ms(-25, core1FrequencyReceiver, NULL, &timerFreqReceiver);
 

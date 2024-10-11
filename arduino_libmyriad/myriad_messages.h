@@ -1,6 +1,6 @@
 #pragma once
 
-enum messageTypes {WAVELEN3=0, WAVELEN4, WAVELEN5, WAVELEN6, WAVELEN7, WAVELEN8};
+enum messageTypes {WAVELEN0=0, WAVELEN1, WAVELEN2, WAVELEN3, WAVELEN4, WAVELEN5};
 
 struct spiMessage {
     uint8_t msg;

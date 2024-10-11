@@ -2,7 +2,8 @@
 
 #include "dsp_clock.pio.h"
 
-const int pdmFreq = 44100 * 100;
+const int pdmFreq = 44100 * 128;
+const size_t spiFrequency = 400 * 1000;
 
 void __not_in_flash_func(setupOscPin)(int pin) {
   gpio_init(pin);
