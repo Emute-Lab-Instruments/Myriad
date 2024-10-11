@@ -232,7 +232,7 @@ module drawPanelWithHoles() {
     
 }
 
-//projection(cut=true) 
+projection(cut=true) 
 drawPanelWithHoles();
 
 

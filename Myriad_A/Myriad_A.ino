@@ -11,15 +11,24 @@
 #include "MAFilter.h"
 
 #include "mode_saw.h"
+#include "mode_sqr.h"
+// #include "mode_tri.h"
 #include "freqlookup.h"
 #include "myriad_messages.h"
+#include "SLIP.h"
+
+#include "drawing.h"
+
+#include "boids.h"
+
+// bool core1_separate_stack = true;
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
-const uint16_t MAX_ITERATION = 300;  // Nombre de couleurs
+// const uint16_t MAX_ITERATION = 300;  // Nombre de couleurs
 
-const size_t BUF_LEN = 5;
-uint8_t spi_out_buf[BUF_LEN];
+// const size_t BUF_LEN = 32;
+// uint8_t spi_out_buf[BUF_LEN];
 
 
 #define SCREEN_WIDTH tft.width()    //
@@ -41,54 +50,19 @@ uint8_t spi_out_buf[BUF_LEN];
 #define ENCODER3_B_PIN 25
 #define ENCODER3_SWITCH 23
 
-int encoderValues[3] = {0,0,0};
+namespace controls {
+  static int encoderValues[3] = {0,0,0};
+  static bool encoderSwitches[3] = {0,0,0};
+};
+
+enum METAMODMODES {NONE, BOIDS} metaModMode;
+boidsSim boids;
 
 MovingAverageFilter<int> adcFilters[4];
-int controlValues[4] = {0,0,0,0};
+static int __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
 
 
 static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
-
-static float zoom = 0.5;
-
-void __not_in_flash_func(draw_Julia)(float c_r, float c_i, float zoom) {
-
-  tft.setCursor(0, 0);
-  float new_r = 0.0, new_i = 0.0, old_r = 0.0, old_i = 0.0;
-
-  /* Pour chaque pixel en X */
-
-  for (int16_t x = SCREEN_WIDTH / 2 - 1; x >= 0; x--) {  // Rely on inverted symmetry
-    /* Pour chaque pixel en Y */
-    for (uint16_t y = 0; y < SCREEN_HEIGHT; y++) {
-      old_r = 1.5 * (x - SCREEN_WIDTH / 2) / (0.5 * zoom * SCREEN_WIDTH);
-      old_i = (y - SCREEN_HEIGHT / 2) / (0.5 * zoom * SCREEN_HEIGHT);
-      uint16_t i = 0;
-
-      while ((old_r * old_r + old_i * old_i) < 4.0 && i < MAX_ITERATION) {
-        new_r = old_r * old_r - old_i * old_i;
-        new_i = 2.0 * old_r * old_i;
-
-        old_r = new_r + c_r;
-        old_i = new_i + c_i;
-
-        i++;
-      }
-      /* Affiche le pixel */
-      if (i < 100) {
-        tft.drawPixel(x, y, tft.color565(255, 255, map(i, 0, 100, 255, 0)));
-        tft.drawPixel(SCREEN_WIDTH - x - 1, SCREEN_HEIGHT - y - 1, tft.color565(255, 255, map(i, 0, 100, 255, 0)));
-      }
-      if (i < 200) {
-        tft.drawPixel(x, y, tft.color565(255, map(i, 100, 200, 255, 0), 0));
-        tft.drawPixel(SCREEN_WIDTH - x - 1, SCREEN_HEIGHT - y - 1, tft.color565(255, map(i, 100, 200, 255, 0), 0));
-      } else {
-        tft.drawPixel(x, y, tft.color565(map(i, 200, 300, 255, 0), 0, 0));
-        tft.drawPixel(SCREEN_WIDTH - x - 1, SCREEN_HEIGHT - y - 1, tft.color565(map(i, 200, 300, 255, 0), 0, 0));
-      }
-    }
-  }
-}
 
 static size_t __not_in_flash("mydata") octave0=0;
 static size_t __not_in_flash("mydata") octave1=0;
@@ -96,28 +70,6 @@ static size_t __not_in_flash("mydata") octave2=0;
 static size_t __not_in_flash("mydata") octave3=0;
 static size_t __not_in_flash("mydata") octave4=0;
 static size_t __not_in_flash("mydata") octave5=0;
-
-
-void __not_in_flash_func(setFrequencies)(size_t base, const size_t detune, const size_t acc) {
-  wavelen0 = base;
-  wavelen1 = wavelen0 + detune + acc;
-  wavelen2 = wavelen1 + detune + acc;
-  wavelen3 = wavelen2 + detune + acc;
-  wavelen4 = wavelen3 + detune + acc;
-  wavelen5 = wavelen4 + detune + acc;
-  wavelen6 = wavelen5 + detune + acc;
-  wavelen7 = wavelen6 + detune + acc;
-  wavelen8 = wavelen7 + detune + acc;
-  wavelen0 = wavelen0 << octave0;
-  wavelen1 = wavelen1 << octave1;
-  wavelen2 = wavelen2 << octave2;
-  wavelen3 = wavelen3 >> octave3;
-  wavelen4 = wavelen4 >> octave4;
-  wavelen5 = wavelen5 >> octave5;
-  wavelen6 = wavelen6 >> octave3;
-  wavelen7 = wavelen7 >> octave4;
-  wavelen8 = wavelen8 >> octave5;
-}
 
 
 void setup_adcs() {
@@ -171,27 +123,37 @@ void setup_adcs() {
 }
 
 
-void sendToMyriadB (int msgType, size_t value) {
-    //___encode to bytes
-    //send message type
-    spi_out_buf[0] = static_cast<uint8_t>(msgType);
+void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, uint32_t value) {
+  static uint8_t __not_in_flash("mydata") slipBuffer[64];
+  // if(spi_is_writable(spi1)) {
+    spiMessage msg {msgType, value};
+    unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
+    // for(int i=0; i < slipSize; i++) {
+    //   Serial.print(slipBuffer[i]);
+    //   Serial.print("\t");
+    // }
+    // Serial.println("");
+    int res = spi_write_blocking(spi1, reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
 
-    //decode and send val
-    uint8_t* byteArray = reinterpret_cast<uint8_t*>(&value);
-    spi_out_buf[1] = byteArray[0];
-    spi_out_buf[2] = byteArray[1];
-    spi_out_buf[3] = byteArray[2];
-    spi_out_buf[4] = byteArray[3];
-
-    spi_write_blocking(spi1, spi_out_buf, BUF_LEN);
+    // spiMessage decodeMsg;
+    // SLIP::decode(slipBuffer, slipSize, reinterpret_cast<uint8_t*>(&decodeMsg));
+    // Serial.println(decodeMsg.value);
+    // Serial.print("r: ");
+    // Serial.println(res);
+  // }
 }
 
-size_t lastOctaveIdx = 0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-  controlValues[0] = adcFilters[0].process(capture_buf[0]);
-  controlValues[1] = adcFilters[1].process(capture_buf[1]);
-  controlValues[2] = adcFilters[2].process(capture_buf[2]);
-  controlValues[3] = adcFilters[3].process(capture_buf[3]);
+  static size_t __not_in_flash("mydata") lastOctaveIdx = 0;
+  controlValues[0] = capture_buf[0];
+  controlValues[1] = capture_buf[1];
+  controlValues[2] = capture_buf[2];
+  controlValues[3] = capture_buf[3];
+
+  // controlValues[0] = adcFilters[0].process(capture_buf[0]);
+  // controlValues[1] = adcFilters[1].process(capture_buf[1]);
+  // controlValues[2] = adcFilters[2].process(capture_buf[2]);
+  // controlValues[3] = adcFilters[3].process(capture_buf[3]);
 
   size_t octaveIdx = controlValues[3] >> 8;  // div by 256 -> 16 divisions
   if (octaveIdx != lastOctaveIdx) {
@@ -361,28 +323,87 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     }
   }
 
-  setFrequencies(freqtable[controlValues[0]], controlValues[1] >> 2, controlValues[2] >> 2);
+  // setFrequencies(freqtable[controlValues[0]], controlValues[1] >> 2, controlValues[2] >> 2);
+  int detune = controlValues[1] >> 2;
+  int acc = controlValues[2] >> 2;
+  int new_wavelen0 = freqtable[controlValues[0]];
+  int new_wavelen1 = new_wavelen0 + detune + acc;
+  int new_wavelen2 = new_wavelen1 + detune + acc;
+  // int new_wavelen3 = new_wavelen2 + detune + acc;
+  // int new_wavelen4 = new_wavelen3 + detune + acc;
+  // int new_wavelen5 = new_wavelen4 + detune + acc;
+  // int new_wavelen6 = new_wavelen5 + detune + acc;
+  // int new_wavelen7 = new_wavelen6 + detune + acc;
+  // int new_wavelen8 = new_wavelen7 + detune + acc;
+  new_wavelen0 = new_wavelen0 << octave0;
+  new_wavelen1 = new_wavelen1 << octave1;
+  new_wavelen2 = new_wavelen2 << octave2;
+  // new_wavelen3 = new_wavelen3 >> octave3;
+  // new_wavelen4 = new_wavelen4 >> octave4;
+  // new_wavelen5 = new_wavelen5 >> octave5;
+  // new_wavelen6 = new_wavelen6 >> octave3;
+  // new_wavelen7 = new_wavelen7 >> octave4;
+  // new_wavelen8 = new_wavelen8 >> octave5;
 
+  //send new values
+
+  // {
+  // queueItem msg {0, new_wavelen0};
+  // queue_try_add(&coreCommsQueue, &msg);
+  // }
+  // {
+  // queueItem msg {1, new_wavelen1};
+  // queue_try_add(&coreCommsQueue, &msg);
+  // }
+  // {  
+  // queueItem msg {2, new_wavelen2};
+  // queue_try_add(&coreCommsQueue, &msg);
+  // }
+  wavelen0 = new_wavelen0;  
+  wavelen1 = new_wavelen1;  
+  wavelen2 = new_wavelen2;  
+  // wavelen0 = 30000;  
+  // wavelen1 = 30010;  
+  // wavelen2 = 30020;  
+  // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
+  // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
+  // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
+  // sendToMyriadB(messageTypes::WAVELEN6, new_wavelen6);
+  // sendToMyriadB(messageTypes::WAVELEN7, new_wavelen7);
+  // sendToMyriadB(messageTypes::WAVELEN8, new_wavelen8);
   
-  sendToMyriadB(messageTypes::WAVELEN3, wavelen3);
-  sendToMyriadB(messageTypes::WAVELEN4, wavelen4);
-  sendToMyriadB(messageTypes::WAVELEN5, wavelen5);
-  sendToMyriadB(messageTypes::WAVELEN6, wavelen6);
-  sendToMyriadB(messageTypes::WAVELEN7, wavelen7);
-  sendToMyriadB(messageTypes::WAVELEN8, wavelen8);
-
+  // Serial.print("1: ");
+  // Serial.println(new_wavelen1);
   
   return true;
 }
+// bool __not_in_flash_func(core1FrequencyReceiver)(__unused struct repeating_timer *t) {
+//   queueItem q;
+//   bool itemWaiting = queue_try_remove(&coreCommsQueue, &q);
+//   if (itemWaiting) {
+//     switch(q.idx) {
+//       case 0:
+//         wavelen0 = q.value;
+//         break;
+//       case 1:
+//         wavelen1 = q.value;
+//         break;
+//       case 2:
+//         wavelen2 = q.value;
+//         break;
+//     }
+//   }
+//   return true;
+// }
 
 bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
-  tft.fillScreen(TFT_BLACK);
-  tft.setCursor(120,120);
-  tft.setTextColor(TFT_WHITE);
-  tft.println(encoderValues[0]);
+  // tft.fillScreen(TFT_BLACK);
+  // tft.setCursor(120,120);
+  // tft.setTextColor(TFT_WHITE);
+  // tft.println(controls::encoderValues[0]);
 
-  tft.setCursor(120,150);
-  tft.println(controlValues[0]);
+  // tft.setCursor(120,150);
+  // tft.println(controlValues[0]);
   return true;
 }
 
@@ -416,31 +437,50 @@ static uint16_t enc3Store = 0;
 
 void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
-  encoderValues[0] += change;
-  Serial.println(encoderValues[0]);  
+  controls::encoderValues[0] += change;
+  Serial.println(controls::encoderValues[0]);  
 }
 
 void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
-  encoderValues[1] += change;
-  Serial.println(encoderValues[1]);  
+  controls::encoderValues[1] += change;
+  Serial.println(controls::encoderValues[1]);  
 }
 
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
-  encoderValues[2] += change;
-  Serial.println(encoderValues[2]);  
+  controls::encoderValues[2] += change;
+  Serial.println(controls::encoderValues[2]);  
+}
+
+void encoder1_switch_callback() {
+  controls::encoderSwitches[0] = digitalRead(ENCODER1_SWITCH);  
+}
+
+void encoder2_switch_callback() {
+  controls::encoderSwitches[1] = digitalRead(ENCODER2_SWITCH);  
+}
+
+void encoder3_switch_callback() {
+  controls::encoderSwitches[2] = digitalRead(ENCODER3_SWITCH);  
 }
 
 
 struct repeating_timer timerAdcProcessor;
 struct repeating_timer timerDisplay;
+// struct repeating_timer timerFreqReceiver;
 
 void setup() {
   tft.begin();
   tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(ELI_BLUE);
   tft.setFreeFont(&FreeMono9pt7b);
+
+  metaModMode = METAMODMODES::NONE;
+  boids.init();
+
+  // queue_init(&coreCommsQueue, sizeof(queueItem), 5);
+
 
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
@@ -453,8 +493,9 @@ void setup() {
   }
   setup_adcs();
 
-  add_repeating_timer_ms(-10, adcProcessor, NULL, &timerAdcProcessor);
-  add_repeating_timer_ms(-100, displayUpdate, NULL, &timerDisplay);
+  add_repeating_timer_ms(25, adcProcessor, NULL, &timerAdcProcessor);
+  // add_repeating_timer_ms(100, displayUpdate, NULL, &timerDisplay);
+  
 
   //Encoders
   pinMode(ENCODER1_A_PIN, INPUT_PULLUP);
@@ -475,7 +516,7 @@ void setup() {
   gpio_set_function(13, GPIO_FUNC_SPI); //CS
 
 
-  Serial.begin(115200);
+  // Serial.begin(115200);
 
   attachInterrupt(digitalPinToInterrupt(ENCODER1_A_PIN), encoder1_callback,
                     CHANGE);
@@ -490,6 +531,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ENCODER3_B_PIN), encoder3_callback,
                     CHANGE);
 
+  attachInterrupt(digitalPinToInterrupt(ENCODER1_SWITCH), encoder1_switch_callback,
+                    CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER2_SWITCH), encoder2_switch_callback,
+                    CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER3_SWITCH), encoder3_switch_callback,
+                    CHANGE);
+
 
 }
 
@@ -497,27 +545,54 @@ void setup() {
 
 /* Fonction loop() */
 void loop() {
-  __wfi();
+  // __wfi();
+  // tft.fillScreen(0x0007);
+  tft.setCursor(120,120);
+  // tft.setTextColor( );
+  // tft.println(controls::encoderValues[0]);
+  // tft.drawLine(100,100,140,80, ELI_PINK);
+  // tft.drawLine(140,80,140,100, ELI_PINK);
+
+  
+
+  // tft.setCursor(120,150);
+  // tft.println(controlValues[0]);
+  switch(metaModMode) {
+    case NONE:
+    break;
+    case BOIDS:
+      boids.draw(tft);
+      boids.update();
+    break;
+  }
+  delay(100);
 }
 
 
 void setup1() {
-  //oscillator pins
+  // oscillator pins
   setupOscPin(OSC1_PIN);
   setupOscPin(OSC2_PIN);
   setupOscPin(OSC3_PIN);
 
+  // add_repeating_timer_ms(-25, core1FrequencyReceiver, NULL, &timerFreqReceiver);
+
+
   //oscillator clock state machine
-  uint offset = pio_add_program(pio1, &dsp_clock_program);
-  dsp_clock_forever(pio1, 0, offset, pdmFreq);
+  // uint offset = pio_add_program(pio1, &dsp_clock_program);
+  // dsp_clock_forever(pio1, 0, offset, pdmFreq);
 
   //oscillator clock interrupt
-  irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_saw_coreA1);
-  irq_set_enabled(PIO1_IRQ_0, true);
-  irq_set_priority(PIO1_IRQ_0, 40);
-  pio1->inte0 = PIO_IRQ0_INTE_SM0_BITS;
+  // irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_saw_coreA1);
+  // irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_sqr_coreA1);
+  // irq_set_exclusive_handler(PIO1_IRQ_0, irq_handler_tri_coreA1);
+  
+  // irq_set_enabled(PIO1_IRQ_0, true);
+  // irq_set_priority(PIO1_IRQ_0, 10);
+  // pio1->inte0 = PIO_IRQ0_INTE_SM0_BITS;
 }
 
 void loop1() {
-  __wfi();
+  // __wfi();
+  tight_loop_contents();
 }
