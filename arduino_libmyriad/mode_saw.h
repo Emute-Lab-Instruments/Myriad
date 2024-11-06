@@ -80,43 +80,43 @@ void mode_saw_draw_icon() {
 
 static inline void __isr irq_handler_saw_coreB0() {
 
-  static int __scratch_x("mydata") phase0=0;
-  static int __scratch_x("mydata") err0=0;
+  // static int __scratch_x("mydata") phase0=0;
+  // static int __scratch_x("mydata") err0=0;
 
-  if (phase0>=wavelen0) {
-    phase0 = 0;
-  }
-  phase0++;
+  // if (phase0>=wavelen0) {
+  //   phase0 = 0;
+  // }
+  // phase0++;
 
   
-  bool y_0 = phase0 >= err0 ? 1 : 0;
-  err0 = (y_0 ? wavelen0 : 0) - phase0 + err0;
-  gpio_put(OSC1_PIN, y_0);
+  // bool y_0 = phase0 >= err0 ? 1 : 0;
+  // err0 = (y_0 ? wavelen0 : 0) - phase0 + err0;
+  // gpio_put(OSC1_PIN, y_0);
 
-  static int __scratch_x("mydata") phase1=0;
-  static int __scratch_x("mydata") err1=0;
+  // static int __scratch_x("mydata") phase1=0;
+  // static int __scratch_x("mydata") err1=0;
 
-  if (phase1>=wavelen1) {
-    phase1 = 0;
-  }
-  phase1++;
+  // if (phase1>=wavelen1) {
+  //   phase1 = 0;
+  // }
+  // phase1++;
 
-  bool y_1 = phase1 >= err1 ? 1 : 0;
-  err1 = (y_1 ? wavelen1 : 0) - phase1 + err1;
-  gpio_put(OSC2_PIN, y_1);
+  // bool y_1 = phase1 >= err1 ? 1 : 0;
+  // err1 = (y_1 ? wavelen1 : 0) - phase1 + err1;
+  // gpio_put(OSC2_PIN, y_1);
 
 
-  static int __scratch_x("mydata") phase2=0;
-  static int __scratch_x("mydata") err2=0;
+  // static int __scratch_x("mydata") phase2=0;
+  // static int __scratch_x("mydata") err2=0;
 
-  if (phase2>=wavelen2) {
-    phase2 = 0;
-  }
-  phase2++;
+  // if (phase2>=wavelen2) {
+  //   phase2 = 0;
+  // }
+  // phase2++;
 
-  bool y_2 = phase2 >= err2 ? 1 : 0;
-  err2 = (y_2 ? wavelen2 : 0) - phase2 + err2;
-  gpio_put(OSC3_PIN, y_2);
+  // bool y_2 = phase2 >= err2 ? 1 : 0;
+  // err2 = (y_2 ? wavelen2 : 0) - phase2 + err2;
+  // gpio_put(OSC3_PIN, y_2);
 
   pio_interrupt_clear(pio0, 0);
 }
