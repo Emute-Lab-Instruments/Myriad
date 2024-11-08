@@ -8,5 +8,5 @@ size_t maxOscBankType = 1;
 
 struct spiMessage {
     uint8_t msg;
-    size_t value;
+    float value;
 };

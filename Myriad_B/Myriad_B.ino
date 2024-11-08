@@ -6,7 +6,8 @@
 
 #include "hardware/sync.h"
 
-#include "pio_expdec.h"
+// #include "pio_expdec.h"
+#include "pios/pio_sq.h"
 #include "smBitStreamOsc.h"
 
 
@@ -30,7 +31,7 @@ float clockdiv = 8;
 uint32_t clockHz = 15625000 / 80;
 size_t cpuClock=125000000;
 float sampleClock = cpuClock / clockdiv;
-uint32_t mwavelen = 125000000/clockdiv /50;
+uint32_t mwavelen = 125000000/clockdiv /80;
 uint32_t mwavelen2 = mwavelen * 1.01;
 uint32_t mwavelen3 = mwavelen2 * 1.01;
 uint32_t mwavelen4 = mwavelen3 * 1.01;
@@ -38,16 +39,25 @@ uint32_t mwavelen5 = mwavelen4 * 1.01;
 uint32_t mwavelen6 = mwavelen5 * 1.01;
 // Ensure `timing_buffer` is aligned to 16-bytes so we can use DMA address
 // wrapping
-float sqrTemplate[8] {
-  0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5
+float sqrTemplate[2] {
+  0.5,0.5
 };
 // uint32_t timing_buffer[8] __attribute__((aligned(16))) {clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1};
 // uint32_t timing_buffer2[8] __attribute__((aligned(16))) {clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1};
+
+uint32_t FAST_MEM timing_swapbuffer_0_A[2] __attribute__((aligned(16))) {0,0};
+uint32_t FAST_MEM timing_swapbuffer_0_B[2] __attribute__((aligned(16))) {0,0};
   
-uint32_t FAST_MEM timing_buffer[8] __attribute__((aligned(16))) {
-  mwavelen,mwavelen>>1,mwavelen,mwavelen>>1,mwavelen,mwavelen>>1,mwavelen,mwavelen>>1
+uint32_t FAST_MEM init_timing_buffer[2] __attribute__((aligned(16))) {
+  mwavelen,mwavelen
  
   };
+
+uint32_t FAST_MEM timing_buffer[8] __attribute__((aligned(16))) {
+  mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen
+ 
+  };
+
 uint32_t timing_buffer3[8] __attribute__((aligned(16))) {
   mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2
  
@@ -69,6 +79,9 @@ uint32_t timing_buffer7[8] __attribute__((aligned(16))) {
 // uint32_t pio_dma_chan;
 
 io_rw_32 nextTimingBuffer = (io_rw_32)timing_buffer;
+
+io_rw_32 nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+
 io_rw_32  nextTimingBuffer2 = (io_rw_32)timing_buffer3;
 io_rw_32  nextTimingBuffer3 = (io_rw_32)timing_buffer4;
 
@@ -95,7 +108,7 @@ void __isr dma_irh() {
   uint32_t triggered_channels = dma_hw->ints0;
   if (triggered_channels & smOsc0_dma_chan_bit) {
     dma_hw->ints0 = smOsc0_dma_chan_bit;  
-    dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer;
+    dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
   }
   else
   if (triggered_channels & smOsc1_dma_chan_bit) {
@@ -168,6 +181,14 @@ static int __not_in_flash("mydata") spiIdx=0;
 
 int oscBankChange=-1;
 
+void restart_sm(PIO pio, uint sm) {
+  // Reset the state machine program counter to zero
+  // pio_sm_exec(pio, sm, pio_encode_jmp(0));
+  
+  // Alternatively, you can use the RESTART flag directly:
+  pio->ctrl = (1u << (PIO_CTRL_SM_RESTART_LSB + sm));
+}
+
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
   int nBytes;
@@ -213,14 +234,28 @@ inline void __not_in_flash_func(readUart)() {
             // Serial.println("");
             spiMessage decodeMsg;
             SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
-            Serial.println(decodeMsg.msg);
+            // Serial.println(decodeMsg.msg);
             Serial.println(decodeMsg.value);
             // wavelen0 = 15000;
             switch(decodeMsg.msg) {
               case WAVELEN0:
               {
-                // wavelen0 = decodeMsg.value;
-                // Serial.println(decodeMsg.value);
+                float oscWavelength = decodeMsg.value;
+                if (nextTimingBuffer == (io_rw_32)timing_swapbuffer_0_A) {
+                  for(size_t i=0; i < 2; i++) {
+                    timing_swapbuffer_0_B[i] = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
+                  }
+                  nextTimingBuffer = (io_rw_32)timing_swapbuffer_0_B;
+                }else{
+                  for(size_t i=0; i < 2; i++) {
+                    timing_swapbuffer_0_A[i] = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
+                  }
+                  nextTimingBuffer = (io_rw_32)timing_swapbuffer_0_A;
+                }
+                pio_sm_clear_fifos(pio0, 0);
+                pio_sm_put(pio0, 0, oscWavelength * 0.5);
+                restart_sm(pio0, 0);
+                smOsc0.go();
               }
               break;        
               case WAVELEN1:
@@ -289,13 +324,13 @@ void setup() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, timing_buffer, dma_irh, clockdiv, DMA_IRQ_0);
-  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
-  smOsc1.go();
+  // smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, timing_buffer, dma_irh, clockdiv, DMA_IRQ_0);
+  // smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+  // smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_buffer, dma_irh, clockdiv, DMA_IRQ_0);
-  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
-  smOsc2.go();
+  // smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_buffer, dma_irh, clockdiv, DMA_IRQ_0);
+  // smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+  // smOsc2.go();
 #endif
 }
 

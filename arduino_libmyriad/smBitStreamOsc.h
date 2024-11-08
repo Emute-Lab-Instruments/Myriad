@@ -36,8 +36,8 @@ public:
     sm_config_set_clkdiv(&c, clockdiv);
 
     sm_config_set_in_shift(&c, true, false, 32);
-    // Join FIFOs together to get an 8 entry TX FIFO
-    // sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    // don't join FIFOs together to get an 8 entry TX FIFO
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
     pio_sm_init(pio, sm, offset, &c);
   }
 
@@ -54,7 +54,7 @@ public:
     // Write to the same address (the PIO SM TX FIFO)
     channel_config_set_write_increment(&pio_dma_chan_config, false);
     // Set read address to wrap on a 16-byte boundary
-    channel_config_set_ring(&pio_dma_chan_config, false, 5);
+    channel_config_set_ring(&pio_dma_chan_config, false, 1);
     // Transfer when PIO SM TX FIFO has space
     channel_config_set_dreq(&pio_dma_chan_config, pio_get_dreq(pio, sm, true));
 
@@ -64,7 +64,7 @@ public:
       &pio_dma_chan_config,
       &pio->txf[sm],  // Write to PIO TX FIFO
       firstTimingBuffer,  // Read values from timing buffer
-      16,             // `timing_buffer` has 4 entries, so 16 will go through it 4 times
+      1,             // `timing_buffer` has 4 entries, so 16 will go through it 4 times
       false           // don't start yet
     );
 
@@ -75,7 +75,7 @@ public:
     }else{
       dma_channel_set_irq1_enabled(pio_dma_chan, true);
     }
-    
+
     irq_set_exclusive_handler(dmaIrq, dma_irq_handler);
     irq_set_enabled(dmaIrq, true);
 

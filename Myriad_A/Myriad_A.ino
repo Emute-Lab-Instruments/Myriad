@@ -145,12 +145,12 @@ static int __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
 
-static size_t __not_in_flash("mydata") octave0=0;
-static size_t __not_in_flash("mydata") octave1=0;
-static size_t __not_in_flash("mydata") octave2=0;
-static size_t __not_in_flash("mydata") octave3=0;
-static size_t __not_in_flash("mydata") octave4=0;
-static size_t __not_in_flash("mydata") octave5=0;
+static float __not_in_flash("mydata") octave0=0;
+static float __not_in_flash("mydata") octave1=0;
+static float __not_in_flash("mydata") octave2=0;
+static float __not_in_flash("mydata") octave3=0;
+static float __not_in_flash("mydata") octave4=0;
+static float __not_in_flash("mydata") octave5=0;
 
 int __not_in_flash("mydata") oscTypeBank0=0;
 int __not_in_flash("mydata") oscTypeBank1=0;
@@ -206,7 +206,7 @@ void setup_adcs() {
 }
 
 
-void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, uint32_t value) {
+void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
   static uint8_t __not_in_flash("mydata") slipBuffer[64];
   // if(spi_is_writable(spi1)) {
   spiMessage msg {msgType, value};
@@ -411,19 +411,19 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // setFrequencies(freqtable[controlValues[0]], controlValues[1] >> 2, controlValues[2] >> 2);
   int detune = controlValues[1] >> 2;
   int acc = controlValues[2] >> 2;
-  int new_wavelen0 = freqtable[controlValues[0]];
-  int new_wavelen1 = new_wavelen0 + detune + acc;
-  int new_wavelen2 = new_wavelen1 + detune + acc;
-  int new_wavelen3 = new_wavelen2 + detune + acc;
-  int new_wavelen4 = new_wavelen3 + detune + acc;
-  int new_wavelen5 = new_wavelen4 + detune + acc;
+  float new_wavelen0 = freqtable[controlValues[0]];
+  float new_wavelen1 = new_wavelen0 + detune + acc;
+  float new_wavelen2 = new_wavelen1 + detune + acc;
+  float new_wavelen3 = new_wavelen2 + detune + acc;
+  float new_wavelen4 = new_wavelen3 + detune + acc;
+  float new_wavelen5 = new_wavelen4 + detune + acc;
 
-  new_wavelen0 = new_wavelen0 << octave0;
-  new_wavelen1 = new_wavelen1 << octave1;
-  new_wavelen2 = new_wavelen2 << octave2;
-  new_wavelen3 = new_wavelen3 >> octave3;
-  new_wavelen4 = new_wavelen4 >> octave4;
-  new_wavelen5 = new_wavelen5 >> octave5;
+  new_wavelen0 = new_wavelen0 * octave0;
+  // new_wavelen1 = new_wavelen1 << octave1;
+  // new_wavelen2 = new_wavelen2 << octave2;
+  // new_wavelen3 = new_wavelen3 >> octave3;
+  // new_wavelen4 = new_wavelen4 >> octave4;
+  // new_wavelen5 = new_wavelen5 >> octave5;
 
   //send new values
 
@@ -653,7 +653,7 @@ void setup() {
                     CHANGE);
 
 
-  add_repeating_timer_ms(100, adcProcessor, NULL, &timerAdcProcessor);
+  add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
 
 }
 
