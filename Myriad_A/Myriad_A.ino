@@ -598,8 +598,8 @@ void setup() {
 
 
   //show on board LED
-  // pinMode(LED_PIN, OUTPUT);
-  // digitalWrite(LED_PIN, 1);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, 1);
 
   //ADCs
   const size_t filterSize=5;

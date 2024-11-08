@@ -10,14 +10,14 @@ class smBitStreamOsc {
 public:
   smBitStreamOsc() {}
   
-  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv) {
+  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq=DMA_IRQ_0) {
     pio = pio_;
     sm = sm_;
     pin = pin_;
     offset = offset_;
 
     // Run the pin_ctrl program
-    return pin_ctrl_run(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv);
+    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, dmaIrq);
   }
 
 
@@ -41,7 +41,7 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_run(PIO pio, uint sm, uint offset, uint pin, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     pio_dma_chan = dma_claim_unused_channel(true);
 
@@ -69,17 +69,26 @@ public:
     );
 
     // Setup IRQ for DMA transfer end
-    dma_channel_set_irq1_enabled(pio_dma_chan, true);
-    irq_set_exclusive_handler(DMA_IRQ_1, dma_irq_handler);
-    irq_set_enabled(DMA_IRQ_1, true);
+    
+    if (dmaIrq == DMA_IRQ_0) {
+      dma_channel_set_irq0_enabled(pio_dma_chan, true);
+    }else{
+      dma_channel_set_irq1_enabled(pio_dma_chan, true);
+    }
+    
+    irq_set_exclusive_handler(dmaIrq, dma_irq_handler);
+    irq_set_enabled(dmaIrq, true);
 
     // Initialise PIO SM with pin_ctrl program
     pin_ctrl_program_init(pio, sm, offset, pin, clockdiv);
+    return pio_dma_chan;
+  }
+
+  void go() {
     // Start the DMA (must do this after program init or DMA won't do anything)
     dma_channel_start(pio_dma_chan);
     // Start the PIO
     pio_sm_set_enabled(pio, sm, true);
-    return pio_dma_chan;
   }
 
   uint32_t pio_dma_chan;
