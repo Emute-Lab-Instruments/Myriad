@@ -3,20 +3,12 @@
 
 #include "myriad_pins.h"
 #include "myriad_setup.h"
-
 #include "hardware/sync.h"
-
 // #include "pio_expdec.h"
 #include "pios/pio_sq.h"
 #include "smBitStreamOsc.h"
-
-
-// #include "mode_saw.h"
-// #include "mode_sqr.h"
-// #include "mode_all.h"
-
 #define RUNCORE0_OSCS
-// #define RUNCORE1_OSCS
+#define RUNCORE1_OSCS
 
 
 
@@ -26,6 +18,9 @@
 
 
 #define FAST_MEM __not_in_flash("mydata")
+
+bool core1_separate_stack = true;
+
 
 float clockdiv = 8;
 uint32_t clockHz = 15625000 / 80;
@@ -44,54 +39,73 @@ std::vector<float> sqrTemplate {0.01,0.3};
 // uint32_t timing_buffer[8] __attribute__((aligned(16))) {clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1};
 // uint32_t timing_buffer2[8] __attribute__((aligned(16))) {clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1,clockHz>>1};
 
-uint32_t FAST_MEM timing_swapbuffer_0_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
-uint32_t FAST_MEM timing_swapbuffer_0_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+#define DEFINE_TIMING_SWAPBUFFERS(name) \
+uint32_t FAST_MEM timing_swapbuffer_##name##_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
+uint32_t FAST_MEM timing_swapbuffer_##name##_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
+io_rw_32 FAST_MEM nextTimingBuffer##name = (io_rw_32)timing_swapbuffer_##name##_A;
 
-uint32_t FAST_MEM timing_swapbuffer_1_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
-uint32_t FAST_MEM timing_swapbuffer_1_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+
+// io_rw_32 nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+
+// alignas(16) uint32_t FAST_MEM name[2] = {mwavelen, mwavelen};
+
+DEFINE_TIMING_SWAPBUFFERS(0)
+DEFINE_TIMING_SWAPBUFFERS(1)
+DEFINE_TIMING_SWAPBUFFERS(2)
+DEFINE_TIMING_SWAPBUFFERS(3)
+DEFINE_TIMING_SWAPBUFFERS(4)
+DEFINE_TIMING_SWAPBUFFERS(5)
+
+// uint32_t FAST_MEM timing_swapbuffer_0_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+// uint32_t FAST_MEM timing_swapbuffer_0_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+
+// uint32_t FAST_MEM timing_swapbuffer_1_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+// uint32_t FAST_MEM timing_swapbuffer_1_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen};
+
+
   
-uint32_t FAST_MEM init_timing_buffer[2] __attribute__((aligned(16))) {
-  mwavelen,mwavelen
+// uint32_t FAST_MEM init_timing_buffer[2] __attribute__((aligned(16))) {
+//   mwavelen,mwavelen
  
-  };
+//   };
 
-uint32_t FAST_MEM timing_buffer[8] __attribute__((aligned(16))) {
-  mwavelen>>3,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen
+// uint32_t FAST_MEM timing_buffer[8] __attribute__((aligned(16))) {
+//   mwavelen>>3,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen,mwavelen
  
-  };
+//   };
 
-uint32_t timing_buffer3[8] __attribute__((aligned(16))) {
-  mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2
+// uint32_t timing_buffer3[8] __attribute__((aligned(16))) {
+//   mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2,mwavelen2
  
-  };
-uint32_t timing_buffer4[8] __attribute__((aligned(16))) {
-  mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3, 
-};
+//   };
+// uint32_t timing_buffer4[8] __attribute__((aligned(16))) {
+//   mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3,mwavelen3, 
+// };
 
-uint32_t timing_buffer5[8] __attribute__((aligned(16))) {
-  mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,
-};
-uint32_t timing_buffer6[8] __attribute__((aligned(16))) {
-  mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5
-};
-uint32_t timing_buffer7[8] __attribute__((aligned(16))) {
-  mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,
-};
+// uint32_t timing_buffer5[8] __attribute__((aligned(16))) {
+//   mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,mwavelen4,
+// };
+// uint32_t timing_buffer6[8] __attribute__((aligned(16))) {
+//   mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5,mwavelen5
+// };
+// uint32_t timing_buffer7[8] __attribute__((aligned(16))) {
+//   mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,mwavelen6,
+// };
 
 // uint32_t pio_dma_chan;
 
 // io_rw_32 nextTimingBuffer = (io_rw_32)timing_buffer;
 
-io_rw_32 nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
-io_rw_32 nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+// io_rw_32 nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+// io_rw_32 nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
 
 
-io_rw_32  nextTimingBuffer2 = (io_rw_32)timing_buffer3;
-io_rw_32  nextTimingBuffer3 = (io_rw_32)timing_buffer4;
+// io_rw_32  nextTimingBuffer2 = (io_rw_32)timing_buffer3;
+// io_rw_32  nextTimingBuffer3 = (io_rw_32)timing_buffer4;
 
-io_rw_32  nextTimingBuffer4 = (io_rw_32)timing_buffer5;
-io_rw_32  nextTimingBuffer5 = (io_rw_32)timing_buffer6;
-io_rw_32  nextTimingBuffer6 = (io_rw_32)timing_buffer7;
+// io_rw_32  nextTimingBuffer4 = (io_rw_32)timing_buffer5;
+// io_rw_32  nextTimingBuffer5 = (io_rw_32)timing_buffer6;
+// io_rw_32  nextTimingBuffer6 = (io_rw_32)timing_buffer7;
 
 
 uint programOffset = pio_add_program(pio0, &pin_ctrl_program);
@@ -124,7 +138,7 @@ void __isr dma_irh() {
   else
   if (triggered_channels & smOsc2_dma_chan_bit) {
     dma_hw->ints0 = smOsc2_dma_chan_bit;
-    dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer3;
+    dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer2;
   }
 }
 smBitStreamOsc smOsc0;
@@ -149,19 +163,19 @@ void __not_in_flash_func(dma_irh1)() {
   uint32_t triggered_channels = dma_hw->ints1;
   if (triggered_channels & smOsc3_dma_chan_bit) {
     dma_hw->ints1 = smOsc3_dma_chan_bit;  
-    dma_hw->ch[smOsc3_dma_chan].al3_read_addr_trig = nextTimingBuffer4;
+    dma_hw->ch[smOsc3_dma_chan].al3_read_addr_trig = nextTimingBuffer3;
   }
   else
   if (triggered_channels & smOsc4_dma_chan_bit) {
   //   // Channel 0 triggered, handle it
     dma_hw->ints1 = smOsc4_dma_chan_bit;
   //   dma_hw->ints0 &= smOsc0_dma_chan_bit_inv;  // Clear interrupt 
-    dma_hw->ch[smOsc4_dma_chan].al3_read_addr_trig = nextTimingBuffer5;
+    dma_hw->ch[smOsc4_dma_chan].al3_read_addr_trig = nextTimingBuffer4;
   }
   else
   if (triggered_channels & smOsc5_dma_chan_bit) {
     dma_hw->ints1 = smOsc5_dma_chan_bit;
-    dma_hw->ch[smOsc5_dma_chan].al3_read_addr_trig = nextTimingBuffer6;
+    dma_hw->ch[smOsc5_dma_chan].al3_read_addr_trig = nextTimingBuffer5;
   }
 }
 
@@ -171,7 +185,6 @@ smBitStreamOsc smOsc4;
 smBitStreamOsc smOsc5;
 
 
-bool core1_separate_stack = true;
 
 const size_t __not_in_flash("mydata") BUF_LEN = 10;
 uint8_t __not_in_flash("mydata") spi_in_buf[BUF_LEN];
@@ -272,9 +285,10 @@ inline void __not_in_flash_func(readUart)() {
             // Serial.println("");
             spiMessage decodeMsg;
             SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
-            // Serial.println(decodeMsg.msg);
+            // Serial.print(decodeMsg.msg);
+            // Serial.print(": ");
+            
             // Serial.println(decodeMsg.value);
-            // wavelen0 = 15000;
             switch(decodeMsg.msg) {
               case WAVELEN0:
               {
@@ -308,32 +322,26 @@ inline void __not_in_flash_func(readUart)() {
               case WAVELEN1:
               {
                 updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, sqrTemplate, decodeMsg.value);
-                
-                // wavelen1 = decodeMsg.value;
-                // Serial.println(decodeMsg.value);
-                // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, sqrTemplate, decodeMsg.value);
-
               }
               break;        
               case WAVELEN2:
               {
-                // wavelen2 = decodeMsg.value;
-                // Serial.println(decodeMsg.value);
+                updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, sqrTemplate, decodeMsg.value);
               }
               break;        
               case WAVELEN3:
               {
-                // wavelen3 = decodeMsg.value;
+                updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, sqrTemplate, decodeMsg.value);
               }
                 break;
               case WAVELEN4:
               {
-                // wavelen4 = decodeMsg.value;
+                updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, sqrTemplate, decodeMsg.value);
               }
                 break;
               case WAVELEN5:
               {
-                // wavelen5 = decodeMsg.value;
+                updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, sqrTemplate, decodeMsg.value);
               }
               break;
               // case BANK0:
@@ -379,9 +387,9 @@ void setup() {
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  // smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_buffer, dma_irh, clockdiv, DMA_IRQ_0);
-  // smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
-  // smOsc2.go();
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, DMA_IRQ_0);
+  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+  smOsc2.go();
 #endif
 }
 
@@ -395,15 +403,15 @@ void __not_in_flash_func(loop)() {
 void setup1() {
 
 #ifdef RUNCORE1_OSCS
-  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset1, timing_buffer, dma_irh1, clockdiv, DMA_IRQ_1);
+  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset1, timing_swapbuffer_3_A, dma_irh1, clockdiv, DMA_IRQ_1);
   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
   smOsc3.go();
 
-  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset1, timing_buffer, dma_irh1, clockdiv, DMA_IRQ_1);
+  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset1, timing_swapbuffer_4_A, dma_irh1, clockdiv, DMA_IRQ_1);
   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset1, timing_buffer, dma_irh1, clockdiv, DMA_IRQ_1);
+  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset1, timing_swapbuffer_5_A, dma_irh1, clockdiv, DMA_IRQ_1);
   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
   smOsc5.go();
 

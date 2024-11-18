@@ -139,21 +139,25 @@ namespace controls {
 enum METAMODMODES {NONE, BOIDS} metaModMode;
 boidsSim boids;
 
-MovingAverageFilter<int> adcFilters[4];
-static int __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
+MovingAverageFilter<float> adcFilters[4];
+static float __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
 
 
 static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
 
-static float __not_in_flash("mydata") octave0=0;
-static float __not_in_flash("mydata") octave1=0;
-static float __not_in_flash("mydata") octave2=0;
-static float __not_in_flash("mydata") octave3=0;
-static float __not_in_flash("mydata") octave4=0;
-static float __not_in_flash("mydata") octave5=0;
+static float __not_in_flash("mydata") octave0=1;
+static float __not_in_flash("mydata") octave1=1;
+static float __not_in_flash("mydata") octave2=1;
+static float __not_in_flash("mydata") octave3=1;
+static float __not_in_flash("mydata") octave4=1;
+static float __not_in_flash("mydata") octave5=1;
 
 int __not_in_flash("mydata") oscTypeBank0=0;
 int __not_in_flash("mydata") oscTypeBank1=0;
+
+static FAST_MEM std::array<size_t,4> adcMins{22,22,22,22};
+static FAST_MEM std::array<size_t,4> adcMaxs{4085,4085,4085,4085};
+std::array<size_t,4> adcRanges;
 
 void setup_adcs() {
   adc_init();
@@ -206,8 +210,8 @@ void setup_adcs() {
 }
 
 
-void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
-  static uint8_t __not_in_flash("mydata") slipBuffer[64];
+inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
+  static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
   // if(spi_is_writable(spi1)) {
   spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
@@ -228,180 +232,184 @@ void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
   // }
 }
 
+inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
+  return (controlValues[adcIndex] - adcMins[adcIndex]) / adcRanges[adcIndex];
+}
+
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-  static size_t __not_in_flash("mydata") lastOctaveIdx = 0;
-  controlValues[0] = capture_buf[0];
-  controlValues[1] = capture_buf[1];
-  controlValues[2] = capture_buf[2];
-  controlValues[3] = capture_buf[3];
+  static size_t __not_in_flash("acdData") lastOctaveIdx = 0;
+  // controlValues[0] = capture_buf[0];
+  // controlValues[1] = capture_buf[1];
+  // controlValues[2] = capture_buf[2];
+  // controlValues[3] = capture_buf[3];
 
-  // controlValues[0] = adcFilters[0].process(capture_buf[0]);
-  // controlValues[1] = adcFilters[1].process(capture_buf[1]);
-  // controlValues[2] = adcFilters[2].process(capture_buf[2]);
-  // controlValues[3] = adcFilters[3].process(capture_buf[3]);
+  controlValues[0] = adcFilters[0].process(capture_buf[0]);
+  controlValues[1] = adcFilters[1].process(capture_buf[1]);
+  controlValues[2] = adcFilters[2].process(capture_buf[2]);
+  controlValues[3] = adcFilters[3].process(capture_buf[3]);
 
-  size_t octaveIdx = controlValues[3] >> 8;  // div by 256 -> 16 divisions
+  size_t octaveIdx = static_cast<int>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
   if (octaveIdx != lastOctaveIdx) {
     lastOctaveIdx = octaveIdx;
     switch(octaveIdx) {
       case 0:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 0;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 1.0;
         break;
       }
       case 1:
       {
-        octave0 = 1;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 0;
+        octave0 = 0.5;    // Reciprocal of 2
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 1.0;
         break;
       }
       case 2:
       {
-        octave0 = 2;
-        octave1 = 1;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 0;
+        octave0 = 1.0 / 3.0;  // Reciprocal of 3
+        octave1 = 0.5;        // Reciprocal of 2
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 1.0;
         break;
       }
       case 3:
       {
-        octave0 = 3;
-        octave1 = 2;
-        octave2 = 1;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 0;
+        octave0 = 0.25;       // Reciprocal of 4
+        octave1 = 1.0 / 3.0;  // Reciprocal of 3
+        octave2 = 0.5;        // Reciprocal of 2
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 1.0;
         break;
       }
       case 4:
       {
-        octave0 = 3;
-        octave1 = 2;
-        octave2 = 1;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 1;
+        octave0 = 0.25;
+        octave1 = 1.0 / 3.0;
+        octave2 = 0.5;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 0.5;
         break;
       }
       case 5:
       {
-        octave0 = 3;
-        octave1 = 2;
-        octave2 = 1;
-        octave3 = 0;
-        octave4 = 1;
-        octave5 = 2;
+        octave0 = 0.25;
+        octave1 = 1.0 / 3.0;
+        octave2 = 0.5;
+        octave3 = 1.0;
+        octave4 = 0.5;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 6:
       {
-        octave0 = 3;
-        octave1 = 2;
-        octave2 = 1;
-        octave3 = 1;
-        octave4 = 2;
-        octave5 = 3;
+        octave0 = 0.25;
+        octave1 = 1.0 / 3.0;
+        octave2 = 0.5;
+        octave3 = 0.5;
+        octave4 = 1.0 / 3.0;
+        octave5 = 0.25;
         break;
       }
       case 7:
       {
-        octave0 = 2;
-        octave1 = 2;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 2;
-        octave5 = 2;
+        octave0 = 0.25;
+        octave1 = 0.25;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0 / 3.0;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 8:
       {
-        octave0 = 2;
-        octave1 = 1;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 1;
-        octave5 = 2;
+        octave0 = 1.0 / 3.0;
+        octave1 = 0.5;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 0.5;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 9:
       {
-        octave0 = 2;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 1;
+        octave0 = 1.0 / 3.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 0.5;
         break;
       }
       case 10:
       {
-        octave0 = 1;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 2;
+        octave0 = 0.5;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 11:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 2;
-        octave5 = 2;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0 / 3.0;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 12:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 2;
-        octave5 = 3;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0 / 3.0;
+        octave5 = 0.25;
         break;
       }
       case 13:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 1;
-        octave4 = 2;
-        octave5 = 3;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 0.5;
+        octave4 = 1.0 / 3.0;
+        octave5 = 0.25;
         break;
       }
       case 14:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 1;
-        octave5 = 2;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 0.5;
+        octave5 = 1.0 / 3.0;
         break;
       }
       case 15:
       {
-        octave0 = 0;
-        octave1 = 0;
-        octave2 = 0;
-        octave3 = 0;
-        octave4 = 0;
-        octave5 = 1;
+        octave0 = 1.0;
+        octave1 = 1.0;
+        octave2 = 1.0;
+        octave3 = 1.0;
+        octave4 = 1.0;
+        octave5 = 0.5;
         break;
       }
       default:;
@@ -409,21 +417,24 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   }
 
   // setFrequencies(freqtable[controlValues[0]], controlValues[1] >> 2, controlValues[2] >> 2);
-  int detune = controlValues[1] >> 2;
-  int acc = controlValues[2] >> 2;
-  float new_wavelen0 = freqtable[controlValues[0]];
-  float new_wavelen1 = new_wavelen0 + detune + acc;
-  float new_wavelen2 = new_wavelen1 + detune + acc;
-  float new_wavelen3 = new_wavelen2 + detune + acc;
-  float new_wavelen4 = new_wavelen3 + detune + acc;
-  float new_wavelen5 = new_wavelen4 + detune + acc;
+  float acc = (adcMap(2) * 0.05f) + 1.f;
+  // Serial.println(detune);
+
+  float new_wavelen0 = freqtable[std::lround(controlValues[0])];
+  float detune = (adcMap(1) * 0.05f) * new_wavelen0;
+
+  float new_wavelen1 = (new_wavelen0 + detune) * acc;
+  float new_wavelen2 = (new_wavelen1 + detune) * acc;
+  float new_wavelen3 = (new_wavelen2 + detune) * acc;
+  float new_wavelen4 = (new_wavelen3 + detune) * acc;
+  float new_wavelen5 = (new_wavelen4 + detune) * acc;
 
   new_wavelen0 = new_wavelen0 * octave0;
-  // new_wavelen1 = new_wavelen1 << octave1;
-  // new_wavelen2 = new_wavelen2 << octave2;
-  // new_wavelen3 = new_wavelen3 >> octave3;
-  // new_wavelen4 = new_wavelen4 >> octave4;
-  // new_wavelen5 = new_wavelen5 >> octave5;
+  new_wavelen1 = new_wavelen1 * octave1;
+  new_wavelen2 = new_wavelen2 * octave2;
+  new_wavelen3 = new_wavelen3 * octave3;
+  new_wavelen4 = new_wavelen4 * octave4;
+  new_wavelen5 = new_wavelen5 * octave5;
 
   //send new values
 
@@ -447,14 +458,18 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // wavelen2 = 30020;  
 
   sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
-  // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
-  // sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
-  // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
-  // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
-  // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
+  sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
+  sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
+  sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
+  sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
+  sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
+  // Serial.print("0: ");
+  // Serial.println(new_wavelen0);
   // Serial.print("1: ");
   // Serial.println(new_wavelen1);
+  // Serial.print("2: ");
+  // Serial.println(new_wavelen2);
   
   return true;
 }
@@ -587,6 +602,10 @@ void setup() {
   tft.setRotation(3);
   tft.fillScreen(ELI_BLUE);
   tft.setFreeFont(&FreeMono9pt7b);
+
+  for(size_t i=0; i < 4; i++) {
+    adcRanges[i] = adcMaxs[i] - adcMins[i];
+  }
 
 
   uartOut.begin(115200);
