@@ -10,14 +10,14 @@ class smBitStreamOsc {
 public:
   smBitStreamOsc() {}
   
-  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq=DMA_IRQ_0) {
+  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
     pio = pio_;
     sm = sm_;
     pin = pin_;
     offset = offset_;
 
     // Run the pin_ctrl program
-    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, dmaIrq);
+    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, dmaIrq, transferCount);
   }
 
 
@@ -41,7 +41,7 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq, uint transferCount) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     pio_dma_chan = dma_claim_unused_channel(true);
 
@@ -64,7 +64,7 @@ public:
       &pio_dma_chan_config,
       &pio->txf[sm],  // Write to PIO TX FIFO
       firstTimingBuffer,  // Read values from timing buffer
-      2,             // transfer count
+      transferCount,             // transfer count
       false           // don't start yet
     );
 
