@@ -13,7 +13,7 @@
 
 
 #define RUNCORE0_OSCS
-#define RUNCORE1_OSCS
+// #define RUNCORE1_OSCS
 #define FAST_MEM __not_in_flash("mydata")
 
 bool core1_separate_stack = true;
@@ -217,23 +217,6 @@ void updateTimingBuffer(io_rw_32 &nextBuf,
     }
 }
 
-// void updateTimingBuffer(io_rw_32 &nextBuf,
-//                                   uint32_t* bufferA, uint32_t* bufferB,
-//                                   const std::vector<float>& sqrTemplate,
-//                                   float oscWavelength) {
-//     if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
-//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-//             *(bufferB + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-//         }
-//         nextBuf = reinterpret_cast<io_rw_32>(bufferB);
-//     } else {
-//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-//             *(bufferA + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-//         }
-//         nextBuf = reinterpret_cast<io_rw_32>(bufferA);
-//     }
-// }
-
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
   int nBytes;
@@ -288,17 +271,6 @@ inline void __not_in_flash_func(readUart)() {
               {
                 
                 updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, decodeMsg.value);
-                // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, sqrTemplate, decodeMsg.value);
-                // smOsc0.pause();
-                // pio_sm_clear_fifos(pio0, 0);
-                // pio_sm_put(pio0, 0, timing_swapbuffer_0_A[0]);
-                // restart_sm(pio0, 0);
-                // smOsc0.go();
-
-                // smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, DMA_IRQ_0);
-                // smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
-                // smOsc0.go();
-
               }
               break;        
               case WAVELEN1:
@@ -347,10 +319,41 @@ inline void __not_in_flash_func(readUart)() {
   }
 }
 
+uint programOffset;
+
+void startOscBankA() {
+  // pio_clear_instruction_memory(pio0);
+
+
+  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  if (smOsc0_dma_chan < 0) {
+    Serial.println("dma chan allocation error");
+  }
+  smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
+  smOsc0.go();
+
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+  smOsc1.go();
+
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+  smOsc2.go();
+}
+
+void stopOscBankA() {
+  smOsc0.stop();
+  smOsc1.stop();
+  smOsc2.stop();
+}
+
 void setup() {
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 0);
+  currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
+  programOffset = pio_add_program(pio0, &currOscModelBank0->prog);
+
 
   Serial.begin(115200);
 
@@ -358,24 +361,39 @@ void setup() {
   Serial1.setTX(12);
   Serial1.begin(115200);
 
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB
+  }
+
   // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
-  currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
-  uint programOffset = pio_add_program(pio0, &currOscModelBank0->prog);
-
-
-
 #ifdef RUNCORE0_OSCS
-  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
-  smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
-  smOsc0.go();
+  // currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
+  // uint programOffset = pio_add_program(pio0, &currOscModelBank0->prog);
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, timing_swapbuffer_1_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
-  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
-  smOsc1.go();
+  // smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  // smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
+  // smOsc0.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
-  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
-  smOsc2.go();
+  // smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, timing_swapbuffer_1_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  // smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+  // smOsc1.go();
+
+  // smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  // smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+  // smOsc2.go();
+
+
+  Serial.println("Start");
+  startOscBankA();
+  // currOscModelBank0.release();
+
+  // delay(1000);
+  // Serial.println("Stop");
+  // stopOscBankA();
+  // delay(1000);
+  // Serial.println("Start");
+  // // currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
+  // startOscBankA();
 #endif
 }
 

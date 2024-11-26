@@ -10,7 +10,7 @@ class smBitStreamOsc {
 public:
   smBitStreamOsc() {}
   
-  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
+  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
     pio = pio_;
     sm = sm_;
     pin = pin_;
@@ -41,7 +41,7 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, const void* firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq, uint transferCount) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq, uint transferCount) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     pio_dma_chan = dma_claim_unused_channel(true);
 
@@ -63,7 +63,7 @@ public:
       pio_dma_chan,
       &pio_dma_chan_config,
       &pio->txf[sm],  // Write to PIO TX FIFO
-      firstTimingBuffer,  // Read values from timing buffer
+      reinterpret_cast<void*>(firstTimingBuffer),  // Read values from timing buffer
       transferCount,             // transfer count
       false           // don't start yet
     );
@@ -91,8 +91,17 @@ public:
     pio_sm_set_enabled(pio, sm, true);
   }
 
-  void pause() {
+  void stop() {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_interrupt_clear(pio, sm); 
+
+    // Halt the DMA channel
     dma_channel_abort(pio_dma_chan);
+    dma_channel_unclaim(pio_dma_chan);
+
+    // Optional: Clear PIO FIFOs and reset SM
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_restart(pio, sm);
   }
 
   uint32_t pio_dma_chan;
