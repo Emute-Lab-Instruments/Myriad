@@ -15,9 +15,10 @@ public:
     sm = sm_;
     pin = pin_;
     offset = offset_;
+    dmaIrqNum = dmaIrq;
 
     // Run the pin_ctrl program
-    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, dmaIrq, transferCount);
+    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, transferCount);
   }
 
 
@@ -41,7 +42,7 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint dmaIrq, uint transferCount) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     pio_dma_chan = dma_claim_unused_channel(true);
 
@@ -68,16 +69,9 @@ public:
       false           // don't start yet
     );
 
-    // Setup IRQ for DMA transfer end
-    
-    if (dmaIrq == DMA_IRQ_0) {
-      dma_channel_set_irq0_enabled(pio_dma_chan, true);
-    }else{
-      dma_channel_set_irq1_enabled(pio_dma_chan, true);
-    }
 
-    irq_set_exclusive_handler(dmaIrq, dma_irq_handler);
-    irq_set_enabled(dmaIrq, true);
+    irq_set_exclusive_handler(dmaIrqNum, dma_irq_handler);
+    irq_set_enabled(dmaIrqNum, true);
 
     // Initialise PIO SM with pin_ctrl program
     pin_ctrl_program_init(pio, sm, offset, pin, clockdiv);
@@ -85,6 +79,13 @@ public:
   }
 
   void go() {
+    // Setup IRQ for DMA transfer end    
+    if (dmaIrqNum == DMA_IRQ_0) {
+      dma_channel_set_irq0_enabled(pio_dma_chan, true);
+    }else{
+      dma_channel_set_irq1_enabled(pio_dma_chan, true);
+    }
+
     // Start the DMA (must do this after program init or DMA won't do anything)
     dma_channel_start(pio_dma_chan);
     // Start the PIO
@@ -92,16 +93,25 @@ public:
   }
 
   void stop() {
+
+    if (dmaIrqNum == DMA_IRQ_0) {
+      dma_channel_set_irq0_enabled(pio_dma_chan, false);
+    }else{
+      dma_channel_set_irq1_enabled(pio_dma_chan, false);
+    }
+
     pio_sm_set_enabled(pio, sm, false);
     pio_interrupt_clear(pio, sm); 
 
-    // Halt the DMA channel
+
+    // // Optional: Clear PIO FIFOs and reset SM
+    pio_sm_clear_fifos(pio, sm);
+    // pio_sm_restart(pio, sm);
+  }
+
+  void release() {
     dma_channel_abort(pio_dma_chan);
     dma_channel_unclaim(pio_dma_chan);
-
-    // Optional: Clear PIO FIFOs and reset SM
-    pio_sm_clear_fifos(pio, sm);
-    pio_sm_restart(pio, sm);
   }
 
   uint32_t pio_dma_chan;
@@ -109,6 +119,7 @@ public:
   PIO pio;
   uint pin;
   uint sm;
+  uint dmaIrqNum;
 
 };
 
