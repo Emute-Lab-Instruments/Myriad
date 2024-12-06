@@ -103,10 +103,15 @@ public:
     pio_sm_set_enabled(pio, sm, false);
     pio_interrupt_clear(pio, sm); 
 
+    dma_channel_abort(pio_dma_chan);  // Ensure the DMA is aborted
+    dma_channel_cleanup(pio_dma_chan);
+    dma_channel_unclaim(pio_dma_chan);
+
+
 
     // // Optional: Clear PIO FIFOs and reset SM
     pio_sm_clear_fifos(pio, sm);
-    // pio_sm_restart(pio, sm);
+    pio_sm_restart(pio, sm);
   }
 
   void release() {

@@ -301,21 +301,21 @@ inline void __not_in_flash_func(readUart)() {
               //   break;
               // case WAVELEN4:
               // {
-              //   updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModelBank1, decodeMsg.value);
+                // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModelBank1, decodeMsg.value);
               // }
               //   break;
               // case WAVELEN5:
               // {
-              //   updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModelBank1, decodeMsg.value);
+                // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModelBank1, decodeMsg.value);
               // }
               // break;
               case BANK0:
               {
-                // osc0Mode = decodeMsg.value;                
+                // // osc0Mode = decodeMsg.value;                
                 Serial.println("bank0");
-                // Serial.println(decodeMsg.value);
+                // // Serial.println(decodeMsg.value);
                 stopOscBankA();
-                // delay(1000);
+                // delay(500);
                 // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
                 // currOscModelBank0 = std::move(newOscModelBank0);
                 switch((int)decodeMsg.value) {
@@ -328,10 +328,6 @@ inline void __not_in_flash_func(readUart)() {
                 }
                 // Serial.println("Starting");
                 startOscBankA();
-                //TEST
-                //crashes when you create a new currOscModelBank0, never gets to next println
-                //why does this happen here but not in the setup test
-                // Serial.println("started");
               }
               // break;
               // case BANK1:
@@ -437,27 +433,29 @@ void setup() {
 /* Fonction loop() */
 void __not_in_flash_func(loop)() {
   readUart();
+  // delay(1);
+  // __wfi();
 }
 
 
 void setup1() {
-  currOscModelBank1 = std::make_unique<squareOscillatorModel>();
-  uint programOffset1 = pio_add_program(pio1, &currOscModelBank1->prog);
+//   currOscModelBank1 = std::make_unique<squareOscillatorModel>();
+//   uint programOffset1 = pio_add_program(pio1, &currOscModelBank1->prog);
 
-#ifdef RUNCORE1_OSCS
-  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset1, timing_swapbuffer_3_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
-  smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
-  smOsc3.go();
+// #ifdef RUNCORE1_OSCS
+//   smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset1, timing_swapbuffer_3_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
+//   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
+//   smOsc3.go();
 
-  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset1, timing_swapbuffer_4_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
-  smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
-  smOsc4.go();
+//   smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset1, timing_swapbuffer_4_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
+//   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
+//   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset1, timing_swapbuffer_5_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
-  smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
-  smOsc5.go();
+//   smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset1, timing_swapbuffer_5_A, dma_irh1, clockdiv, currOscModelBank1->loopLength, DMA_IRQ_1);
+//   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
+//   smOsc5.go();
 
-#endif
+// #endif
 }
 
 void loop1() {
