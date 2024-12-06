@@ -29,6 +29,7 @@ public:
   pio_program prog;
   virtual void fillBuffer(uint32_t* bufferA, size_t wavelen)=0;
   size_t loopLength;
+  virtual ~oscillatorModel() = default;  
 };
 
 
@@ -36,7 +37,7 @@ public:
 class squareOscillatorModel : public virtual oscillatorModel {
 public:
   squareOscillatorModel() : oscillatorModel(){
-    loopLength=2;
+    loopLength=8;
     prog=pin_ctrl_program;
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -44,13 +45,13 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
-  std::vector<float> oscTemplate {0.1,0.9};
+  const std::vector<float> oscTemplate {0.1,0.9};
 };
 
 class squareOscillatorModel2 : public oscillatorModel {
 public:
   squareOscillatorModel2() : oscillatorModel() {
-    loopLength=2;
+    loopLength=8;
     prog=pin_ctrl_program;
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -58,21 +59,23 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
-  std::vector<float> oscTemplate {0.5,0.5};
+  const std::vector<float> oscTemplate {0.5,0.5};
 };
 
-using oscModelPtr = std::unique_ptr<oscillatorModel>;
+using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 oscModelPtr FAST_MEM currOscModelBank0;
 oscModelPtr FAST_MEM currOscModelBank1;
+
+oscModelPtr FAST_MEM oscModel1 = std::make_shared<squareOscillatorModel>();
+oscModelPtr FAST_MEM oscModel2 = std::make_shared<squareOscillatorModel2>();
 
 float clockdiv = 8;
 uint32_t clockHz = 15625000 / 80;
 size_t cpuClock=125000000;
 
 float sampleClock = cpuClock / clockdiv;
-//TEST
-uint32_t mwavelen = 125000000/clockdiv /80 * 16;
+uint32_t mwavelen = 125000000/clockdiv /80;
 uint32_t mwavelen2 = mwavelen * 1.01;
 uint32_t mwavelen3 = mwavelen2 * 1.01;
 uint32_t mwavelen4 = mwavelen3 * 1.01;
@@ -118,7 +121,7 @@ bool dmaStopFlag = false;
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
 void __isr dma_irh() {
   //TEST
-  Serial.println("dma");
+  // Serial.println("dma");
   uint32_t triggered_channels = dma_hw->ints0;
   if (triggered_channels & smOsc0_dma_chan_bit) {
     dma_hw->ints0 = smOsc0_dma_chan_bit;  
@@ -203,12 +206,12 @@ void restart_sm(PIO pio, uint sm) {
 
 
 
-void updateTimingBuffer(io_rw_32 &nextBuf,
+inline void __not_in_flash_func(updateTimingBuffer)(io_rw_32 &nextBuf,
                                   uint32_t* bufferA, uint32_t* bufferB,
                                   oscModelPtr& oscModel,
                                   float oscWavelength) {
     //TEST
-    oscWavelength *= 16;
+    // oscWavelength *= 16;
     if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
 
         // for (size_t i = 0; i < sqrTemplate.size(); ++i) {
@@ -281,11 +284,11 @@ inline void __not_in_flash_func(readUart)() {
                 updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, decodeMsg.value);
               }
               break;        
-              // case WAVELEN1:
-              // {
-              //   updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0, decodeMsg.value);
-              // }
-              // break;        
+              case WAVELEN1:
+              {
+                updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0, decodeMsg.value);
+              }
+              break;        
               // case WAVELEN2:
               // {
               //   updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0, decodeMsg.value);
@@ -310,25 +313,25 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // osc0Mode = decodeMsg.value;                
                 Serial.println("bank0");
-                Serial.println(decodeMsg.value);
+                // Serial.println(decodeMsg.value);
                 stopOscBankA();
-                delay(1000);
-                Serial.println("Start");
-
-                // switch((int)decodeMsg.value) {
-                //   case 0:
-                  currOscModelBank0 = std::make_unique<squareOscillatorModel>();
-                //   break;
-                //   case 1:
-                //   currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
-                //   break;              
-                // }
-                delay(1000);
-                // startOscBankA();
+                // delay(1000);
+                // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
+                // currOscModelBank0 = std::move(newOscModelBank0);
+                switch((int)decodeMsg.value) {
+                  case 0:
+                  currOscModelBank0 = oscModel1; //std::make_unique<squareOscillatorModel>();
+                  break;
+                  case 1:
+                  currOscModelBank0 = oscModel2; //std::make_unique<squareOscillatorModel2>();
+                  break;              
+                }
+                // Serial.println("Starting");
+                startOscBankA();
                 //TEST
                 //crashes when you create a new currOscModelBank0, never gets to next println
                 //why does this happen here but not in the setup test
-                Serial.println("started");
+                // Serial.println("started");
               }
               // break;
               // case BANK1:
@@ -352,17 +355,19 @@ uint programOffset;
 void startOscBankA() {
   // pio_clear_instruction_memory(pio0);
 
+  Serial.println("StartoscbankA");
 
   smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  Serial.println("init");
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
   }
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  // smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
-  // smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
-  // smOsc1.go();
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+  smOsc1.go();
 
   // smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
   // smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
@@ -372,7 +377,7 @@ void startOscBankA() {
 void stopOscBankA() {
   smOsc0.stop();
   // smOsc0.release();
-  // smOsc1.stop();
+  smOsc1.stop();
   // smOsc2.stop();
 }
 
@@ -380,19 +385,19 @@ void setup() {
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 0);
-  currOscModelBank0 = std::make_unique<squareOscillatorModel2>();
+  currOscModelBank0 = oscModel2; //std::make_unique<squareOscillatorModel2>();
   programOffset = pio_add_program(pio0, &currOscModelBank0->prog);
 
 
   Serial.begin(115200);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB
+  }
 
   Serial1.setRX(13); //uart 1
   Serial1.setTX(12);
   Serial1.begin(115200);
 
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB
-  }
 
   // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
 #ifdef RUNCORE0_OSCS
@@ -413,16 +418,18 @@ void setup() {
 
 
   Serial.println("Start");
+  Serial.println("Starting");
   startOscBankA();
+  Serial.println("Started");
   // currOscModelBank0.release();
 
-  delay(3000);
-  Serial.println("Stop");
-  stopOscBankA();
-  delay(1000);
-  Serial.println("Start");
-  currOscModelBank0 = std::make_unique<squareOscillatorModel>();
-  startOscBankA();
+  // delay(3000);
+  // Serial.println("Stop");
+  // stopOscBankA();
+  // delay(1000);
+  // Serial.println("Start");
+  // currOscModelBank0 = oscModel1; //std::make_unique<squareOscillatorModel>();
+  // startOscBankA();
 #endif
 }
 
