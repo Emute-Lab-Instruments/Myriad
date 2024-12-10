@@ -8,6 +8,10 @@
 #include "pios/pio_sq.h"
 
 #include "smBitStreamOsc.h"
+#include "oscillatorModels.hpp"
+#include "bitstreams.hpp"
+#include "metaOscs.hpp"
+
 
 #include "hardware/adc.h"
 #include "hardware/dma.h"
@@ -30,26 +34,29 @@
 
 bool core1_separate_stack = true;
 
-// #define RUNCORE0_OSCS
+// #define RUN_OSCS
+oscModelPtr FAST_MEM currOscModelBank0;
 
-float clockdiv = 8;
-uint32_t clockHz = 15625000 / 80;
-size_t cpuClock=125000000;
-float sampleClock = cpuClock / clockdiv;
-uint32_t mwavelen = 125000000/clockdiv /80;
 
-std::vector<float> sqrTemplate {0.01,0.3};
+metaOscSines<6> metaOsc;
 
-#define DEFINE_TIMING_SWAPBUFFERS(name) \
-uint32_t FAST_MEM timing_swapbuffer_##name##_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
-uint32_t FAST_MEM timing_swapbuffer_##name##_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
-io_rw_32 FAST_MEM nextTimingBuffer##name = (io_rw_32)timing_swapbuffer_##name##_A;
+
+// float clockdiv = 8;
+// uint32_t clockHz = 15625000 / 80;
+// size_t cpuClock=125000000;
+// float sampleClock = cpuClock / clockdiv;
+// uint32_t mwavelen = 125000000/clockdiv /80;
+
+// std::vector<float> sqrTemplate {0.01,0.3};
+
+// #define DEFINE_TIMING_SWAPBUFFERS(name) \
+// uint32_t FAST_MEM timing_swapbuffer_##name##_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
+// uint32_t FAST_MEM timing_swapbuffer_##name##_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
+// io_rw_32 FAST_MEM nextTimingBuffer##name = (io_rw_32)timing_swapbuffer_##name##_A;
 
 DEFINE_TIMING_SWAPBUFFERS(0)
 DEFINE_TIMING_SWAPBUFFERS(1)
 DEFINE_TIMING_SWAPBUFFERS(2)
-
-uint programOffset = pio_add_program(pio1, &pin_ctrl_program);
 
 uint32_t FAST_MEM smOsc0_dma_chan;
 uint32_t FAST_MEM smOsc0_dma_chan_bit;
@@ -63,25 +70,57 @@ uint32_t FAST_MEM smOsc2_dma_chan_bit;
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
 void __isr dma_irh() {
-  uint32_t triggered_channels = dma_hw->ints1;
+  //TEST
+  // Serial.println("dma");
+  uint32_t triggered_channels = dma_hw->ints0;
   if (triggered_channels & smOsc0_dma_chan_bit) {
-    dma_hw->ints1 = smOsc0_dma_chan_bit;  
+    dma_hw->ints0 = smOsc0_dma_chan_bit;  
     dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
   }
   else
   if (triggered_channels & smOsc1_dma_chan_bit) {
-  //   // Channel 0 triggered, handle it
-    dma_hw->ints1 = smOsc1_dma_chan_bit;
-  //   dma_hw->ints0 &= smOsc0_dma_chan_bit_inv;  // Clear interrupt 
+    dma_hw->ints0 = smOsc1_dma_chan_bit;
     dma_hw->ch[smOsc1_dma_chan].al3_read_addr_trig = nextTimingBuffer1;
   }
   else
   if (triggered_channels & smOsc2_dma_chan_bit) {
-    dma_hw->ints1 = smOsc2_dma_chan_bit;
+    dma_hw->ints0 = smOsc2_dma_chan_bit;
     dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer2;
   }
 }
+smBitStreamOsc FAST_MEM smOsc0;
+smBitStreamOsc FAST_MEM smOsc1;
+smBitStreamOsc FAST_MEM smOsc2;
 
+void startOscBankA() {
+
+  Serial.println("StartoscbankA");
+
+  pio_clear_instruction_memory(pio0);
+  uint programOffset = currOscModelBank0->loadProg(pio0);
+
+  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  Serial.println("init");
+  if (smOsc0_dma_chan < 0) {
+    Serial.println("dma chan allocation error");
+  }
+  smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
+  smOsc0.go();
+
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+  smOsc1.go();
+
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+  smOsc2.go();
+}
+
+void stopOscBankA() {
+  smOsc0.stop();
+  smOsc1.stop();
+  smOsc2.stop();
+}
 
 
 
@@ -152,8 +191,9 @@ SerialPIO uartOut(13, SerialPIO::NOPIN, 64);
 
 
 namespace controls {
-  static int encoderValues[3] = {0,0,0};
-  static bool encoderSwitches[3] = {0,0,0};
+  static int FAST_MEM encoderValues[3] = {0,0,0};
+  static int FAST_MEM encoderAltValues[3] = {0,0,0};
+  static bool FAST_MEM encoderSwitches[3] = {0,0,0};
 };
 
 enum METAMODMODES {NONE, BOIDS} metaModMode;
@@ -471,12 +511,28 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   float new_wavelen7 = (new_wavelen6 - detune) * acc;
   float new_wavelen8 = (new_wavelen7 - detune) * acc;
 
+
   new_wavelen0 = new_wavelen0 * octave0;
   new_wavelen1 = new_wavelen1 * octave1;
   new_wavelen2 = new_wavelen2 * octave2;
   new_wavelen3 = new_wavelen3 * octave3;
   new_wavelen4 = new_wavelen4 * octave4;
   new_wavelen5 = new_wavelen5 * octave5;
+
+  auto sines = metaOsc.update();
+  // for(int i=0; i < 6; i++) {
+  //   Serial.print(sines[i]);
+  //   Serial.print("\t");
+  // }
+  // Serial.println();
+
+  new_wavelen0 *= (1.f + (sines[0]));
+  new_wavelen1 *= (1.f + (sines[1]));
+  new_wavelen2 *= (1.f + (sines[2]));
+  new_wavelen3 *= (1.f + (sines[3]));
+  new_wavelen4 *= (1.f + (sines[4]));
+  new_wavelen5 *= (1.f + (sines[5]));
+
 
   //send new values
 
@@ -506,9 +562,9 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
-  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, sqrTemplate, new_wavelen6);
-  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, sqrTemplate, new_wavelen7);
-  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, sqrTemplate, new_wavelen8);
+  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, sqrTemplate, new_wavelen6);
+  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, sqrTemplate, new_wavelen7);
+  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, sqrTemplate, new_wavelen8);
 
   // Serial.print("B: ");
   // Serial.println(new_wavelen0);
@@ -598,39 +654,57 @@ void updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
 
 void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
-  controls::encoderValues[0] += change;
-  updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
-  Serial.println(controls::encoderValues[0]);  
-  display.drawOsc0(oscTypeBank0);
+  if (controls::encoderSwitches[0]) {
+    controls::encoderAltValues[0] += change;
+  }else{
+    controls::encoderValues[0] += change;
+    updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+    display.drawOsc0(oscTypeBank0);
+  }
 }
 
 void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
-  controls::encoderValues[1] += change;
-  // Serial.println(controls::encoderValues[1]);  
-  updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-  display.drawOsc1(oscTypeBank1);
+
+  if (controls::encoderSwitches[1]) {
+    controls::encoderAltValues[1] += change;
+    metaOsc.setSpeed(controls::encoderAltValues[1]);
+  }else{
+    controls::encoderValues[1] += change;
+    updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+    display.drawOsc1(oscTypeBank1);
+  }
+
+  // controls::encoderValues[1] += change;
+  // // Serial.println(controls::encoderValues[1]);  
+  // updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+  // display.drawOsc1(oscTypeBank1);
 
 }
 
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
-  controls::encoderValues[2] += change;
-  updateOscBank(oscTypeBank2, change);
-  display.drawOsc2(oscTypeBank2);
-  Serial.println(controls::encoderValues[2]);  
+  if (controls::encoderSwitches[2]) {
+    controls::encoderAltValues[2] += change;
+    metaOsc.setDepth(controls::encoderAltValues[2]);
+  }else{
+    controls::encoderValues[2] += change;
+    // updateOscBank(oscTypeBank2, change, messageTypes::BANK2);
+    display.drawOsc2(oscTypeBank2);
+  }
 }
 
 void encoder1_switch_callback() {
-  controls::encoderSwitches[0] = digitalRead(ENCODER1_SWITCH);  
+  //gpio pull-up, so the value is inverted
+  controls::encoderSwitches[0] = 1 - digitalRead(ENCODER1_SWITCH);  
 }
 
 void encoder2_switch_callback() {
-  controls::encoderSwitches[1] = digitalRead(ENCODER2_SWITCH);  
+  controls::encoderSwitches[1] = 1 - digitalRead(ENCODER2_SWITCH);  
 }
 
 void encoder3_switch_callback() {
-  controls::encoderSwitches[2] = digitalRead(ENCODER3_SWITCH);  
+  controls::encoderSwitches[2] = 1 - digitalRead(ENCODER3_SWITCH);  
 }
 
 
@@ -710,6 +784,8 @@ void setup() {
 
   add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
 
+
+
 }
 
 
@@ -725,42 +801,52 @@ void loop() {
 
   // // tft.setCursor(120,150);
   // // tft.println(controlValues[0]);
-  switch(metaModMode) {
-    case NONE:
-    break;
-    case BOIDS:
-      boids.draw(tft);
-      boids.update();
-    break;
-  }
+  // switch(metaModMode) {
+  //   case NONE:
+  //   break;
+  //   case BOIDS:
+  //     boids.draw(tft);
+  //     boids.update();
+  //   break;
+  // }
 
-  // static uint8_t __not_in_flash("mydata") slipBuffer[64];
-  // spiMessage msg {0, count++};
-  // unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  // int res = uartOut.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-  // uartOut.print(count++ % 255);
-  // Serial.println(count);
-  delay(50);
+  // for(size_t i=0; i < 3; i++) {
+  //   Serial.print(i + "\t");  
+  //   Serial.print(controls::encoderSwitches[i]);
+  //   Serial.print("\t");  
+  //   Serial.print(controls::encoderValues[i]);  
+  //   Serial.print("\t");  
+  //   Serial.print(controls::encoderAltValues[i]);  
+  //   Serial.print("\t|\t");  
+  // }
+  // Serial.println();
+  delay(100);
   // __wfi();
 }
 
 
 void setup1() {
-static FAST_MEM smBitStreamOsc smOsc0;
-static FAST_MEM smBitStreamOsc smOsc1;
-static FAST_MEM smBitStreamOsc smOsc2;
-#ifdef RUNCORE0_OSCS
-  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, DMA_IRQ_1);
-  smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
-  smOsc0.go();
+// static FAST_MEM smBitStreamOsc smOsc0;
+// static FAST_MEM smBitStreamOsc smOsc1;
+// static FAST_MEM smBitStreamOsc smOsc2;
+// #ifdef RUNCORE0_OSCS
+//   smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, DMA_IRQ_1);
+//   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
+//   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, timing_swapbuffer_1_A, dma_irh, clockdiv, DMA_IRQ_1);
-  smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
-  smOsc1.go();
+//   smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, timing_swapbuffer_1_A, dma_irh, clockdiv, DMA_IRQ_1);
+//   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
+//   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, DMA_IRQ_1);
-  smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
-  smOsc2.go();
+//   smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, DMA_IRQ_1);
+//   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
+//   smOsc2.go();
+// #endif
+  currOscModelBank0 = oscModel2;
+#ifdef RUN_OSCS
+  Serial.println("Start");
+  startOscBankA();
+  Serial.println("Started");
 #endif
 }
 
