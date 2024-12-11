@@ -14,8 +14,8 @@
 #include <memory>
 
 
-#define RUNCORE0_OSCS
-#define RUNCORE1_OSCS
+// #define RUNCORE0_OSCS
+// #define RUNCORE1_OSCS
 
 bool core1_separate_stack = true;
 

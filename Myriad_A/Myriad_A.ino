@@ -34,25 +34,13 @@
 
 bool core1_separate_stack = true;
 
-// #define RUN_OSCS
+#define RUN_OSCS
 oscModelPtr FAST_MEM currOscModelBank0;
+volatile bool FAST_MEM oscsReadyToStart=false;
 
 
 metaOscSines<6> metaOsc;
 
-
-// float clockdiv = 8;
-// uint32_t clockHz = 15625000 / 80;
-// size_t cpuClock=125000000;
-// float sampleClock = cpuClock / clockdiv;
-// uint32_t mwavelen = 125000000/clockdiv /80;
-
-// std::vector<float> sqrTemplate {0.01,0.3};
-
-// #define DEFINE_TIMING_SWAPBUFFERS(name) \
-// uint32_t FAST_MEM timing_swapbuffer_##name##_A[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
-// uint32_t FAST_MEM timing_swapbuffer_##name##_B[2] __attribute__((aligned(16))) {mwavelen,mwavelen}; \
-// io_rw_32 FAST_MEM nextTimingBuffer##name = (io_rw_32)timing_swapbuffer_##name##_A;
 
 DEFINE_TIMING_SWAPBUFFERS(0)
 DEFINE_TIMING_SWAPBUFFERS(1)
@@ -72,22 +60,23 @@ uint32_t FAST_MEM smOsc2_dma_chan_bit;
 void __isr dma_irh() {
   //TEST
   // Serial.println("dma");
-  uint32_t triggered_channels = dma_hw->ints0;
+  uint32_t triggered_channels = dma_hw->ints1;
   if (triggered_channels & smOsc0_dma_chan_bit) {
-    dma_hw->ints0 = smOsc0_dma_chan_bit;  
+    dma_hw->ints1 = smOsc0_dma_chan_bit;  
     dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
   }
   else
   if (triggered_channels & smOsc1_dma_chan_bit) {
-    dma_hw->ints0 = smOsc1_dma_chan_bit;
+    dma_hw->ints1 = smOsc1_dma_chan_bit;
     dma_hw->ch[smOsc1_dma_chan].al3_read_addr_trig = nextTimingBuffer1;
   }
   else
   if (triggered_channels & smOsc2_dma_chan_bit) {
-    dma_hw->ints0 = smOsc2_dma_chan_bit;
+    dma_hw->ints1 = smOsc2_dma_chan_bit;
     dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer2;
   }
 }
+
 smBitStreamOsc FAST_MEM smOsc0;
 smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
@@ -96,10 +85,11 @@ void startOscBankA() {
 
   Serial.println("StartoscbankA");
 
-  pio_clear_instruction_memory(pio0);
-  uint programOffset = currOscModelBank0->loadProg(pio0);
+  pio_clear_instruction_memory(pio1);
+  uint programOffset = currOscModelBank0->loadProg(pio1);
+  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, 50000);
 
-  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
   Serial.println("init");
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
@@ -107,11 +97,11 @@ void startOscBankA() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
 }
@@ -273,46 +263,31 @@ void setup_adcs() {
 
 inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
   static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
-  // if(spi_is_writable(spi1)) {
   spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-    // for(int i=0; i < slipSize; i++) {
-    //   Serial.print(slipBuffer[i]);
-    //   Serial.print("\t");
-    // }
-    // Serial.println("");
-    // int res = spi_write_blocking(spi1, reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
   int res = uartOut.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-
-
-    // spiMessage decodeMsg;
-    // SLIP::decode(slipBuffer, slipSize, reinterpret_cast<uint8_t*>(&decodeMsg));
-    // Serial.println(decodeMsg.value);
-    // Serial.print("r: ");
-    // Serial.println(res);
-  // }
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
   return (controlValues[adcIndex] - adcMins[adcIndex]) / adcRanges[adcIndex];
 }
 
-void updateTimingBuffer(io_rw_32 &nextBuf,
-                                  uint32_t* bufferA, uint32_t* bufferB,
-                                  const std::vector<float>& sqrTemplate,
-                                  float oscWavelength) {
-    if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
-        for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-            *(bufferB + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-        }
-        nextBuf = reinterpret_cast<io_rw_32>(bufferB);
-    } else {
-        for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-            *(bufferA + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-        }
-        nextBuf = reinterpret_cast<io_rw_32>(bufferA);
-    }
-}
+// void updateTimingBuffer(io_rw_32 &nextBuf,
+//                                   uint32_t* bufferA, uint32_t* bufferB,
+//                                   const std::vector<float>& sqrTemplate,
+//                                   float oscWavelength) {
+//     if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
+//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
+//             *(bufferB + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
+//         }
+//         nextBuf = reinterpret_cast<io_rw_32>(bufferB);
+//     } else {
+//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
+//             *(bufferA + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
+//         }
+//         nextBuf = reinterpret_cast<io_rw_32>(bufferA);
+//     }
+// }
 
 
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
@@ -353,8 +328,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       }
       case 2:
       {
-        octave0 = 1.0 / 3.0;  // Reciprocal of 3
-        octave1 = 0.5;        // Reciprocal of 2
+        octave0 = 1.0 / 4.0;
+        octave1 = 0.5;      
         octave2 = 1.0;
         octave3 = 1.0;
         octave4 = 1.0;
@@ -364,7 +339,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       case 3:
       {
         octave0 = 0.25;       // Reciprocal of 4
-        octave1 = 1.0 / 3.0;  // Reciprocal of 3
+        octave1 = 0.25;  
         octave2 = 0.5;        // Reciprocal of 2
         octave3 = 1.0;
         octave4 = 1.0;
@@ -374,7 +349,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       case 4:
       {
         octave0 = 0.25;
-        octave1 = 1.0 / 3.0;
+        octave1 = 0.25;
         octave2 = 0.5;
         octave3 = 1.0;
         octave4 = 1.0;
@@ -384,20 +359,20 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       case 5:
       {
         octave0 = 0.25;
-        octave1 = 1.0 / 3.0;
+        octave1 = 0.25;
         octave2 = 0.5;
         octave3 = 1.0;
         octave4 = 0.5;
-        octave5 = 1.0 / 3.0;
+        octave5 = 0.25;
         break;
       }
       case 6:
       {
         octave0 = 0.25;
-        octave1 = 1.0 / 3.0;
+        octave1 = 0.25;
         octave2 = 0.5;
         octave3 = 0.5;
-        octave4 = 1.0 / 3.0;
+        octave4 = 0.25;
         octave5 = 0.25;
         break;
       }
@@ -562,9 +537,9 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
-  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, sqrTemplate, new_wavelen6);
-  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, sqrTemplate, new_wavelen7);
-  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, sqrTemplate, new_wavelen8);
+  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, new_wavelen6);
+  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0, new_wavelen7);
+  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0, new_wavelen8);
 
   // Serial.print("B: ");
   // Serial.println(new_wavelen0);
@@ -574,7 +549,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // Serial.println(new_wavelen7);
   // Serial.print("2: ");
   // Serial.println(new_wavelen8);
-  
+  oscsReadyToStart = true;
+
   return true;
 }
 // bool __not_in_flash_func(core1FrequencyReceiver)(__unused struct repeating_timer *t) {
@@ -784,6 +760,16 @@ void setup() {
 
   add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
 
+  currOscModelBank0 = oscModel2;
+#ifdef RUN_OSCS
+//wait for the first ADC readings
+  while(!oscsReadyToStart) {
+    ;
+  }
+  Serial.println("Start");
+  startOscBankA();
+  Serial.println("Started");
+#endif
 
 
 }
@@ -842,15 +828,10 @@ void setup1() {
 //   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
 //   smOsc2.go();
 // #endif
-  currOscModelBank0 = oscModel2;
-#ifdef RUN_OSCS
-  Serial.println("Start");
-  startOscBankA();
-  Serial.println("Started");
-#endif
+//wait for serial
 }
 
 void loop1() {
-  __wfi();
-  // tight_loop_contents();
+  // __wfi();
+  tight_loop_contents();
 }
