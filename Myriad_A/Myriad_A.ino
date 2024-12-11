@@ -541,14 +541,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0, new_wavelen7);
   updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0, new_wavelen8);
 
-  // Serial.print("B: ");
-  // Serial.println(new_wavelen0);
-  // Serial.print("0: ");
-  // Serial.println(new_wavelen6);
-  // Serial.print("1: ");
-  // Serial.println(new_wavelen7);
-  // Serial.print("2: ");
-  // Serial.println(new_wavelen8);
   oscsReadyToStart = true;
 
   return true;
@@ -622,6 +614,25 @@ void updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
     currOscBank = newOscTypeBank;
     if (OSCBANKMSG.has_value()) {
       sendToMyriadB(OSCBANKMSG.value(), currOscBank);
+    }else{
+      //assume bank C
+      Serial.println("bank change");
+      // // Serial.println(decodeMsg.value);
+      stopOscBankA();
+      // delay(500);
+      // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
+      // currOscModelBank0 = std::move(newOscModelBank0);
+      switch(currOscBank) {
+        case 0:
+        currOscModelBank0 = oscModel1; //std::make_unique<squareOscillatorModel>();
+        break;
+        case 1:
+        currOscModelBank0 = oscModel2; //std::make_unique<squareOscillatorModel2>();
+        break;              
+      }
+      // Serial.println("Starting");
+      startOscBankA();
+
     }
     Serial.println(currOscBank);  
   } 
@@ -665,7 +676,7 @@ void encoder3_callback() {
     metaOsc.setDepth(controls::encoderAltValues[2]);
   }else{
     controls::encoderValues[2] += change;
-    // updateOscBank(oscTypeBank2, change, messageTypes::BANK2);
+    updateOscBank(oscTypeBank2, change, std::nullopt);
     display.drawOsc2(oscTypeBank2);
   }
 }
@@ -760,16 +771,6 @@ void setup() {
 
   add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
 
-  currOscModelBank0 = oscModel2;
-#ifdef RUN_OSCS
-//wait for the first ADC readings
-  while(!oscsReadyToStart) {
-    ;
-  }
-  Serial.println("Start");
-  startOscBankA();
-  Serial.println("Started");
-#endif
 
 
 }
@@ -829,6 +830,17 @@ void setup1() {
 //   smOsc2.go();
 // #endif
 //wait for serial
+  currOscModelBank0 = oscModel2;
+#ifdef RUN_OSCS
+//wait for the first ADC readings
+  while(!oscsReadyToStart) {
+    ;
+  }
+  Serial.println("Start");
+  startOscBankA();
+  Serial.println("Started");
+#endif
+
 }
 
 void loop1() {
