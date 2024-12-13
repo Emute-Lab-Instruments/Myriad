@@ -1,0 +1,6 @@
+[submodule "Myriad_A/memlp"]
+	path = Myriad_A/memlp
+	url = git@github.com:MusicallyEmbodiedML/memlp.git
+[submodule "Myriad_A/src/memlp"]
+	path = Myriad_A/src/memlp
+	url = git@github.com:MusicallyEmbodiedML/memlp.git
