@@ -6302,6 +6302,15 @@
 		(at 52.07 226.06)
 		(uuid "d9383a27-2cb9-491a-bce0-2d84f313e43c")
 	)
+	(bus_entry
+		(at -33.02 123.19)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fba74d09-cb64-4440-9bcc-1eb789cb0755")
+	)
 	(wire
 		(pts
 			(xy 151.13 128.27) (xy 151.13 118.11)
@@ -19227,7 +19236,6 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(fields_autoplaced yes)
 		(uuid "8ccaade8-aab8-4fa0-b09f-bced0a2f9b8c")
 		(property "Reference" "U4"
 			(at 561.34 340.3599 0)

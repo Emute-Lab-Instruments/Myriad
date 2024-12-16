@@ -1,7 +1,7 @@
 
 
 panelThickness = 2;
-panelHp=12;
+panelHp=16;
 holeCount=8;
 holeWidth = 5.08 * 1.4; 
 
@@ -139,13 +139,13 @@ module eurorackMountHole(hw)
 w = hp*panelHp;
 ledholeRadius =2.55;
 
-leftoffset = 165;
-topoffset=37.76;
+leftoffset = 154.83;
+topoffset=37.75;
 
 module hollowCylinder(ch, cr1, cr2, th) {
     difference(){
-    cylinder(10, cr1, cr2, center=true, $fn=128);
-    cylinder(10, cr1-th, cr2-th, center=true, $fn=128);
+    cylinder(10, cr1, cr2, center=true, $fn=16);
+    cylinder(10, cr1-th, cr2-th, center=true, $fn=16);
     }
 }
 
@@ -167,13 +167,14 @@ module drawPanelWithHoles() {
 
 
         //rotary encs
-        roty = 46.44-topoffset;
-        
-        for (rotx=[176.43, 195.57, 214.72]) {
-            translate([rotx-leftoffset, base + roty, 0])
-            cylinder(10, rRotaryEnc,rRotaryEnc, center=true, $fn=128);
-            
-        }
+        translate([166.5-leftoffset, base + 47.5 - topoffset, 0])
+        cylinder(10, rRotaryEnc,rRotaryEnc, center=true, $fn=16);
+
+        translate([196.8-leftoffset, base + 46.5 - topoffset, 0])
+        cylinder(10, rRotaryEnc,rRotaryEnc, center=true, $fn=16);
+
+        translate([224.49-leftoffset, base + 47.5 - topoffset, 0])
+        cylinder(10, rRotaryEnc,rRotaryEnc, center=true, $fn=16);
         
         //tft 
         translate([195.7-leftoffset, base + 76.91-topoffset,0])
@@ -182,46 +183,46 @@ module drawPanelWithHoles() {
         
         //pots
 
-        translate([175.5 - leftoffset, base + 102.9 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([165.3 - leftoffset, base + 74.5 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
 
-        translate([189.12 - leftoffset, base + 101.72 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([167.51 - leftoffset, base + 95 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
 
-        translate([202.74 - leftoffset, base + 101.72 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([182.71 - leftoffset, base + 109.34 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
 
-        translate([216.36 - leftoffset, base + 102.9 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([207.31 - leftoffset, base + 109.34 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
         
 
 
-        translate([188 - leftoffset, base + 133.5 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([222.3 - leftoffset, base + 95 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
 
-        translate([202 - leftoffset, base + 133.5 - topoffset, 0])
-        cylinder(10, rSwitch,rSwitch, center=true, $fn=128);
+        translate([224.5 - leftoffset, base + 74.39 - topoffset, 0])
+        cylinder(10, rSwitch,rSwitch, center=true, $fn=16);
 
 
         
         //sockets
-        translate([174-leftoffset, base + 121.22 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([164.6-leftoffset, base + 130.1 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
-        translate([186-leftoffset, base + 119.43 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([176.97-leftoffset, base + 134.13 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
-        translate([205-leftoffset, base + 119.43 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([189.41-leftoffset, base + 137.66 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
-        translate([217-leftoffset, base + 121.22 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([201.77-leftoffset, base + 137.7 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
-        translate([174-leftoffset, base + 138.38 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([214.16-leftoffset, base + 134.13 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
-        translate([217.07-leftoffset, base + 138.38 - topoffset, 0])
-        cylinder(10, rSocket,rSocket, center=true, $fn=128);
+        translate([226.54-leftoffset, base + 130.1 - topoffset, 0])
+        cylinder(10, rSocket,rSocket, center=true, $fn=16);
 
 
 
@@ -232,7 +233,7 @@ module drawPanelWithHoles() {
     
 }
 
-projection(cut=true) 
+//projection(cut=true) 
 drawPanelWithHoles();
 
 

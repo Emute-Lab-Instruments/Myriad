@@ -43,8 +43,22 @@ volatile bool FAST_MEM restartOscsFlag=false;
 
 
 
-// metaOscSines<N_OSCILLATORS> currMetaOsc;
-metaOscMLP<N_OSCILLATORS> currMetaOsc;
+
+enum METAMODMODES {NONE=0, MLP1, SINES, METAMODLENGTH};
+constexpr int MAXMETAMODMODE = static_cast<int>(METAMODMODES::METAMODLENGTH);
+
+template <size_t N>
+using metaOscPtr = std::shared_ptr<metaOsc<N>>;
+
+
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
+
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
+
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") currMetaMod;
+
+METAMODMODES FAST_MEM metaModMode = METAMODMODES::NONE;
+
 
 DEFINE_TIMING_SWAPBUFFERS(0)
 DEFINE_TIMING_SWAPBUFFERS(1)
@@ -94,10 +108,10 @@ void startOscBankA() {
   // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, 50000);
 
   smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
-  Serial.println("init");
-  if (smOsc0_dma_chan < 0) {
-    Serial.println("dma chan allocation error");
-  }
+  // Serial.println("init");
+  // if (smOsc0_dma_chan < 0) {
+    // Serial.println("dma chan allocation error");
+  // }
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
@@ -108,6 +122,7 @@ void startOscBankA() {
   smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
+  // Serial.println("started");
 }
 
 void stopOscBankA() {
@@ -181,7 +196,7 @@ displayPortal display;
 #define ENCODER3_B_PIN 25
 #define ENCODER3_SWITCH 23
 
-SerialPIO uartOut(13, SerialPIO::NOPIN, 64);
+// SerialPIO uartOut(13, SerialPIO::NOPIN, 64);
 
 
 namespace controls {
@@ -190,7 +205,6 @@ namespace controls {
   static bool FAST_MEM encoderSwitches[3] = {0,0,0};
 };
 
-enum METAMODMODES {NONE, BOIDS} metaModMode;
 boidsSim boids;
 
 MovingAverageFilter<float> adcFilters[4];
@@ -274,31 +288,15 @@ inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
   static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
   spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  int res = uartOut.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
   return (controlValues[adcIndex] - adcMins[adcIndex]) / adcRanges[adcIndex];
 }
 
-// void updateTimingBuffer(io_rw_32 &nextBuf,
-//                                   uint32_t* bufferA, uint32_t* bufferB,
-//                                   const std::vector<float>& sqrTemplate,
-//                                   float oscWavelength) {
-//     if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
-//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-//             *(bufferB + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-//         }
-//         nextBuf = reinterpret_cast<io_rw_32>(bufferB);
-//     } else {
-//         for (size_t i = 0; i < sqrTemplate.size(); ++i) {
-//             *(bufferA + i) = static_cast<uint32_t>(sqrTemplate[i] * oscWavelength);
-//         }
-//         nextBuf = reinterpret_cast<io_rw_32>(bufferA);
-//     }
-// }
 
-
+size_t msgCt=0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   static size_t __not_in_flash("acdData") lastOctaveIdx = 0;
   // controlValues[0] = capture_buf[0];
@@ -310,7 +308,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   controlValues[1] = adcFilters[1].process(capture_buf[1]);
   controlValues[2] = adcFilters[2].process(capture_buf[2]);
   controlValues[3] = adcFilters[3].process(capture_buf[3]);
-  // Serial.printf("%f \n", controlValues[0]);
 
   size_t octaveIdx = static_cast<int>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
   if (octaveIdx != lastOctaveIdx) {
@@ -366,22 +363,34 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   new_wavelen7 = new_wavelen7 * octaves[7];
   new_wavelen8 = new_wavelen8 * octaves[8];
 
-  auto sines = currMetaOsc.update(controlValues);
-  // for(int i=0; i < 6; i++) {
-  //   Serial.print(sines[i]);
-  //   Serial.print("\t");
-  // }
-  // Serial.println();
+  if (metaModMode != METAMODMODES::NONE) {
+    auto metamods = currMetaMod->update(controlValues);
+    // for(int i=0; i < 6; i++) {
+    //   Serial.print(metamods[i]);
+    //   Serial.print("\t");
+    // }
+    // Serial.println();
 
-  new_wavelen0 *= (1.f + (sines[0]));
-  new_wavelen1 *= (1.f + (sines[1]));
-  new_wavelen2 *= (1.f + (sines[2]));
-  new_wavelen3 *= (1.f + (sines[3]));
-  new_wavelen4 *= (1.f + (sines[4]));
-  new_wavelen5 *= (1.f + (sines[5]));
-  new_wavelen6 *= (1.f + (sines[6]));
-  new_wavelen7 *= (1.f + (sines[7]));
-  new_wavelen8 *= (1.f + (sines[8]));
+    new_wavelen0 *= (1.f + (metamods[0]));
+    new_wavelen1 *= (1.f + (metamods[1]));
+    new_wavelen2 *= (1.f + (metamods[2]));
+    new_wavelen3 *= (1.f + (metamods[3]));
+    new_wavelen4 *= (1.f + (metamods[4]));
+    new_wavelen5 *= (1.f + (metamods[5]));
+    new_wavelen6 *= (1.f + (metamods[6]));
+    new_wavelen7 *= (1.f + (metamods[7]));
+    new_wavelen8 *= (1.f + (metamods[8]));
+    if (msgCt == 40) {
+      Serial.println(metamods[0]);
+    }
+  }
+
+  if (msgCt == 40) {
+    Serial.printf("%f \n", controlValues[0]);
+    msgCt=0;
+  }
+  msgCt++;
+
 
 
   //send new values
@@ -420,24 +429,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   return true;
 }
-// bool __not_in_flash_func(core1FrequencyReceiver)(__unused struct repeating_timer *t) {
-//   queueItem q;
-//   bool itemWaiting = queue_try_remove(&coreCommsQueue, &q);
-//   if (itemWaiting) {
-//     switch(q.idx) {
-//       case 0:
-//         wavelen0 = q.value;
-//         break;
-//       case 1:
-//         wavelen1 = q.value;
-//         break;
-//       case 2:
-//         wavelen2 = q.value;
-//         break;
-//     }
-//   }
-//   return true;
-// }
 
 
 bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
@@ -499,26 +490,63 @@ void updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
       // currOscModelBank0 = std::move(newOscModelBank0);
       switch(currOscBank) {
         case 0:
-        currOscModelBank0 = oscModel1; //std::make_unique<squareOscillatorModel>();
+        currOscModelBank0 = oscModel1; 
         break;
         case 1:
-        currOscModelBank0 = oscModel2; //std::make_unique<squareOscillatorModel2>();
+        currOscModelBank0 = oscModel2; 
         break;              
       }
       // Serial.println("Starting");
       startOscBankA();
       // restartOscsFlag = true;
-
+      // oscsReadyToStart = true;
     }
     Serial.println(currOscBank);  
   } 
 
 }
 
+void updateMetaOscMode(METAMODMODES &currMetaModMode, int change) {
+  int newMetaModMode = static_cast<int>(currMetaModMode) + change;
+  //clip
+  newMetaModMode = max(0, newMetaModMode);
+  newMetaModMode = min(MAXMETAMODMODE-1, newMetaModMode);
+  METAMODMODES newMetaMode = static_cast<METAMODMODES>(newMetaModMode);
+
+  if (newMetaMode != currMetaModMode) {
+    //send
+    currMetaModMode = newMetaMode;
+    //assume bank C
+    Serial.printf("meta mod mode change %d\n", newMetaModMode);
+    // // Serial.println(decodeMsg.value);
+    // delay(500);
+    // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
+    // currOscModelBank0 = std::move(newOscModelBank0);
+    switch(currMetaModMode) {
+      case METAMODMODES::NONE:
+      break;
+      case METAMODMODES::SINES:
+      {
+        currMetaMod = metaOscSines1;
+      }
+      break;
+      case METAMODMODES::MLP1:
+      {
+        currMetaMod = metaOscNN;
+      }
+      break;
+    }
+  } 
+
+}
+
 void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
+  // Serial.println("enc1");
   if (controls::encoderSwitches[0]) {
     controls::encoderAltValues[0] += change;
+    // Serial.println(controls::encoderAltValues[0]);
+    updateMetaOscMode(metaModMode, change);
   }else{
     controls::encoderValues[0] += change;
     updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
@@ -531,17 +559,15 @@ void encoder2_callback() {
 
   if (controls::encoderSwitches[1]) {
     controls::encoderAltValues[1] += change;
-    currMetaOsc.setSpeed(controls::encoderAltValues[1]);
+    if (metaModMode != METAMODMODES::NONE) {
+      currMetaMod->setSpeed(controls::encoderAltValues[1]);
+      Serial.println(currMetaMod->speed);
+    }
   }else{
     controls::encoderValues[1] += change;
     updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
     display.drawOsc1(oscTypeBank1);
   }
-
-  // controls::encoderValues[1] += change;
-  // // Serial.println(controls::encoderValues[1]);  
-  // updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-  // display.drawOsc1(oscTypeBank1);
 
 }
 
@@ -549,7 +575,10 @@ void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   if (controls::encoderSwitches[2]) {
     controls::encoderAltValues[2] += change;
-    currMetaOsc.setDepth(controls::encoderAltValues[2]);
+    if (metaModMode != METAMODMODES::NONE) {
+      currMetaMod->setDepth(controls::encoderAltValues[2]);
+      // Serial.println(currMetaMod->depth);
+    }
   }else{
     controls::encoderValues[2] += change;
     updateOscBank(oscTypeBank2, change, std::nullopt);
@@ -580,6 +609,9 @@ struct repeating_timer timerFreqReceiver;
 void setup() {
 
 
+  //USB Serial
+  Serial.begin();
+
   tft.begin();
   tft.setRotation(3);
   tft.fillScreen(ELI_BLUE);
@@ -590,9 +622,16 @@ void setup() {
   }
 
 
-  uartOut.begin(115200);
-  Serial.begin(115200);
-  metaModMode = METAMODMODES::NONE;
+  Serial1.setRX(13);
+  Serial1.setTX(12);
+  // comms to Myriad B
+  Serial1.begin(115200);
+
+
+  // while(!Serial) {
+  //   ;
+  // }
+
   // boids.init();
 
   // queue_init(&coreCommsQueue, sizeof(queueItem), 5);
@@ -683,7 +722,9 @@ void loop() {
   //   Serial.print("\t|\t");  
   // }
   // Serial.println();
-  delay(1);
+  // delay(1);
+  // Serial.println("Hello from Myriad A");
+
   // __wfi();
 }
 
@@ -713,7 +754,9 @@ void setup1() {
     ;
   }
   Serial.println("Start");
+  delay(10);
   startOscBankA();
+  delay(10);
   Serial.println("Started");
 #endif
 
@@ -725,5 +768,9 @@ void loop1() {
   //   restartOscsFlag=false;
   //   startOscBankA();
   // }
-  tight_loop_contents();
+  // tight_loop_contents();
+  // if (oscsReadyToStart) {
+  //   startOscBankA();
+  //   oscsReadyToStart = false;
+  // }  
 }
