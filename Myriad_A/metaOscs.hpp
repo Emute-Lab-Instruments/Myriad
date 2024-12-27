@@ -5,29 +5,65 @@
 #include "Arduino.h"
 
 #include "src/memlp/MLP.h"
+#include "drawing.h"
 
 
+template <typename T>
+class BoundedEncoderValue {
+public:
+  BoundedEncoderValue(T _min, T _max, T _scale) : maxVal(_max), minVal(_min), scaleVal(_scale), value(_min) {}
+  BoundedEncoderValue() : maxVal(T(0.9)), minVal(T(0)), scaleVal(T(0.01)), value(T(0)) {}
 
-constexpr float TWOPI  = PI * 2;
+
+  void update(const int change) {
+    value += (change * scaleVal);
+    value = std::max(minVal, value);
+    value = std::min(maxVal, value);
+  }
+
+  inline T getValue() {
+    return value;
+  }
+
+  void setScale(T newScale) {scaleVal = newScale;}
+  void setMax(T newMax) {maxVal = newMax; value = std::min(maxVal, value);}
+  void setMin(T newMin) {minVal = newMin; value = std::max(minVal, value);}
+  
+private:
+  T value;
+  T maxVal, minVal, scaleVal;
+};
+
 
 template<size_t N>
 class metaOsc {
 public:
     metaOsc() {};
     virtual ~metaOsc() = default;
-    float depth=0;
-    float speed=0;
+    // float depth=0;
+    // float speed=0;
+    // BoundedEncoderValue<float> moddepth(0.f, 0.9f, 0.01f);
+    BoundedEncoderValue<float> moddepth;
+    BoundedEncoderValue<float> modspeed;
 
     virtual std::array<float, N> update(const float (&adcs)[4]) =0;    
 
-    virtual void setDepth(int newDepth) {
+    void setDepth(int delta) {
         Serial.println("base class set depth");
-        depth=newDepth;
+        moddepth.update(delta);
     }
-    virtual void setSpeed(int newSpeed) {
-        speed = newSpeed;
+
+    void setSpeed(int delta) {
+        modspeed.update(delta);
     }
+
+    // virtual void draw(TFT_eSPI &tft) =0;
+
+protected:
+  //add screen bounds
 };
+
+constexpr float TWOPI  = PI * 2;
 
 template<size_t N>
 class metaOscSines : public metaOsc<N> {
@@ -42,23 +78,11 @@ public:
 
     std::array<float, N> update(const float (&adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
-            sines[i] = sinf(phasors[i]) * this->depth;
-            phasors[i] += this->speed;
+            sines[i] = sinf(phasors[i]) * this->moddepth.getValue();
+            phasors[i] += this->modspeed.getValue();
         }
         return sines;
     }
-
-    void setDepth(int newDepth) override {
-      Serial.println("sines set depth");
-        this->depth= newDepth * 0.01;
-    }
-
-    void setSpeed(int newSpeed) override {
-        this->speed = newSpeed * 0.005;
-        
-    }
-
-
 
 private:
     std::array<float, N> phasors;
@@ -80,13 +104,13 @@ public:
         std::vector<float> netInput {phasor,adcs[0] * adcMul,adcs[1] * adcMul,adcs[2] * adcMul,adcs[3] * adcMul,1.f};
         std::vector<float> output(N);
         net->GetOutput(netInput, &output);
-        phasor += this->speed;
+        phasor += this->modspeed.getValue();
         if (phasor > 1.f) phasor -= 1.f;
         // Serial.println(netInput[0]);
         // Serial.println(output[1]);
         std::copy(output.begin(), output.begin() + output.size(), arrOutput.begin());
         for(size_t i=0; i < N; i++) {
-          arrOutput[i] *= this->depth;
+          arrOutput[i] *= this->moddepth.getValue();
         }
       }
       clockCount++;
@@ -95,19 +119,6 @@ public:
       }
       return arrOutput;
     }
-
-    void setDepth(int newDepth) override {
-      this->depth= newDepth * 0.001;
-      Serial.printf("mlp set depth %f\n", this->depth);
-    }
-
-    void setSpeed(int newSpeed) override {
-        this->speed = newSpeed * 0.001;
-        Serial.printf("Speed %f\n", this->speed);
-
-        
-    }
-
 
 
 private:

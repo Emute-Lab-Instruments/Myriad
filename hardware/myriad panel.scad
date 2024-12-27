@@ -2,7 +2,7 @@
 
 panelThickness = 2;
 panelHp=16;
-holeCount=8;
+holeCount=4;
 holeWidth = 5.08 * 1.4; 
 
 
@@ -153,7 +153,7 @@ module hollowCylinder(ch, cr1, cr2, th) {
 
 module drawPanelWithHoles() {
     rSocket=3.5;
-    rSwitch=3.5;
+    rSwitch=4.2;
     rMomentarySwitch=4;
     rLed = 2;
     rReset = 1.5;
@@ -233,7 +233,7 @@ module drawPanelWithHoles() {
     
 }
 
-//projection(cut=true) 
+projection(cut=true) 
 drawPanelWithHoles();
 
 

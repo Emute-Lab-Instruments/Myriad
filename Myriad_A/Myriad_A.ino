@@ -1,3 +1,15 @@
+/*
+todo:
+metaosc modes
+
+make sure no -ve frequencies
+control/constrain speed and depth individually for each mode
+
+
+
+*/
+
+
 
 #include <optional>
 
@@ -560,8 +572,8 @@ void encoder2_callback() {
   if (controls::encoderSwitches[1]) {
     controls::encoderAltValues[1] += change;
     if (metaModMode != METAMODMODES::NONE) {
-      currMetaMod->setSpeed(controls::encoderAltValues[1]);
-      Serial.println(currMetaMod->speed);
+      currMetaMod->setSpeed(change);
+      Serial.println(currMetaMod->modspeed.getValue());
     }
   }else{
     controls::encoderValues[1] += change;
@@ -576,7 +588,7 @@ void encoder3_callback() {
   if (controls::encoderSwitches[2]) {
     controls::encoderAltValues[2] += change;
     if (metaModMode != METAMODMODES::NONE) {
-      currMetaMod->setDepth(controls::encoderAltValues[2]);
+      currMetaMod->setDepth(change);
       // Serial.println(currMetaMod->depth);
     }
   }else{
