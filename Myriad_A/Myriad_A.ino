@@ -152,6 +152,43 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
 class displayPortal {
 public:
+  enum SCREENMODES {OSCBANKS, METAOSCVIS};
+
+  void toggleScreen() {
+    if (currScreenMode == SCREENMODES::OSCBANKS) {
+      setScreen(SCREENMODES::METAOSCVIS);
+    }else{
+      setScreen(SCREENMODES::OSCBANKS);
+    }
+  }
+
+  void setScreen(SCREENMODES newMode) {
+    if (newMode != currScreenMode) {
+      switch(newMode) {
+        case SCREENMODES::OSCBANKS: {
+          drawOscBankScreen();
+        }
+        break;
+        case SCREENMODES::METAOSCVIS: {
+          drawMetaModScreen();
+        }
+        break;
+      }
+    }
+    currScreenMode = newMode;
+  }
+
+  void drawOscBankScreen() {
+    tft.fillScreen(ELI_BLUE);
+    drawOsc0(oldOsc0);
+    drawOsc1(oldOsc1);
+    drawOsc2(oldOsc2);
+  }
+
+  void drawMetaModScreen() {
+    tft.fillScreen(ELI_PINK);
+  }
+
   void drawOsc0(int osc) {
     tft.setCursor(50,120);
     tft.setTextColor(ELI_BLUE);
@@ -160,6 +197,9 @@ public:
     tft.setTextColor(ELI_PINK);
     tft.println(osc);
     oldOsc0 = osc;
+
+    tft.drawSmoothArc(120, 120, 120, 110, 0, 120, TFT_RED, TFT_RED);
+    tft.drawSmoothArc(120, 120, 35, 34, 0, 120, TFT_RED, TFT_RED);
   }
   void drawOsc1(int osc) {
     tft.setCursor(120,120);
@@ -169,6 +209,7 @@ public:
     tft.setTextColor(ELI_PINK);
     tft.println(osc);
     oldOsc1 = osc;
+    tft.drawSmoothArc(120, 120, 80, 75, 120, 240, ELI_PINK, ELI_PINK);
   }
   void drawOsc2(int osc) {
     tft.setCursor(190,120);
@@ -178,11 +219,14 @@ public:
     tft.setTextColor(ELI_PINK);
     tft.println(osc);
     oldOsc2 = osc;
+    tft.drawSmoothArc(120, 120, 50, 40, 240, 360, TFT_DARKGREEN, TFT_DARKGREEN);
   }
 private:
   int oldOsc0=0;
   int oldOsc1=0;
   int oldOsc2=0;
+  SCREENMODES lastScreenMode = SCREENMODES::OSCBANKS;
+  SCREENMODES currScreenMode = SCREENMODES::OSCBANKS;
 };
 
 displayPortal display;
@@ -559,9 +603,11 @@ void encoder1_callback() {
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
     updateMetaOscMode(metaModMode, change);
+    display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
     controls::encoderValues[0] += change;
     updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+    display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
     display.drawOsc0(oscTypeBank0);
   }
 }
@@ -601,6 +647,9 @@ void encoder3_callback() {
 void encoder1_switch_callback() {
   //gpio pull-up, so the value is inverted
   controls::encoderSwitches[0] = 1 - digitalRead(ENCODER1_SWITCH);  
+  if (controls::encoderSwitches[0]) {
+    display.toggleScreen();
+  }
 }
 
 void encoder2_switch_callback() {
@@ -626,8 +675,13 @@ void setup() {
 
   tft.begin();
   tft.setRotation(3);
-  tft.fillScreen(ELI_BLUE);
+  // tft.fillScreen(ELI_BLUE);
   tft.setFreeFont(&FreeSans18pt7b);
+  display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
+  // display.drawOsc0(oscTypeBank0);
+  // display.drawOsc1(oscTypeBank1);
+  // display.drawOsc2(oscTypeBank2);
+
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];
