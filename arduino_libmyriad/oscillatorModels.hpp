@@ -2,6 +2,8 @@
 
 #include "hardware/pio.h"
 #include <memory>
+#include <array>
+#include "oscVisData.hpp"
 
 
 //todo: try sliding window across template array
@@ -11,7 +13,12 @@
 
 class oscillatorModel {
 public:
-  oscillatorModel() {};
+  oscillatorModel() {
+    visData.spec.resize(64);
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      visData.spec[i] = i % 10 == 0 ? 1 : 0;
+    }
+  };
   pio_program prog;
   virtual void fillBuffer(uint32_t* bufferA, size_t wavelen)=0;
   size_t loopLength;
@@ -19,8 +26,12 @@ public:
   uint loadProg(PIO pioUnit) {
     return pio_add_program(pioUnit, &prog);
   }
-};
 
+  oscVisData visData;
+  inline oscVisData& getVisData() {
+    return visData;
+  }
+};
 
 
 class squareOscillatorModel : public virtual oscillatorModel {
@@ -28,6 +39,9 @@ public:
   squareOscillatorModel() : oscillatorModel(){
     loopLength=2;
     prog=pin_ctrl_program;
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      visData.spec[i] = i % 20 == 0 ? 1 : 0;
+    }
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
@@ -42,6 +56,10 @@ public:
   squareOscillatorModel2() : oscillatorModel() {
     loopLength=10;
     prog=pin_ctrl_program;
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      visData.spec[i] = i % 5 == 0 ? 1 : 0;
+    }
+
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
@@ -57,3 +75,4 @@ using oscModelPtr = std::shared_ptr<oscillatorModel>;
 oscModelPtr __not_in_flash("mydata") oscModel1 = std::make_shared<squareOscillatorModel>();
 oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillatorModel2>();
 
+std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};

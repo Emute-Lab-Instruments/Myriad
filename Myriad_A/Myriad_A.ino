@@ -12,8 +12,7 @@ control/constrain speed and depth individually for each mode
 
 
 #include <optional>
-
-#include <TFT_eSPI.h>
+#include "displayPortal.h"
 #include "myriad_pins.h"
 // #include "myriad_setup.h"
 // #include "pio_expdec.h"
@@ -39,7 +38,6 @@ control/constrain speed and depth individually for each mode
 #include "myriad_messages.h"
 #include "SLIP.h"
 
-#include "drawing.h"
 #include "boids.h"
 
 #define FAST_MEM __not_in_flash("mydata")
@@ -148,88 +146,6 @@ void stopOscBankA() {
 
 // bool core1_separate_stack = true;
 
-TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
-
-class displayPortal {
-public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS};
-
-  void toggleScreen() {
-    if (currScreenMode == SCREENMODES::OSCBANKS) {
-      setScreen(SCREENMODES::METAOSCVIS);
-    }else{
-      setScreen(SCREENMODES::OSCBANKS);
-    }
-  }
-
-  void setScreen(SCREENMODES newMode) {
-    if (newMode != currScreenMode) {
-      switch(newMode) {
-        case SCREENMODES::OSCBANKS: {
-          drawOscBankScreen();
-        }
-        break;
-        case SCREENMODES::METAOSCVIS: {
-          drawMetaModScreen();
-        }
-        break;
-      }
-    }
-    currScreenMode = newMode;
-  }
-
-  void drawOscBankScreen() {
-    tft.fillScreen(ELI_BLUE);
-    drawOsc0(oldOsc0);
-    drawOsc1(oldOsc1);
-    drawOsc2(oldOsc2);
-  }
-
-  void drawMetaModScreen() {
-    tft.fillScreen(ELI_PINK);
-  }
-
-  void drawOsc0(int osc) {
-    tft.setCursor(50,120);
-    tft.setTextColor(ELI_BLUE);
-    tft.println(oldOsc0);
-    tft.setCursor(50,120);
-    tft.setTextColor(ELI_PINK);
-    tft.println(osc);
-    oldOsc0 = osc;
-
-    tft.drawSmoothArc(120, 120, 120, 110, 0, 120, TFT_RED, TFT_RED);
-    tft.drawSmoothArc(120, 120, 35, 34, 0, 120, TFT_RED, TFT_RED);
-  }
-  void drawOsc1(int osc) {
-    tft.setCursor(120,120);
-    tft.setTextColor(ELI_BLUE);
-    tft.println(oldOsc1);
-    tft.setCursor(120,120);
-    tft.setTextColor(ELI_PINK);
-    tft.println(osc);
-    oldOsc1 = osc;
-    tft.drawSmoothArc(120, 120, 80, 75, 120, 240, ELI_PINK, ELI_PINK);
-  }
-  void drawOsc2(int osc) {
-    tft.setCursor(190,120);
-    tft.setTextColor(ELI_BLUE);
-    tft.println(oldOsc2);
-    tft.setCursor(190,120);
-    tft.setTextColor(ELI_PINK);
-    tft.println(osc);
-    oldOsc2 = osc;
-    tft.drawSmoothArc(120, 120, 50, 40, 240, 360, TFT_DARKGREEN, TFT_DARKGREEN);
-  }
-private:
-  int oldOsc0=0;
-  int oldOsc1=0;
-  int oldOsc2=0;
-  SCREENMODES lastScreenMode = SCREENMODES::OSCBANKS;
-  SCREENMODES currScreenMode = SCREENMODES::OSCBANKS;
-};
-
-displayPortal display;
 
 // const uint16_t MAX_ITERATION = 300;  // Nombre de couleurs
 
@@ -526,14 +442,16 @@ static uint16_t enc2Store = 0;
 static uint8_t enc3Code = 0;
 static uint16_t enc3Store = 0;
 
-void updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
+bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
   int newOscTypeBank = currOscBank + change;
+  bool changed=false;
   //clip
   newOscTypeBank = max(0, newOscTypeBank);
   newOscTypeBank = min(maxOscBankType, newOscTypeBank);
   if (newOscTypeBank != currOscBank) {
     //send
     currOscBank = newOscTypeBank;
+    changed=true;
     if (OSCBANKMSG.has_value()) {
       sendToMyriadB(OSCBANKMSG.value(), currOscBank);
     }else{
@@ -559,7 +477,7 @@ void updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
     }
     Serial.println(currOscBank);  
   } 
-
+  return changed;
 }
 
 void updateMetaOscMode(METAMODMODES &currMetaModMode, int change) {
@@ -597,18 +515,22 @@ void updateMetaOscMode(METAMODMODES &currMetaModMode, int change) {
 }
 
 void encoder1_callback() {
+  Serial.println("enc1");
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   // Serial.println("enc1");
   if (controls::encoderSwitches[0]) {
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
     updateMetaOscMode(metaModMode, change);
-    display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
+    // display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
     controls::encoderValues[0] += change;
-    updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
-    display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
-    display.drawOsc0(oscTypeBank0);
+    bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+    // display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
+    // display.drawOsc0(oscTypeBank0);
+    if (changed) {
+      display.updateOscVis(oscModels.at(oscTypeBank0)->getVisData(), 0);
+    }
   }
 }
 
@@ -623,8 +545,11 @@ void encoder2_callback() {
     }
   }else{
     controls::encoderValues[1] += change;
-    updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-    display.drawOsc1(oscTypeBank1);
+    bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+    if (changed) {
+      // display.drawOsc1(oscTypeBank1);
+      display.updateOscVis(oscModels.at(oscTypeBank1)->getVisData(), 1);
+    }  
   }
 
 }
@@ -639,8 +564,11 @@ void encoder3_callback() {
     }
   }else{
     controls::encoderValues[2] += change;
-    updateOscBank(oscTypeBank2, change, std::nullopt);
-    display.drawOsc2(oscTypeBank2);
+    bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
+    if (changed) {
+      // display.drawOsc2(oscTypeBank2);
+      display.updateOscVis(oscModels.at(oscTypeBank2)->getVisData(), 2);
+    }
   }
 }
 
