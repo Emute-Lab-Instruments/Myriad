@@ -2,11 +2,13 @@
 #include "drawing.h"
 #include "oscVisData.hpp"
 #include <array>
+#include "metaOscs.hpp"
 
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
 
+template<size_t N_OSCS>
 class displayPortal {
 public:
   enum SCREENMODES {OSCBANKS, METAOSCVIS};
@@ -19,6 +21,9 @@ public:
 
   struct MetaOscVisScreenStates {
     int metaOsc;
+    float moddepth;
+    float modspeed;
+    metaOscPtr<N_OSCS> ptr;
   };
 
   struct displayStates {
@@ -43,12 +48,9 @@ public:
       nextState.redraw = false;
     }
     if (nextState.screenMode == SCREENMODES::OSCBANKS) {
-      //draw whole oscbank
       drawOscBankScreen(currState.oscBankScreenState, nextState.oscBankScreenState, redraw);
     }else{
-      //draw whole metaosc
-      if (redraw)
-        tft.fillScreen(TFT_RED);
+      drawMetaModScreen(currState.metaOscVisScreenState, nextState.metaOscVisScreenState, redraw);
     }
     currState = nextState;
   }
@@ -70,6 +72,21 @@ public:
     nextState.oscBankScreenState.oscModel[newBank] = newOscModel;
   }
 
+  void setMetaOsc(size_t newIdx, metaOscPtr<N_OSCS> newPtr) {
+    nextState.metaOscVisScreenState.metaOsc = newIdx;
+    nextState.metaOscVisScreenState.ptr = newPtr; 
+    nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue();
+    nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue();
+    nextState.redraw = true;   
+  }
+
+  void setMetaModDepth(float newDepth) {
+    nextState.metaOscVisScreenState.moddepth = newDepth;
+  }
+
+  void setMetaModSpeed(float newSpeed) {
+    nextState.metaOscVisScreenState.modspeed = newSpeed;
+  }
 
 private:
   void updateOscVis(size_t oscIdx, size_t oscModelIdx) {
@@ -86,7 +103,7 @@ private:
     }
   }
 
-  void drawOscBankScreen(OscBankScreenStates currState, OscBankScreenStates nextState, bool fullRedraw) {
+  void drawOscBankScreen(const OscBankScreenStates &currState, const OscBankScreenStates &nextState, const bool fullRedraw) {
     if (fullRedraw) {
       tft.fillScreen(ELI_BLUE);
     }
@@ -97,13 +114,34 @@ private:
     }
   }
 
-  void drawMetaModScreen() {
-    tft.fillScreen(ELI_PINK);
-  }
+  void drawMetaModScreen(const MetaOscVisScreenStates &currState, const MetaOscVisScreenStates &nextState, const bool fullRedraw) {
+    if (fullRedraw) {
+      tft.fillScreen(ELI_BLUE);
+      // tft.drawRect(sqbound, sqbound, sqwidth, sqwidth, TFT_RED);
+    }
+    if (fullRedraw || currState.metaOsc != nextState.metaOsc) {
+      tft.fillRect(sqbound,0,84+84,sqbound-1, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString(nextState.ptr->getName(), 120, 26);
+    }
+    if (fullRedraw || currState.moddepth != nextState.moddepth) {
+      const int h = (84+84) * nextState.moddepth;
+      Serial.printf("depth redraw %d\n", h);
+      tft.fillRectVGradient(240-sqbound+1, sqbound, sqbound, h, TFT_DARKGREEN, TFT_GREEN);
+      tft.fillRect(240-sqbound+1, sqbound + h, sqbound,(84+84) -h, ELI_BLUE);
+    }
+    if (fullRedraw || currState.modspeed != nextState.modspeed) {
+      const int h = (84+84) * (1.0-nextState.modspeed);
+      Serial.printf("depth redraw %d\n", h);
+      tft.fillRect(0, sqbound, sqbound-1,h, ELI_BLUE);
+      tft.fillRectVGradient(0, sqbound + h, sqbound-1, (84+84) -h, TFT_VIOLET, TFT_PURPLE);
+    }
+    nextState.ptr->draw(tft);
 
+  }
 
   displayStates currState, nextState;
 
 };
 
-displayPortal display;

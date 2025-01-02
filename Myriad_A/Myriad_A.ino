@@ -46,6 +46,8 @@ bool core1_separate_stack = true;
 
 constexpr size_t N_OSCILLATORS=9;
 
+displayPortal<N_OSCILLATORS> FAST_MEM display;
+
 #define RUN_OSCS
 oscModelPtr FAST_MEM currOscModelBank0;
 volatile bool FAST_MEM oscsReadyToStart=false;
@@ -54,20 +56,23 @@ volatile bool FAST_MEM restartOscsFlag=false;
 
 
 
-enum METAMODMODES {NONE=0, MLP1, SINES, METAMODLENGTH};
-constexpr int MAXMETAMODMODE = static_cast<int>(METAMODMODES::METAMODLENGTH);
+// enum METAMODMODES {NONE=0, MLP1, SINES, METAMODLENGTH};
+// constexpr int MAXMETAMODMODE = static_cast<int>(METAMODMODES::METAMODLENGTH);
 
-template <size_t N>
-using metaOscPtr = std::shared_ptr<metaOsc<N>>;
 
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlank = std::make_shared<metaOscNone<N_OSCILLATORS>>();
 
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
 
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
 
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") currMetaMod;
+std::array<metaOscPtr<N_OSCILLATORS>, 3> metaOscsList = {metaOscBlank, metaOscSines1, metaOscNN};
 
-METAMODMODES FAST_MEM metaModMode = METAMODMODES::NONE;
+size_t currMetaMod = 0;
+
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") currMetaMod;
+
+// METAMODMODES FAST_MEM metaModMode = METAMODMODES::NONE;
 
 
 DEFINE_TIMING_SWAPBUFFERS(0)
@@ -335,8 +340,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   new_wavelen7 = new_wavelen7 * octaves[7];
   new_wavelen8 = new_wavelen8 * octaves[8];
 
-  if (metaModMode != METAMODMODES::NONE) {
-    auto metamods = currMetaMod->update(controlValues);
+  if (currMetaMod > 0) {
+    auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
     // for(int i=0; i < 6; i++) {
     //   Serial.print(metamods[i]);
     //   Serial.print("\t");
@@ -449,36 +454,19 @@ bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
   return changed;
 }
 
-void updateMetaOscMode(METAMODMODES &currMetaModMode, int change) {
+void updateMetaOscMode(size_t &currMetaModMode, const int change) {
   int newMetaModMode = static_cast<int>(currMetaModMode) + change;
   //clip
   newMetaModMode = max(0, newMetaModMode);
-  newMetaModMode = min(MAXMETAMODMODE-1, newMetaModMode);
-  METAMODMODES newMetaMode = static_cast<METAMODMODES>(newMetaModMode);
+  newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
 
-  if (newMetaMode != currMetaModMode) {
+  if (newMetaModMode != currMetaModMode) {
     //send
-    currMetaModMode = newMetaMode;
+    currMetaModMode = newMetaModMode;
+    display.setMetaOsc(currMetaModMode, metaOscsList[currMetaModMode]);
+
     //assume bank C
     Serial.printf("meta mod mode change %d\n", newMetaModMode);
-    // // Serial.println(decodeMsg.value);
-    // delay(500);
-    // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
-    // currOscModelBank0 = std::move(newOscModelBank0);
-    switch(currMetaModMode) {
-      case METAMODMODES::NONE:
-      break;
-      case METAMODMODES::SINES:
-      {
-        currMetaMod = metaOscSines1;
-      }
-      break;
-      case METAMODMODES::MLP1:
-      {
-        currMetaMod = metaOscNN;
-      }
-      break;
-    }
   } 
 
 }
@@ -488,9 +476,11 @@ void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   // Serial.println("enc1");
   if (controls::encoderSwitches[0]) {
+    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
+
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
-    updateMetaOscMode(metaModMode, change);
+    updateMetaOscMode(currMetaMod, change);
     // display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
     controls::encoderValues[0] += change;
@@ -508,10 +498,12 @@ void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
 
   if (controls::encoderSwitches[1]) {
+    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[1] += change;
-    if (metaModMode != METAMODMODES::NONE) {
-      currMetaMod->setSpeed(change);
-      Serial.println(currMetaMod->modspeed.getValue());
+    if (currMetaMod > 0) {
+      metaOscsList.at(currMetaMod)->setSpeed(change);
+      display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
+      // Serial.println(currMetaMod->modspeed.getValue());
     }
   }else{
     controls::encoderValues[1] += change;
@@ -529,10 +521,12 @@ void encoder2_callback() {
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   if (controls::encoderSwitches[2]) {
+    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[2] += change;
-    if (metaModMode != METAMODMODES::NONE) {
-      currMetaMod->setDepth(change);
-      // Serial.println(currMetaMod->depth);
+    if (currMetaMod > 0) {
+      metaOscsList.at(currMetaMod)->setDepth(change);
+      display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
+      // Serial.println(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
     }
   }else{
     controls::encoderValues[2] += change;
@@ -546,9 +540,31 @@ void encoder3_callback() {
   }
 }
 
+struct debouncer {
+  debouncer() {
+    ts = millis();
+    val=0;
+  }
+
+  bool debounce(int pin) {
+    auto now = millis();
+    int gap = ts < now ? now - ts : std::numeric_limits<unsigned long>::max() - ts + now;
+    if(gap > 100) {
+      val = digitalRead(ENCODER1_SWITCH);
+      ts = millis();
+    }
+    return val;
+  }
+  unsigned long ts;
+  bool val;
+};
+
+debouncer enc1Debouncer;
+
 void encoder1_switch_callback() {
   //gpio pull-up, so the value is inverted
-  controls::encoderSwitches[0] = 1 - digitalRead(ENCODER1_SWITCH);  
+  controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
+  Serial.printf("encswitch 1 %d\n",controls::encoderSwitches[0]);
   if (controls::encoderSwitches[0]) {
     display.toggleScreen();
   }
@@ -582,7 +598,8 @@ void setup() {
   tft.begin();
   tft.setRotation(3);
   tft.setFreeFont(&FreeSans18pt7b);
-  display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
+  display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::OSCBANKS);
+  display.setMetaOsc(0, metaOscsList[0]);
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];
