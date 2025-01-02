@@ -84,6 +84,8 @@ public:
         return sines;
     }
 
+    
+
 private:
     std::array<float, N> phasors;
     std::array<float, N> sines;

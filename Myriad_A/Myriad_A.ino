@@ -363,29 +363,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   }
   msgCt++;
 
-
-
-  //send new values
-
-  // {
-  // queueItem msg {0, new_wavelen0};
-  // queue_try_add(&coreCommsQueue, &msg);
-  // }
-  // {
-  // queueItem msg {1, new_wavelen1};
-  // queue_try_add(&coreCommsQueue, &msg);
-  // }
-  // {  
-  // queueItem msg {2, new_wavelen2};
-  // queue_try_add(&coreCommsQueue, &msg);
-  // }
-  // wavelen0 = new_wavelen0;  
-  // wavelen1 = new_wavelen1;  
-  // wavelen2 = new_wavelen2;  
-  // wavelen0 = 30000;  
-  // wavelen1 = 30010;  
-  // wavelen2 = 30020;  
-
   sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
   sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
   sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
@@ -403,18 +380,10 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 }
 
 
-bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
-  // tft.fillScreen(TFT_BLACK);
-  // tft.setCursor(120,120);
-  // tft.setTextColor(TFT_WHITE);
-  // tft.println(controls::encoderValues[0]);
-
-  // tft.setCursor(120,150);
-  // tft.println(controlValues[0]);
+inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
+  display.update();
   return true;
 }
-
-
 
 int8_t read_rotary(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
   static int8_t rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
@@ -529,7 +498,8 @@ void encoder1_callback() {
     // display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
     // display.drawOsc0(oscTypeBank0);
     if (changed) {
-      display.updateOscVis(oscModels.at(oscTypeBank0)->getVisData(), 0);
+      // display.updateOscVis(oscModels.at(oscTypeBank0)->getVisData(), 0);
+      display.setOscBankModel(0, oscTypeBank0);
     }
   }
 }
@@ -548,7 +518,9 @@ void encoder2_callback() {
     bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
     if (changed) {
       // display.drawOsc1(oscTypeBank1);
-      display.updateOscVis(oscModels.at(oscTypeBank1)->getVisData(), 1);
+      // display.updateOscVis(oscModels.at(oscTypeBank1)->getVisData(), 1);
+      display.setOscBankModel(1, oscTypeBank1);
+
     }  
   }
 
@@ -567,7 +539,9 @@ void encoder3_callback() {
     bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
     if (changed) {
       // display.drawOsc2(oscTypeBank2);
-      display.updateOscVis(oscModels.at(oscTypeBank2)->getVisData(), 2);
+      // display.updateOscVis(oscModels.at(oscTypeBank2)->getVisData(), 2);
+      display.setOscBankModel(2, oscTypeBank2);
+
     }
   }
 }
@@ -601,30 +575,23 @@ void setup() {
   //USB Serial
   Serial.begin();
 
+  for(size_t i=0; i < oscModels.size(); i++) {
+    display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
+  }
+
   tft.begin();
   tft.setRotation(3);
-  // tft.fillScreen(ELI_BLUE);
   tft.setFreeFont(&FreeSans18pt7b);
   display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
-  // display.drawOsc0(oscTypeBank0);
-  // display.drawOsc1(oscTypeBank1);
-  // display.drawOsc2(oscTypeBank2);
-
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];
   }
 
-
+  // comms to Myriad B
   Serial1.setRX(13);
   Serial1.setTX(12);
-  // comms to Myriad B
   Serial1.begin(115200);
-
-
-  // while(!Serial) {
-  //   ;
-  // }
 
   // boids.init();
 
@@ -640,10 +607,7 @@ void setup() {
   for(auto &filter: adcFilters) {
     filter.init(filterSize);
   }
-  setup_adcs();
-
-  // add_repeating_timer_ms(100, displayUpdate, NULL, &timerDisplay);
-  
+  setup_adcs();  
 
   //Encoders
   pinMode(ENCODER1_A_PIN, INPUT_PULLUP);
@@ -679,7 +643,7 @@ void setup() {
 
 
   add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
-
+  add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
 
 
 }
