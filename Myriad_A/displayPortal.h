@@ -123,6 +123,12 @@ private:
         break;
       }
     }
+    const int32_t bankTxtX[3] = {120-87, 120,120+87};
+    const int32_t bankTxtY[3] = {120+49,20,120+49};
+    tft.setFreeFont(&FreeMono9pt7b);
+    tft.setTextDatum(CC_DATUM);
+    tft.drawString(String(oscModelIdx), bankTxtX[oscIdx], bankTxtY[oscIdx]);
+
   }
 
   void drawOscBankScreen(const OscBankScreenStates &currState, const OscBankScreenStates &nextState, const bool fullRedraw) {
