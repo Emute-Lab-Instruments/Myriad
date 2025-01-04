@@ -27,6 +27,8 @@ std::array<oscModelPtr, 3> currOscModels1;
 
 
 bool oscillatorsAreRunning = false;
+volatile bool FAST_MEM oscsReadyToStart=false;
+
 
 
 DEFINE_TIMING_SWAPBUFFERS(0)
@@ -218,6 +220,8 @@ inline void __not_in_flash_func(readUart)() {
               case WAVELEN5:
               {
                 updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
+                //freqs sent sequentially, so all oscs should now have a freq
+                oscsReadyToStart = true;
               }
               break;
               case BANK0:
@@ -334,12 +338,14 @@ void stopOscBankB() {
   smOsc5.stop();
 }
 
+const size_t oscStartDelay = 200;
+
 void setup() {
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 0);
   // currOscModelBank0 = oscModel2;
-  assignOscModels0(1);
+  assignOscModels0(0);
 
 
   Serial.begin(115200);
@@ -354,6 +360,10 @@ void setup() {
 
   // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
 #ifdef RUNCORE0_OSCS
+  delay(oscStartDelay);
+  // while(!oscsReadyToStart) {
+  //   ;
+  // }
   Serial.println("Start");
   startOscBankA();
   Serial.println("Started");
@@ -371,9 +381,13 @@ void __not_in_flash_func(loop)() {
 
 void setup1() {
 //  currOscModelBank1 = oscModel2;
-  assignOscModels1(1);
+  assignOscModels1(0);
 
 #ifdef RUNCORE1_OSCS
+  // while(!oscsReadyToStart) {
+  //   ;
+  // }
+  delay(oscStartDelay);
   Serial.println("StartB");
   startOscBankB();
   Serial.println("StartedB");
