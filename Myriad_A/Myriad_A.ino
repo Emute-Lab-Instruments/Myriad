@@ -623,6 +623,7 @@ void setup() {
   //USB Serial
   Serial.begin();
 
+  //get vis data from osc models and store in memory
   for(size_t i=0; i < oscModels.size(); i++) {
     display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
   }
@@ -699,26 +700,8 @@ void setup() {
 
 
 int count=0;
-/* Fonction loop() */
+
 void loop() {
-  // __wfi();
-  // tft.fillScreen(0x0007);
-  // // tft.drawLine(100,100,140,80, ELI_PINK);
-  // // tft.drawLine(140,80,140,100, ELI_PINK);
-
-  
-
-  // // tft.setCursor(120,150);
-  // // tft.println(controlValues[0]);
-  // switch(metaModMode) {
-  //   case NONE:
-  //   break;
-  //   case BOIDS:
-  //     boids.draw(tft);
-  //     boids.update();
-  //   break;
-  // }
-
   // for(size_t i=0; i < 3; i++) {
   //   Serial.print(i + "\t");  
   //   Serial.print(controls::encoderSwitches[i]);
@@ -758,7 +741,7 @@ void setup1() {
   // currOscModels[0] = std::make_shared<squareOscillatorModel2>(); 
   // currOscModels[1] = std::make_shared<squareOscillatorModel2>(); 
   // currOscModels[2] = std::make_shared<squareOscillatorModel2>(); 
-  assignOscModels(1);
+  assignOscModels(0);
 
 #ifdef RUN_OSCS
 //wait for the first ADC readings

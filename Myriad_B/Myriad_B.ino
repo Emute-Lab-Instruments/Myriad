@@ -22,6 +22,10 @@ bool core1_separate_stack = true;
 oscModelPtr FAST_MEM currOscModelBank0;
 oscModelPtr FAST_MEM currOscModelBank1;
 
+std::array<oscModelPtr, 3> currOscModels0;
+std::array<oscModelPtr, 3> currOscModels1;
+
+
 bool oscillatorsAreRunning = false;
 
 
