@@ -3,6 +3,7 @@
 #include "hardware/pio.h"
 #include <memory>
 #include <array>
+#include <functional>
 #include "oscVisData.hpp"
 
 
@@ -76,3 +77,10 @@ oscModelPtr __not_in_flash("mydata") oscModel1 = std::make_shared<squareOscillat
 oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillatorModel2>();
 
 std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};
+
+// Array of "factory" lambdas returning oscModelPtr
+std::array<std::function<oscModelPtr()>, 2> oscModelFactories = {
+  []() { return std::make_shared<squareOscillatorModel>(); }
+  ,
+  []() { return std::make_shared<squareOscillatorModel2>();}
+};

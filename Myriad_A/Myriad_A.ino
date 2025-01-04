@@ -49,7 +49,12 @@ constexpr size_t N_OSCILLATORS=9;
 displayPortal<N_OSCILLATORS> FAST_MEM display;
 
 #define RUN_OSCS
-oscModelPtr FAST_MEM currOscModelBank0;
+// oscModelPtr FAST_MEM currOscModelBank0;
+std::array<oscModelPtr, 3> currOscModels;
+
+// oscModelPtr FAST_MEM currOscModelBank0A;
+// oscModelPtr FAST_MEM currOscModelBank0B;
+// oscModelPtr FAST_MEM currOscModelBank0C;
 volatile bool FAST_MEM oscsReadyToStart=false;
 volatile bool FAST_MEM restartOscsFlag=false;
 
@@ -119,10 +124,12 @@ void startOscBankA() {
   Serial.println("StartoscbankA");
 
   pio_clear_instruction_memory(pio1);
-  uint programOffset = currOscModelBank0->loadProg(pio1);
+  // uint programOffset = currOscModelBank0A->loadProg(pio1);
+  uint programOffset = currOscModels[0]->loadProg(pio1);
   // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, 50000);
 
-  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
+  // smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0A->loopLength, DMA_IRQ_1);
+  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModels[0]->loopLength, DMA_IRQ_1);
   // Serial.println("init");
   // if (smOsc0_dma_chan < 0) {
     // Serial.println("dma chan allocation error");
@@ -130,11 +137,13 @@ void startOscBankA() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
+  // smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0B->loopLength, DMA_IRQ_1);
+  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModels[1]->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0->loopLength, DMA_IRQ_1);
+  // smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0C->loopLength, DMA_IRQ_1);
+  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModels[2]->loopLength, DMA_IRQ_1);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
   // Serial.println("started");
@@ -375,9 +384,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
-  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, new_wavelen6);
-  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0, new_wavelen7);
-  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0, new_wavelen8);
+  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen6);
+  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen7);
+  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen8);
+  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0A, new_wavelen6);
+  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0B, new_wavelen7);
+  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0C, new_wavelen8);
 
   oscsReadyToStart = true;
 
@@ -416,6 +428,16 @@ static uint16_t enc2Store = 0;
 static uint8_t enc3Code = 0;
 static uint16_t enc3Store = 0;
 
+void assignOscModels(size_t modelIdx) {
+  for(auto &model: currOscModels) {
+    model = oscModelFactories[modelIdx](); 
+
+  }
+  // currOscModels[0] = std::make_shared<squareOscillatorModel>(); 
+  // currOscModels[1] = std::make_shared<squareOscillatorModel>(); 
+  // currOscModels[2] = std::make_shared<squareOscillatorModel>(); 
+}
+
 bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
   int newOscTypeBank = currOscBank + change;
   bool changed=false;
@@ -438,10 +460,20 @@ bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
       // currOscModelBank0 = std::move(newOscModelBank0);
       switch(currOscBank) {
         case 0:
-        currOscModelBank0 = oscModel1; 
+        // currOscModelBank0 = oscModel1; 
+        // currOscModelBank0 = std::make_shared<squareOscillatorModel>(); 
+        // currOscModels[0] = std::make_shared<squareOscillatorModel>(); 
+        // currOscModels[1] = std::make_shared<squareOscillatorModel>(); 
+        // currOscModels[2] = std::make_shared<squareOscillatorModel>(); 
+        assignOscModels(0);
         break;
         case 1:
-        currOscModelBank0 = oscModel2; 
+        // currOscModelBank0 = oscModel2; 
+        // currOscModelBank0 = std::make_shared<squareOscillatorModel2>(); 
+        // currOscModels[0] = std::make_shared<squareOscillatorModel2>(); 
+        // currOscModels[1] = std::make_shared<squareOscillatorModel2>(); 
+        // currOscModels[2] = std::make_shared<squareOscillatorModel2>(); 
+        assignOscModels(1);
         break;              
       }
       // Serial.println("Starting");
@@ -660,7 +692,7 @@ void setup() {
 
 
   add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
-  add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
+  add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
 
 
 }
@@ -722,7 +754,12 @@ void setup1() {
 //   smOsc2.go();
 // #endif
 //wait for serial
-  currOscModelBank0 = oscModel2;
+  // currOscModelBank0 = oscModel2;
+  // currOscModels[0] = std::make_shared<squareOscillatorModel2>(); 
+  // currOscModels[1] = std::make_shared<squareOscillatorModel2>(); 
+  // currOscModels[2] = std::make_shared<squareOscillatorModel2>(); 
+  assignOscModels(1);
+
 #ifdef RUN_OSCS
 //wait for the first ADC readings
   while(!oscsReadyToStart) {
