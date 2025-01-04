@@ -445,7 +445,7 @@ bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
   bool changed=false;
   //clip
   newOscTypeBank = max(0, newOscTypeBank);
-  newOscTypeBank = min(maxOscBankType, newOscTypeBank);
+  newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
   if (newOscTypeBank != currOscBank) {
     //send
     currOscBank = newOscTypeBank;
@@ -626,9 +626,9 @@ void setup() {
   Serial.begin();
 
   //get vis data from osc models and store in memory
-  for(size_t i=0; i < oscModels.size(); i++) {
-    display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
-  }
+  // for(size_t i=0; i < oscModels.size(); i++) {
+  //   display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
+  // }
 
   //create reference models lists to keep display data
   for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {

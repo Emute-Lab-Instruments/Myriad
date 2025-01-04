@@ -41,9 +41,9 @@ public:
 };
 
 
-class squareOscillatorModel : public virtual oscillatorModel {
+class pulse10OscillatorModel : public virtual oscillatorModel {
 public:
-  squareOscillatorModel() : oscillatorModel(){
+  pulse10OscillatorModel() : oscillatorModel(){
     loopLength=2;
     prog=pin_ctrl_program;
     for(size_t i=0; i < visData.spec.size(); i++) {
@@ -62,6 +62,29 @@ public:
     }
   }
   const std::vector<float> oscTemplate {0.1,0.9};
+};
+
+class squareOscillatorModel : public virtual oscillatorModel {
+public:
+  squareOscillatorModel() : oscillatorModel(){
+    loopLength=2;
+    prog=pin_ctrl_program;
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      visData.spec[i] = i % 22 == 0 ? 1 : 0;
+    }
+    vis.mode = oscDisplayModes::MODES::SPECTRAL;
+    vis.data.resize(64);
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      vis.data[i] = i % 20 <7 ? 1 : 0;
+    }
+
+  }
+  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    for (size_t i = 0; i < oscTemplate.size(); ++i) {
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+    }
+  }
+  const std::vector<float> oscTemplate {0.5,0.5};
 };
 
 class squareOscillatorModel2 : public oscillatorModel {
@@ -90,15 +113,17 @@ public:
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
-oscModelPtr __not_in_flash("mydata") oscModel1 = std::make_shared<squareOscillatorModel>();
-oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillatorModel2>();
+// oscModelPtr __not_in_flash("mydata") oscModel1 = std::make_shared<squareOscillatorModel>();
+// oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillatorModel2>();
 
-std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};
+// std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};
 
-const size_t N_OSCILLATOR_MODELS = 2;
+const size_t N_OSCILLATOR_MODELS = 3;
 // Array of "factory" lambdas returning oscModelPtr
 std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> oscModelFactories = {
   []() { return std::make_shared<squareOscillatorModel>(); }
+  ,
+  []() { return std::make_shared<pulse10OscillatorModel>(); }
   ,
   []() { return std::make_shared<squareOscillatorModel2>();}
 };
