@@ -16,10 +16,6 @@
 class oscillatorModel {
 public:
   oscillatorModel() {
-    visData.spec.resize(64);
-    for(size_t i=0; i < visData.spec.size(); i++) {
-      visData.spec[i] = i % 10 == 0 ? 1 : 0;
-    }
     vis.mode = oscDisplayModes::MODES::SILENCE;
     vis.data.resize(1);
     vis.data[0] = 0;
@@ -33,11 +29,11 @@ public:
     return pio_add_program(pioUnit, &prog);
   }
 
-  oscVisData visData;
-  inline oscVisData& getVisData() {
-    return visData;
-  }
   oscDisplayModes vis;
+
+  virtual void ctrl(const float v) {
+    //receive a control parameter
+  }
 };
 
 
@@ -46,12 +42,9 @@ public:
   pulse10OscillatorModel() : oscillatorModel(){
     loopLength=2;
     prog=pin_ctrl_program;
-    for(size_t i=0; i < visData.spec.size(); i++) {
-      visData.spec[i] = i % 20 == 0 ? 1 : 0;
-    }
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
     vis.data.resize(64);
-    for(size_t i=0; i < visData.spec.size(); i++) {
+    for(size_t i=0; i < vis.data.size(); i++) {
       vis.data[i] = i % 20 == 0 ? 1 : 0;
     }
 
@@ -61,7 +54,16 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
-  const std::vector<float> oscTemplate {0.1,0.9};
+  std::vector<float> oscTemplate {0.1,0.9};
+
+  void ctrl(const float v) override {
+    //receive a control parameter
+    const float v1 = v * 0.98;
+    const float v2 = 1.0 - v;
+    oscTemplate [0] = v1;
+    oscTemplate [1] = v2;
+  }
+
 };
 
 class squareOscillatorModel : public virtual oscillatorModel {
@@ -69,12 +71,9 @@ public:
   squareOscillatorModel() : oscillatorModel(){
     loopLength=2;
     prog=pin_ctrl_program;
-    for(size_t i=0; i < visData.spec.size(); i++) {
-      visData.spec[i] = i % 22 == 0 ? 1 : 0;
-    }
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
     vis.data.resize(64);
-    for(size_t i=0; i < visData.spec.size(); i++) {
+    for(size_t i=0; i < vis.data.size(); i++) {
       vis.data[i] = i % 20 <7 ? 1 : 0;
     }
 
@@ -85,6 +84,8 @@ public:
     }
   }
   const std::vector<float> oscTemplate {0.5,0.5};
+
+
 };
 
 class squareOscillatorModel2 : public oscillatorModel {
@@ -92,12 +93,9 @@ public:
   squareOscillatorModel2() : oscillatorModel() {
     loopLength=10;
     prog=pin_ctrl_program;
-    for(size_t i=0; i < visData.spec.size(); i++) {
-      visData.spec[i] = i % 5 == 0 ? 1 : 0;
-    }
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
     vis.data.resize(64);
-    for(size_t i=0; i < visData.spec.size(); i++) {
+    for(size_t i=0; i < vis.data.size(); i++) {
       vis.data[i] = i % 10 < 3 ? 1 : 0;
     }
 
@@ -113,13 +111,11 @@ public:
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
-// oscModelPtr __not_in_flash("mydata") oscModel1 = std::make_shared<squareOscillatorModel>();
-// oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillatorModel2>();
-
-// std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};
 
 const size_t N_OSCILLATOR_MODELS = 3;
+
 // Array of "factory" lambdas returning oscModelPtr
+
 std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> oscModelFactories = {
   []() { return std::make_shared<squareOscillatorModel>(); }
   ,

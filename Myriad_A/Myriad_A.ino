@@ -324,7 +324,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     }
   }
 
-  float acc =  1.f - (adcMap(2) * 0.02f);
+  // float acc =  1.f - (adcMap(2) * 0.02f);
+  float acc = 1;
 
   float new_wavelen0 = freqtable[std::lround(controlValues[0])];
   float detune = (adcMap(1) * 0.02f) * new_wavelen0;
@@ -386,6 +387,11 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
+  const float ctrlVal = adcMap(2);
+  currOscModels[0]->ctrl(ctrlVal);
+  currOscModels[1]->ctrl(ctrlVal);
+  currOscModels[2]->ctrl(ctrlVal);
+
   updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen6);
   updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen7);
   updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen8);
