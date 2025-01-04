@@ -45,8 +45,9 @@ control/constrain speed and depth individually for each mode
 bool core1_separate_stack = true;
 
 constexpr size_t N_OSCILLATORS=9;
+constexpr size_t N_OSC_BANKS=3;
 
-displayPortal<N_OSCILLATORS> FAST_MEM display;
+displayPortal<N_OSCILLATORS, N_OSC_BANKS> FAST_MEM display;
 
 #define RUN_OSCS
 // oscModelPtr FAST_MEM currOscModelBank0;
@@ -58,7 +59,8 @@ std::array<oscModelPtr, 3> currOscModels;
 volatile bool FAST_MEM oscsReadyToStart=false;
 volatile bool FAST_MEM restartOscsFlag=false;
 
-
+//a list of reference models for display data
+std::array<oscModelPtr,N_OSCILLATOR_MODELS> FAST_MEM oscModelsDisplayRef;
 
 
 // enum METAMODMODES {NONE=0, MLP1, SINES, METAMODLENGTH};
@@ -508,7 +510,7 @@ void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   // Serial.println("enc1");
   if (controls::encoderSwitches[0]) {
-    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS, N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
 
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
@@ -530,7 +532,7 @@ void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
 
   if (controls::encoderSwitches[1]) {
-    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[1] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setSpeed(change);
@@ -553,7 +555,7 @@ void encoder2_callback() {
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   if (controls::encoderSwitches[2]) {
-    display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[2] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setDepth(change);
@@ -628,10 +630,16 @@ void setup() {
     display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
   }
 
+  //create reference models lists to keep display data
+  for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {
+    oscModelsDisplayRef[i] = oscModelFactories[i]();
+    display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
+  }
+
   tft.begin();
   tft.setRotation(3);
   tft.setFreeFont(&FreeSans18pt7b);
-  display.setScreen(displayPortal<N_OSCILLATORS>::SCREENMODES::OSCBANKS);
+  display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
 
   for(size_t i=0; i < 4; i++) {

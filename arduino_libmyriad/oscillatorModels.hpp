@@ -5,6 +5,7 @@
 #include <array>
 #include <functional>
 #include "oscVisData.hpp"
+#include "oscDisplayModes.hpp"
 
 
 //todo: try sliding window across template array
@@ -19,7 +20,11 @@ public:
     for(size_t i=0; i < visData.spec.size(); i++) {
       visData.spec[i] = i % 10 == 0 ? 1 : 0;
     }
+    vis.mode = oscDisplayModes::MODES::SILENCE;
+    vis.data.resize(1);
+    vis.data[0] = 0;
   };
+  
   pio_program prog;
   virtual void fillBuffer(uint32_t* bufferA, size_t wavelen)=0;
   size_t loopLength;
@@ -32,6 +37,7 @@ public:
   inline oscVisData& getVisData() {
     return visData;
   }
+  oscDisplayModes vis;
 };
 
 
@@ -43,6 +49,12 @@ public:
     for(size_t i=0; i < visData.spec.size(); i++) {
       visData.spec[i] = i % 20 == 0 ? 1 : 0;
     }
+    vis.mode = oscDisplayModes::MODES::SPECTRAL;
+    vis.data.resize(64);
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      vis.data[i] = i % 20 == 0 ? 1 : 0;
+    }
+
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
@@ -59,6 +71,11 @@ public:
     prog=pin_ctrl_program;
     for(size_t i=0; i < visData.spec.size(); i++) {
       visData.spec[i] = i % 5 == 0 ? 1 : 0;
+    }
+    vis.mode = oscDisplayModes::MODES::SPECTRAL;
+    vis.data.resize(64);
+    for(size_t i=0; i < visData.spec.size(); i++) {
+      vis.data[i] = i % 10 < 3 ? 1 : 0;
     }
 
   }
@@ -78,8 +95,9 @@ oscModelPtr __not_in_flash("mydata") oscModel2 = std::make_shared<squareOscillat
 
 std::array<oscModelPtr,2> oscModels = {oscModel1, oscModel2};
 
+const size_t N_OSCILLATOR_MODELS = 2;
 // Array of "factory" lambdas returning oscModelPtr
-std::array<std::function<oscModelPtr()>, 2> oscModelFactories = {
+std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> oscModelFactories = {
   []() { return std::make_shared<squareOscillatorModel>(); }
   ,
   []() { return std::make_shared<squareOscillatorModel2>();}

@@ -3,17 +3,20 @@
 #include "oscVisData.hpp"
 #include <array>
 #include "metaOscs.hpp"
+#include "oscDisplayModes.hpp"
 
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
 
-template<size_t N_OSCS>
+template<size_t N_OSCS, size_t N_OSC_BANKS>
 class displayPortal {
 public:
   enum SCREENMODES {OSCBANKS, METAOSCVIS};
 
   std::vector<oscVisData*> oscVisDataPtrs;
+
+  std::vector<oscDisplayModes*> oscvis;
 
   struct OscBankScreenStates {
     size_t oscModel[3];
@@ -96,9 +99,28 @@ private:
     uint32_t col1;
     const uint32_t cols[3] = {TFT_PURPLE, TFT_DARKGREEN, TFT_DARKCYAN};
     col1 = cols[oscIdx];
-    for(size_t i=0; i < oscVisDataPtrs.at(oscModelIdx)->spec.size(); i++) {
-      if (oscVisDataPtrs.at(oscModelIdx)->spec.at(i)> 0) {    
-        tft.drawSmoothArc(120, 120, 120-i, 120-i-1, startAngle, endAngle, col1, col1);
+    // for(size_t i=0; i < oscVisDataPtrs.at(oscModelIdx)->spec.size(); i++) {
+    //   if (oscVisDataPtrs.at(oscModelIdx)->spec.at(i)> 0) {    
+    //     tft.drawSmoothArc(120, 120, 120-i, 120-i-1, startAngle, endAngle, col1, col1);
+    //   }
+    // }
+    switch(oscvis.at(oscModelIdx)->mode) {
+      case oscDisplayModes::MODES::SPECTRAL:
+      {
+        for(size_t i=0; i < oscvis.at(oscModelIdx)->data.size(); i++) {
+          if (oscvis.at(oscModelIdx)->data.at(i)> 0) {    
+            tft.drawSmoothArc(120, 120, 120-i, 120-i-1, startAngle, endAngle, col1, col1);
+          }
+        }
+        break;
+      }
+      case oscDisplayModes::MODES::NOISE:
+      {
+        break;
+      }
+      case oscDisplayModes::MODES::SILENCE:
+      {
+        break;
       }
     }
   }
