@@ -325,10 +325,10 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   }
 
   // float acc =  1.f - (adcMap(2) * 0.02f);
-  float acc = 1;
 
-  float new_wavelen0 = freqtable[std::lround(controlValues[0])];
-  float detune = (adcMap(1) * 0.02f) * new_wavelen0;
+  float new_wavelen0 = freqtable[std::lround(controlValues[2])];
+  float detune = (adcMap(0) * 0.01f) * new_wavelen0;
+  float acc = 1.f - (adcMap(0) * 0.02f);
 
   float new_wavelen1 = (new_wavelen0 - detune) * acc;
   float new_wavelen2 = (new_wavelen1 - detune) * acc;
@@ -369,12 +369,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     new_wavelen6 *= (1.f + (metamods[6]));
     new_wavelen7 *= (1.f + (metamods[7]));
     new_wavelen8 *= (1.f + (metamods[8]));
-    if (msgCt == 40) {
-      Serial.println(metamods[0]);
-    }
+    // if (msgCt == 80) {
+    //   Serial.println(metamods[0]);
+    // }
   }
 
-  if (msgCt == 40) {
+  if (msgCt == 80) {
     Serial.printf("%f \n", controlValues[0]);
     msgCt=0;
   }
@@ -387,10 +387,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
   
-  const float ctrlVal = adcMap(2);
+  const float ctrlVal = adcMap(1);
+  sendToMyriadB(messageTypes::CTRL, ctrlVal);
   currOscModels[0]->ctrl(ctrlVal);
   currOscModels[1]->ctrl(ctrlVal);
   currOscModels[2]->ctrl(ctrlVal);
+
 
   updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen6);
   updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen7);
@@ -437,6 +439,8 @@ static uint8_t enc3Code = 0;
 static uint16_t enc3Store = 0;
 
 void assignOscModels(size_t modelIdx) {
+  Serial.printf("assign %d\n", modelIdx);
+
   for(auto &model: currOscModels) {
     model = oscModelFactories[modelIdx](); 
 
@@ -466,24 +470,15 @@ bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
       // delay(500);
       // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
       // currOscModelBank0 = std::move(newOscModelBank0);
-      switch(currOscBank) {
-        case 0:
-        // currOscModelBank0 = oscModel1; 
-        // currOscModelBank0 = std::make_shared<squareOscillatorModel>(); 
-        // currOscModels[0] = std::make_shared<squareOscillatorModel>(); 
-        // currOscModels[1] = std::make_shared<squareOscillatorModel>(); 
-        // currOscModels[2] = std::make_shared<squareOscillatorModel>(); 
-        assignOscModels(0);
-        break;
-        case 1:
-        // currOscModelBank0 = oscModel2; 
-        // currOscModelBank0 = std::make_shared<squareOscillatorModel2>(); 
-        // currOscModels[0] = std::make_shared<squareOscillatorModel2>(); 
-        // currOscModels[1] = std::make_shared<squareOscillatorModel2>(); 
-        // currOscModels[2] = std::make_shared<squareOscillatorModel2>(); 
-        assignOscModels(1);
-        break;              
-      }
+      assignOscModels(currOscBank);
+      // switch(currOscBank) {
+      //   case 0:
+      //   assignOscModels(0);
+      //   break;
+      //   case 1:
+      //   assignOscModels(1);
+      //   break;              
+      // }
       // Serial.println("Starting");
       startOscBankA();
       // restartOscsFlag = true;
@@ -523,6 +518,7 @@ void encoder1_callback() {
     updateMetaOscMode(currMetaMod, change);
     // display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[0] += change;
     bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
     // display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
@@ -530,6 +526,7 @@ void encoder1_callback() {
     if (changed) {
       // display.updateOscVis(oscModels.at(oscTypeBank0)->getVisData(), 0);
       display.setOscBankModel(0, oscTypeBank0);
+      Serial.printf("model %d\n", oscTypeBank0);
     }
   }
 }
@@ -546,6 +543,7 @@ void encoder2_callback() {
       // Serial.println(currMetaMod->modspeed.getValue());
     }
   }else{
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[1] += change;
     bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
     if (changed) {
@@ -569,6 +567,7 @@ void encoder3_callback() {
       // Serial.println(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
     }
   }else{
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[2] += change;
     bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
     if (changed) {
@@ -589,9 +588,10 @@ struct debouncer {
   bool debounce(int pin) {
     auto now = millis();
     int gap = ts < now ? now - ts : std::numeric_limits<unsigned long>::max() - ts + now;
-    if(gap > 100) {
-      val = digitalRead(ENCODER1_SWITCH);
+    if(gap > 25) {
+      val = digitalRead(pin);
       ts = millis();
+      Serial.printf("Debounce %d\n", val);
     }
     return val;
   }
@@ -600,22 +600,24 @@ struct debouncer {
 };
 
 debouncer enc1Debouncer;
+debouncer enc2Debouncer;
+debouncer enc3Debouncer;
 
 void encoder1_switch_callback() {
   //gpio pull-up, so the value is inverted
   controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
-  Serial.printf("encswitch 1 %d\n",controls::encoderSwitches[0]);
+  Serial.printf("enc %d\n", controls::encoderSwitches[0]);
   if (controls::encoderSwitches[0]) {
     display.toggleScreen();
   }
 }
 
 void encoder2_switch_callback() {
-  controls::encoderSwitches[1] = 1 - digitalRead(ENCODER2_SWITCH);  
+  controls::encoderSwitches[1] = 1 - enc2Debouncer.debounce(ENCODER2_SWITCH);  
 }
 
 void encoder3_switch_callback() {
-  controls::encoderSwitches[2] = 1 - digitalRead(ENCODER3_SWITCH);  
+  controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH);  
 }
 
 
@@ -716,15 +718,6 @@ void setup() {
 int count=0;
 
 void loop() {
-  // for(size_t i=0; i < 3; i++) {
-  //   Serial.print(i + "\t");  
-  //   Serial.print(controls::encoderSwitches[i]);
-  //   Serial.print("\t");  
-  //   Serial.print(controls::encoderValues[i]);  
-  //   Serial.print("\t");  
-  //   Serial.print(controls::encoderAltValues[i]);  
-  //   Serial.print("\t|\t");  
-  // }
   // Serial.println();
   // delay(1);
   // Serial.println("Hello from Myriad A");

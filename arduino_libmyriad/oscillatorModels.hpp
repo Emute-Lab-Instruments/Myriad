@@ -6,6 +6,8 @@
 #include <functional>
 #include "oscVisData.hpp"
 #include "oscDisplayModes.hpp"
+#include "clockfreq.h"
+
 
 
 //todo: try sliding window across template array
@@ -105,21 +107,46 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
+  //ratios 9:1,8:2,7:3,6:4,5:5
   const std::vector<float> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
+};
+
+class silentOscillatorModel : public oscillatorModel {
+public:
+  silentOscillatorModel() : oscillatorModel() {
+    loopLength=bufferSize;
+    prog=pin_ctrl_program;
+    vis.mode = oscDisplayModes::MODES::SPECTRAL;
+    vis.data.resize(64);
+    for(size_t i=0; i < vis.data.size(); i++) {
+      vis.data[i] = i < 5 ? 1 : 0;
+    }
+
+  }
+  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    for (size_t i = 0; i < bufferSize; ++i) {
+        *(bufferA + i) = silentOscillatorModel::halfWaveLen;
+    }
+  }
+private:
+  const size_t bufferSize=16;
+  static constexpr uint32_t halfWaveLen = sampleClock / 100000;
 };
 
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t N_OSCILLATOR_MODELS = 3;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 4;
 
 // Array of "factory" lambdas returning oscModelPtr
 
-std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> oscModelFactories = {
+std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("mydata") oscModelFactories = {
   []() { return std::make_shared<squareOscillatorModel>(); }
   ,
   []() { return std::make_shared<pulse10OscillatorModel>(); }
   ,
   []() { return std::make_shared<squareOscillatorModel2>();}
+  ,
+  []() { return std::make_shared<silentOscillatorModel>();}
 };

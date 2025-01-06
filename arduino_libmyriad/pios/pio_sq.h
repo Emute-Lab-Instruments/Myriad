@@ -41,3 +41,20 @@ static inline pio_sm_config pin_ctrl_program_get_default_config(uint offset) {
 }
 #endif
 
+
+
+/*
+.program pin_ctrl
+.side_set 1 opt
+begin:
+    pull block  ; Grab next command word
+    out y, 32   ; 
+start:
+    mov x, y side 1
+wait_loop:
+    jmp x--, wait_loop ; Delay for (x + 1) cycles
+    mov x, y side 0   ; 
+wait_loop2:
+    jmp x--, wait_loop2 ; Delay for (x + 1) cycles
+.wrap
+*/
