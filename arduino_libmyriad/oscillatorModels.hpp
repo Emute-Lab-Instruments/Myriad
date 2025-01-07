@@ -45,9 +45,9 @@ public:
     loopLength=2;
     prog=pin_ctrl_program;
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(64);
+    vis.data.resize(24);
     for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 20 == 0 ? 1 : 0;
+      vis.data[i] = i % 4 == 0 ? 1 : 0;
     }
 
   }
@@ -74,9 +74,9 @@ public:
     loopLength=2;
     prog=pin_ctrl_program;
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(64);
+    vis.data.resize(24);
     for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 20 <7 ? 1 : 0;
+      vis.data[i] = i % 7 ==0 ? 1 : 0;
     }
 
   }
@@ -96,9 +96,9 @@ public:
     loopLength=10;
     prog=pin_ctrl_program;
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(64);
+    vis.data.resize(24);
     for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 10 < 3 ? 1 : 0;
+      vis.data[i] = i % 5 < 2 ? 1 : 0;
     }
 
   }
@@ -107,8 +107,36 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
+
+  void ctrl(const float v) override {
+    constexpr float bound = 0.001;
+    constexpr float range = 0.2 - (bound * 2);
+    float spread = (v * range) * 0.25;
+    float accSpread=bound;
+
+    oscTemplate [0] = accSpread;
+    oscTemplate [1] = 0.2-accSpread;
+    accSpread += spread;
+
+    oscTemplate [2] = accSpread;
+    oscTemplate [3] = 0.2 - accSpread;
+    accSpread += spread;
+
+    oscTemplate [4] =accSpread;
+    oscTemplate [5] = 0.2 - accSpread;
+    accSpread += spread;
+
+    oscTemplate [6] = accSpread;
+    oscTemplate [7] = 0.2 - accSpread;
+    accSpread += spread;
+
+    oscTemplate [8] = accSpread;
+    oscTemplate [9] = 0.2 - accSpread;
+
+  }
+
   //ratios 9:1,8:2,7:3,6:4,5:5
-  const std::vector<float> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
+  std::vector<float> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
 };
 
 class silentOscillatorModel : public oscillatorModel {
@@ -117,9 +145,9 @@ public:
     loopLength=bufferSize;
     prog=pin_ctrl_program;
     vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(64);
+    vis.data.resize(24);
     for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i < 5 ? 1 : 0;
+      vis.data[i] = i < 1 ? 1 : 0;
     }
 
   }

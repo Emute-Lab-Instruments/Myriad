@@ -5,6 +5,8 @@
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 
+//TODO: pass in pio_sm_config when initialising
+
 
 class smBitStreamOsc {
 public:

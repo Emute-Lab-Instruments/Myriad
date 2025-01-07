@@ -107,9 +107,10 @@ private:
     switch(oscvis.at(oscModelIdx)->mode) {
       case oscDisplayModes::MODES::SPECTRAL:
       {
+        const size_t blocksize=5;
         for(size_t i=0; i < oscvis.at(oscModelIdx)->data.size(); i++) {
           if (oscvis.at(oscModelIdx)->data.at(i)> 0) {    
-            tft.drawSmoothArc(120, 120, 120-i, 120-i-1, startAngle, endAngle, col1, col1);
+            tft.drawSmoothArc(120, 120, 115-(i*blocksize), 115-((i-1)*blocksize), startAngle, endAngle, col1, col1);
           }
         }
         break;
