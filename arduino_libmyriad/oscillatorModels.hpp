@@ -36,6 +36,10 @@ public:
   virtual void ctrl(const float v) {
     //receive a control parameter
   }
+
+  virtual pio_sm_config getBaseConfig(uint offset) {
+    return pin_ctrl_program_get_default_config(offset);
+  }
 };
 
 

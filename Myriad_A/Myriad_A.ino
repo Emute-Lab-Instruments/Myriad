@@ -6,7 +6,9 @@ make sure no -ve frequencies
 control/constrain speed and depth individually for each mode
 
 
-
+cfg
+08:25:59.913 -> 1073872128
+08:25:59.913 -> 1073741824
 */
 
 
@@ -128,10 +130,12 @@ void startOscBankA() {
   pio_clear_instruction_memory(pio1);
   // uint programOffset = currOscModelBank0A->loadProg(pio1);
   uint programOffset = currOscModels[0]->loadProg(pio1);
+  pio_sm_config baseConfig = currOscModels[0]->getBaseConfig(programOffset);
   // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, 50000);
+  Serial.printf("OFfset %d\n", programOffset);
 
   // smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0A->loopLength, DMA_IRQ_1);
-  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModels[0]->loopLength, DMA_IRQ_1);
+  smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, clockdiv, currOscModels[0]->loopLength, DMA_IRQ_1);
   // Serial.println("init");
   // if (smOsc0_dma_chan < 0) {
     // Serial.println("dma chan allocation error");
@@ -140,12 +144,12 @@ void startOscBankA() {
   smOsc0.go();
 
   // smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0B->loopLength, DMA_IRQ_1);
-  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModels[1]->loopLength, DMA_IRQ_1);
+  smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, clockdiv, currOscModels[1]->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
   // smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModelBank0C->loopLength, DMA_IRQ_1);
-  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModels[2]->loopLength, DMA_IRQ_1);
+  smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, clockdiv, currOscModels[2]->loopLength, DMA_IRQ_1);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
   // Serial.println("started");

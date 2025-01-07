@@ -300,8 +300,9 @@ void startOscBankA() {
 
   pio_clear_instruction_memory(pio0);
   uint programOffset = currOscModels0[0]->loadProg(pio0);
+  pio_sm_config baseConfig = currOscModels0[0]->getBaseConfig(programOffset);
 
-  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
+  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, clockdiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
   Serial.println("init");
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
@@ -309,11 +310,11 @@ void startOscBankA() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModels0[1]->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, clockdiv, currOscModels0[1]->loopLength, DMA_IRQ_0);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, nextTimingBuffer2, dma_irh, clockdiv, currOscModels0[2]->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, clockdiv, currOscModels0[2]->loopLength, DMA_IRQ_0);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
 }
@@ -329,17 +330,18 @@ void startOscBankB() {
   Serial.println("StartoscbankB");
   pio_clear_instruction_memory(pio1);
   uint programOffset = currOscModels1[0]->loadProg(pio1);
+  pio_sm_config baseConfig = currOscModels1[0]->getBaseConfig(programOffset);
 
 
-  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, nextTimingBuffer3, dma_irh1, clockdiv, currOscModels1[0]->loopLength, DMA_IRQ_1);
+  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, clockdiv, currOscModels1[0]->loopLength, DMA_IRQ_1);
   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
   smOsc3.go();
 
-  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, nextTimingBuffer4, dma_irh1, clockdiv, currOscModels1[1]->loopLength, DMA_IRQ_1);
+  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, baseConfig, nextTimingBuffer4, dma_irh1, clockdiv, currOscModels1[1]->loopLength, DMA_IRQ_1);
   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, nextTimingBuffer5, dma_irh1, clockdiv, currOscModels1[2]->loopLength, DMA_IRQ_1);
+  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, clockdiv, currOscModels1[2]->loopLength, DMA_IRQ_1);
   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
   smOsc5.go();
 

@@ -12,7 +12,7 @@ class smBitStreamOsc {
 public:
   smBitStreamOsc() {}
   
-  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
+  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, pio_sm_config &cfg, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
     pio = pio_;
     sm = sm_;
     pin = pin_;
@@ -20,11 +20,11 @@ public:
     dmaIrqNum = dmaIrq;
 
     // Run the pin_ctrl program
-    return pin_ctrl_prepare(pio, sm, offset, pin, firstTimingBuffer, dma_irq_handler, clockdiv, transferCount);
+    return pin_ctrl_prepare(pio, sm, offset, cfg, pin, firstTimingBuffer, dma_irq_handler, clockdiv, transferCount);
   }
 
 
-  void pin_ctrl_program_init(PIO pio, uint sm, uint offset, uint pin, size_t clockdiv) {
+  void pin_ctrl_program_init(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, size_t clockdiv) {
     // Setup pin to be accessible from the PIO
     pio_gpio_init(pio, pin);
     // pio_gpio_init(pio, pin + 1);
@@ -33,7 +33,11 @@ public:
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
 
     // Configure PIO SM with pin_ctrl program
-    pio_sm_config c = pin_ctrl_program_get_default_config(offset);
+    // pio_sm_config c = pin_ctrl_program_get_default_config(offset);
+    pio_sm_config c = cfg;
+    Serial.println("cfg");
+    Serial.println(c.execctrl);
+    Serial.println(c.pinctrl);
 
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_clkdiv(&c, clockdiv);
@@ -44,7 +48,7 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     pio_dma_chan = dma_claim_unused_channel(true);
 
@@ -76,7 +80,7 @@ public:
     irq_set_enabled(dmaIrqNum, true);
 
     // Initialise PIO SM with pin_ctrl program
-    pin_ctrl_program_init(pio, sm, offset, pin, clockdiv);
+    pin_ctrl_program_init(pio, sm, offset, cfg, pin, clockdiv);
     return pio_dma_chan;
   }
 
