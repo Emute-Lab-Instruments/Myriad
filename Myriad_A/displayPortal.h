@@ -178,6 +178,7 @@ private:
       tft.drawCircle(cx, cy, 5, ELI_BLUE);
       float normwavelen = 1.0 - ((nextState.oscWavelengths[i] - fastestWavelen) * rangeWavelenRcp);
       normwavelen= normwavelen * normwavelen * normwavelen;
+      normwavelen = std::max(normwavelen,0);
       // normwavelen = std::sqrt(normwavelen);
       const float speed = (rangeOscVisSpeed * normwavelen) + slowestOscVisSpeed;
       if (i==0) {
@@ -197,7 +198,7 @@ private:
 
     }    
     constexpr float angleRange = 120/ N_OSCILLATOR_MODELS;
-    constexpr std::array<size_t, 10> = {TFT_RED, TFT_GREEN, TFT_PURPLE, TFT_CYAN, TFT_MAGENTA, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE };
+    constexpr std::array<size_t, 10> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE };
 
     for(size_t i=0; i < 3; i++) {
       if (fullRedraw || currState.oscModel[i] != nextState.oscModel[i]) {
@@ -209,7 +210,8 @@ private:
         tft.drawRect(bankTxtX[i]-5, bankTxtY[i]-5, 10, 10, ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
         tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE,  ELI_BLUE);
-        tft.drawArc(120,120,120,115,(i*120) + (nextState.oscModel[i] * angleRange), (i* 120) + ((nextState.oscModel[i]+1) * angleRange), ELI_PINK,  ELI_PINK);
+        size_t colour = colours.at(nextState.oscModel[i] % colours.size());
+        tft.drawArc(120,120,120,115,(i*120) + (nextState.oscModel[i] * angleRange), (i* 120) + ((nextState.oscModel[i]+1) * angleRange), colour,  colour);
       }
     }
 }

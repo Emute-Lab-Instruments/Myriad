@@ -515,19 +515,22 @@ void updateMetaOscMode(size_t &currMetaModMode, const int change) {
 
 }
 
+enum CONTROLMODES {OSCMODE, METAOSCMODE} controlMode = CONTROLMODES::OSCMODE;
+
 void encoder1_callback() {
   Serial.println("enc1");
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   // Serial.println("enc1");
-  if (controls::encoderSwitches[0]) {
-    display.setScreen(displayPortal<N_OSCILLATORS, N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
+  if (controlMode == CONTROLMODES::METAOSCMODE) {
+  // if (controls::encoderSwitches[0]) {
+    // display.setScreen(displayPortal<N_OSCILLATORS, N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
 
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
     updateMetaOscMode(currMetaMod, change);
     // display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
+    // display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[0] += change;
     bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
     // display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
@@ -543,8 +546,9 @@ void encoder1_callback() {
 void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
 
-  if (controls::encoderSwitches[1]) {
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
+  if (controlMode == CONTROLMODES::METAOSCMODE) {
+  // if (controls::encoderSwitches[1]) {
+    // display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[1] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setSpeed(change);
@@ -552,7 +556,7 @@ void encoder2_callback() {
       // Serial.println(currMetaMod->modspeed.getValue());
     }
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
+    // display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[1] += change;
     bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
     if (changed) {
@@ -568,8 +572,9 @@ void encoder2_callback() {
 
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
-  if (controls::encoderSwitches[2]) {
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
+  if (controlMode == CONTROLMODES::METAOSCMODE) {
+  // if (controls::encoderSwitches[2]) {
+    // display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[2] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setDepth(change);
@@ -577,7 +582,7 @@ void encoder3_callback() {
       // Serial.println(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
     }
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
+    // display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[2] += change;
     bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
     if (changed) {
@@ -621,8 +626,14 @@ void encoder1_switch_callback() {
   controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
   Serial.printf("enc %d\n", controls::encoderSwitches[0]);
   if (controls::encoderSwitches[0]) {
-    // display.toggleScreen();
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
+    if (controlMode == CONTROLMODES::OSCMODE) {
+      controlMode = CONTROLMODES::METAOSCMODE;
+      // display.toggleScreen();
+      display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
+    }else{
+      controlMode = CONTROLMODES::OSCMODE;
+      display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
+    }
   }
 }
 
