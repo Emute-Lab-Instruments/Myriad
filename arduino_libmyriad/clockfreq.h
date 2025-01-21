@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 
 constexpr float clockdiv = 8;
 // uint32_t clockHz = 15625000 / 80;

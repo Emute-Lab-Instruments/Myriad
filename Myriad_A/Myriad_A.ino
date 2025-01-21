@@ -19,6 +19,7 @@ cfg
 // #include "myriad_setup.h"
 // #include "pio_expdec.h"
 #include "pios/pio_sq.h"
+#include "pios/pio_pulse.h"
 
 #include "smBitStreamOsc.h"
 #include "oscillatorModels.hpp"
@@ -49,7 +50,7 @@ bool core1_separate_stack = true;
 constexpr size_t N_OSCILLATORS=9;
 constexpr size_t N_OSC_BANKS=3;
 
-displayPortal<N_OSCILLATORS, N_OSC_BANKS> FAST_MEM display;
+displayPortal<N_OSCILLATORS, N_OSC_BANKS,N_OSCILLATOR_MODELS> FAST_MEM display;
 
 #define RUN_OSCS
 // oscModelPtr FAST_MEM currOscModelBank0;
@@ -75,13 +76,13 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<
 
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
 
-std::array<metaOscPtr<N_OSCILLATORS>, 3> metaOscsList = {metaOscBlank, metaOscSines1, metaOscNN};
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
+
+
+std::array<metaOscPtr<N_OSCILLATORS>, 5> metaOscsList = {metaOscBlank, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
-
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") currMetaMod;
-
-// METAMODMODES FAST_MEM metaModMode = METAMODMODES::NONE;
 
 
 DEFINE_TIMING_SWAPBUFFERS(0)
@@ -378,7 +379,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     // }
   }
 
-  if (msgCt == 80) {
+  if (msgCt == 800) {
     Serial.printf("%f \n", controlValues[0]);
     msgCt=0;
   }
@@ -406,6 +407,10 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0C, new_wavelen8);
 
   oscsReadyToStart = true;
+
+  display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
+                                  new_wavelen3,new_wavelen4,new_wavelen5,
+                                  new_wavelen6,new_wavelen7,new_wavelen8 });
 
   return true;
 }
@@ -515,22 +520,22 @@ void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   // Serial.println("enc1");
   if (controls::encoderSwitches[0]) {
-    display.setScreen(displayPortal<N_OSCILLATORS, N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS, N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
 
     controls::encoderAltValues[0] += change;
     // Serial.println(controls::encoderAltValues[0]);
     updateMetaOscMode(currMetaMod, change);
     // display.setScreen(displayPortal::SCREENMODES::METAOSCVIS);
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS, N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[0] += change;
-    bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+    bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
     // display.setScreen(displayPortal::SCREENMODES::OSCBANKS);
     // display.drawOsc0(oscTypeBank0);
     if (changed) {
       // display.updateOscVis(oscModels.at(oscTypeBank0)->getVisData(), 0);
-      display.setOscBankModel(0, oscTypeBank0);
-      Serial.printf("model %d\n", oscTypeBank0);
+      display.setOscBankModel(1, oscTypeBank1);
+      Serial.printf("model %d\n", oscTypeBank1);
     }
   }
 }
@@ -539,7 +544,7 @@ void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
 
   if (controls::encoderSwitches[1]) {
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[1] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setSpeed(change);
@@ -547,13 +552,14 @@ void encoder2_callback() {
       // Serial.println(currMetaMod->modspeed.getValue());
     }
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[1] += change;
-    bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+    bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
     if (changed) {
       // display.drawOsc1(oscTypeBank1);
       // display.updateOscVis(oscModels.at(oscTypeBank1)->getVisData(), 1);
-      display.setOscBankModel(1, oscTypeBank1);
+      display.setOscBankModel(0, oscTypeBank0);
+      Serial.printf("enc 2 model %d\n", oscTypeBank0);
 
     }  
   }
@@ -563,7 +569,7 @@ void encoder2_callback() {
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   if (controls::encoderSwitches[2]) {
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::METAOSCVIS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
     controls::encoderAltValues[2] += change;
     if (currMetaMod > 0) {
       metaOscsList.at(currMetaMod)->setDepth(change);
@@ -571,7 +577,7 @@ void encoder3_callback() {
       // Serial.println(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
     }
   }else{
-    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
     controls::encoderValues[2] += change;
     bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
     if (changed) {
@@ -615,7 +621,8 @@ void encoder1_switch_callback() {
   controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
   Serial.printf("enc %d\n", controls::encoderSwitches[0]);
   if (controls::encoderSwitches[0]) {
-    display.toggleScreen();
+    // display.toggleScreen();
+    display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::METAOSCVIS);
   }
 }
 
@@ -654,7 +661,7 @@ void setup() {
   tft.begin();
   tft.setRotation(3);
   tft.setFreeFont(&FreeSans18pt7b);
-  display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS>::SCREENMODES::OSCBANKS);
+  display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
 
   for(size_t i=0; i < 4; i++) {

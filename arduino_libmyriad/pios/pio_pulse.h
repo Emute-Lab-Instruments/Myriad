@@ -39,4 +39,5 @@ static inline pio_sm_config pulse_program_get_default_config(uint offset) {
     sm_config_set_sideset(&c, 2, true, false);
     return c;
 }
+
 #endif

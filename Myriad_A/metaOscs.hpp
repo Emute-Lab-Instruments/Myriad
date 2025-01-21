@@ -141,6 +141,54 @@ private:
 
 };
 
+template<size_t N>
+class metaOscSinesFMultiple : public metaOsc<N> {
+public:
+    metaOscSinesFMultiple() {
+        //init with equally spread phase
+        const float phaseGap = TWOPI/N;
+        for(size_t i=0; i < N; i++) {
+            phasors[i] = i*phaseGap;
+        }
+        this->modspeed.setMax(0.1);
+        this->modspeed.setScale(0.001);
+        this->moddepth.setMax(0.1);
+        this->moddepth.setScale(0.0009);
+    }
+
+    String getName() override {return "speedy sines";}
+
+
+    std::array<float, N> update(const float (&adcs)[4]) override {
+        for(size_t i=0; i < N; i++) {
+            sines[i] = sinf(phasors[i] * (i+1)) * this->moddepth.getValue();
+            phasors[i] += this->modspeed.getValue();
+        }
+        return sines;
+    }
+
+    void draw(TFT_eSPI &tft) override { 
+      const int32_t barwidth=4;
+      constexpr float step = sqwidth / N;
+      constexpr float stepoffset = (step+barwidth) / 2.f;
+      for(size_t i=0; i < N; i++) {
+        const int h = sines[i] * sqhalfwidth * 10.f;
+        const int left = sqbound + (step*i) + stepoffset;
+        tft.fillRect(left,sqbound,barwidth, sqwidth, ELI_BLUE);
+        if (h <0) {
+          tft.fillRect(left,120+h,barwidth, -h, TFT_RED);
+        }else{
+          tft.fillRect(left,120,barwidth, std::max(h,1), TFT_RED);
+        }
+      }
+    }
+
+private:
+    std::array<float, N> phasors;
+    std::array<float, N> sines;
+
+};
+
 
 template<size_t N>
 class metaOscMLP : public metaOsc<N> {
@@ -208,6 +256,56 @@ private:
   size_t clockDiv = 2;
   size_t clockCount=0;
   const float adcMul = 1/4096.0;
+};
+
+template<size_t N>
+class metaDrunkenWalkers : public metaOsc<N> {
+public:
+
+    struct point {float x; float y;};
+    std::array<point, N> walkers;
+    std::array<point, N> walkersBefore;
+
+    metaDrunkenWalkers() {
+        //init with equally spread phase
+        for(size_t i=0; i < N; i++) {
+            walkersBefore[i].x=120;
+            walkersBefore[i].y=120;
+            walkers[i].x=120;
+            walkers[i].y=120;
+        }
+        this->modspeed.setMax(0.1);
+        this->modspeed.setScale(0.001);
+        this->moddepth.setMax(0.1);
+        this->moddepth.setScale(0.0009);
+    }
+
+    String getName() override {return "drunken walkers";}
+
+
+    std::array<float, N> update(const float (&adcs)[4]) override {
+        for(size_t i=0; i < N; i++) {
+          walkersBefore[i].x = walkers[i].x;
+          walkersBefore[i].y = walkers[i].y;
+          walkers[i].x += (random(-2000,2000)/100.0) * this->modspeed.getValue();
+          walkers[i].y += (random(-2000,2000)/100.0) * this->modspeed.getValue();
+        
+          const float dx = 120 - walkers[i].x;
+          const float dy = 120 - walkers[i].y;
+          mods[i] = std::sqrt((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
+        }
+        return mods;
+    }
+
+    void draw(TFT_eSPI &tft) override { 
+      for(size_t i=0; i < N; i++) {
+        tft.fillRect(walkersBefore[i].x, walkersBefore[i].y, 2, 2, ELI_BLUE);
+        tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, TFT_GREEN);
+      }
+    }
+
+private:
+  std::array<float, N> mods;
 };
 
 
