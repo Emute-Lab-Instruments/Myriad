@@ -45,6 +45,8 @@ cfg
 
 #define FAST_MEM __not_in_flash("mydata")
 
+enum MODTARGETS {PITCH, EPSILON} modTarget = MODTARGETS::PITCH;
+
 bool core1_separate_stack = true;
 
 constexpr size_t N_OSCILLATORS=9;
@@ -357,23 +359,54 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   new_wavelen7 = new_wavelen7 * octaves[7];
   new_wavelen8 = new_wavelen8 * octaves[8];
 
+  float ctrlVal0 = adcMap(1);
+  float ctrlVal1 = ctrlVal0;
+  float ctrlVal2 = ctrlVal0;
+  float ctrlVal3 = ctrlVal0;
+  float ctrlVal4 = ctrlVal0;
+  float ctrlVal5 = ctrlVal0;
+  float ctrlVal6 = ctrlVal0;
+  float ctrlVal7 = ctrlVal0;
+  float ctrlVal8 = ctrlVal0;
+
+  // sendToMyriadB(messageTypes::CTRL, ctrlVal0);
+
+
   if (currMetaMod > 0) {
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    switch(modTarget) {
+      case MODTARGETS::PITCH: {
+        new_wavelen0 *= (1.f + (metamods[0]));
+        new_wavelen1 *= (1.f + (metamods[1]));
+        new_wavelen2 *= (1.f + (metamods[2]));
+        new_wavelen3 *= (1.f + (metamods[3]));
+        new_wavelen4 *= (1.f + (metamods[4]));
+        new_wavelen5 *= (1.f + (metamods[5]));
+        new_wavelen6 *= (1.f + (metamods[6]));
+        new_wavelen7 *= (1.f + (metamods[7]));
+        new_wavelen8 *= (1.f + (metamods[8]));
+
+        break;
+      }
+      case MODTARGETS::EPSILON: {
+        ctrlVal0 *= (1.f + (metamods[0]));
+        ctrlVal1 *= (1.f + (metamods[1]));
+        ctrlVal2 *= (1.f + (metamods[2]));
+        ctrlVal3 *= (1.f + (metamods[3]));
+        ctrlVal4 *= (1.f + (metamods[4]));
+        ctrlVal5 *= (1.f + (metamods[5]));
+        ctrlVal6 *= (1.f + (metamods[6]));
+        ctrlVal7 *= (1.f + (metamods[7]));
+        ctrlVal8 *= (1.f + (metamods[8]));
+        break;
+      }
+    }
     // for(int i=0; i < 6; i++) {
     //   Serial.print(metamods[i]);
     //   Serial.print("\t");
     // }
     // Serial.println();
 
-    new_wavelen0 *= (1.f + (metamods[0]));
-    new_wavelen1 *= (1.f + (metamods[1]));
-    new_wavelen2 *= (1.f + (metamods[2]));
-    new_wavelen3 *= (1.f + (metamods[3]));
-    new_wavelen4 *= (1.f + (metamods[4]));
-    new_wavelen5 *= (1.f + (metamods[5]));
-    new_wavelen6 *= (1.f + (metamods[6]));
-    new_wavelen7 *= (1.f + (metamods[7]));
-    new_wavelen8 *= (1.f + (metamods[8]));
     // if (msgCt == 80) {
     //   Serial.println(metamods[0]);
     // }
@@ -385,26 +418,29 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   }
   msgCt++;
 
+  //send crtl vals
+  sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
+  sendToMyriadB(messageTypes::CTRL1, ctrlVal4);
+  sendToMyriadB(messageTypes::CTRL2, ctrlVal5);
+  sendToMyriadB(messageTypes::CTRL3, ctrlVal6);
+  sendToMyriadB(messageTypes::CTRL4, ctrlVal7);
+  sendToMyriadB(messageTypes::CTRL5, ctrlVal8);
+
+  currOscModels[0]->ctrl(ctrlVal0);
+  currOscModels[1]->ctrl(ctrlVal1);
+  currOscModels[2]->ctrl(ctrlVal2);
+
   sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
   sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
   sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
   sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
-  
-  const float ctrlVal = adcMap(1);
-  sendToMyriadB(messageTypes::CTRL, ctrlVal);
-  currOscModels[0]->ctrl(ctrlVal);
-  currOscModels[1]->ctrl(ctrlVal);
-  currOscModels[2]->ctrl(ctrlVal);
-
 
   updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen6);
   updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen7);
   updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen8);
-  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0A, new_wavelen6);
-  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModelBank0B, new_wavelen7);
-  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModelBank0C, new_wavelen8);
+
 
   oscsReadyToStart = true;
 
@@ -642,7 +678,19 @@ void encoder2_switch_callback() {
 }
 
 void encoder3_switch_callback() {
-  controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH);  
+  controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH); 
+  if (controls::encoderSwitches[2]) {
+    if (controlMode == CONTROLMODES::OSCMODE) {
+    }else{
+      if (modTarget == MODTARGETS::PITCH) {
+        modTarget = MODTARGETS::EPSILON;
+      }else{
+        modTarget = MODTARGETS::PITCH;
+      }
+      display.setModTarget(modTarget == MODTARGETS::PITCH);
+    }
+  }
+ 
 }
 
 
@@ -674,6 +722,7 @@ void setup() {
   tft.setFreeFont(&FreeSans18pt7b);
   display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
+  display.setModTarget(modTarget == MODTARGETS::PITCH);
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];
@@ -748,6 +797,7 @@ void loop() {
   // Serial.println("Hello from Myriad A");
 
   // __wfi();
+  delay(100);
 }
 
 

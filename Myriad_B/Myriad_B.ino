@@ -236,6 +236,42 @@ inline void __not_in_flash_func(readUart)() {
                 currOscModels1[2]->ctrl(v); 
                 break;
               }
+              case CTRL0:
+              {
+                float v = decodeMsg.value;
+                currOscModels0[0]->ctrl(v); 
+                break;
+              }
+              case CTRL1:
+              {
+                float v = decodeMsg.value;
+                currOscModels0[1]->ctrl(v); 
+                break;
+              }
+              case CTRL2:
+              {
+                float v = decodeMsg.value;
+                currOscModels0[2]->ctrl(v); 
+                break;
+              }
+              case CTRL3:
+              {
+                float v = decodeMsg.value;
+                currOscModels1[0]->ctrl(v); 
+                break;
+              }
+              case CTRL4:
+              {
+                float v = decodeMsg.value;
+                currOscModels1[1]->ctrl(v); 
+                break;
+              }
+              case CTRL5:
+              {
+                float v = decodeMsg.value;
+                currOscModels1[2]->ctrl(v); 
+                break;
+              }
               case BANK0:
               {
                 // // osc0Mode = decodeMsg.value;                

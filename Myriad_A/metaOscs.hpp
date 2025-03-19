@@ -12,8 +12,8 @@
 template <typename T>
 class BoundedEncoderValue {
 public:
-  BoundedEncoderValue(T _min, T _max, T _scale) : maxVal(_max), minVal(_min), scaleVal(_scale), value(_min) {}
-  BoundedEncoderValue() : maxVal(T(0.9)), minVal(T(0)), scaleVal(T(0.01)), value(T(0)) {}
+  BoundedEncoderValue(T _min, T _max, T _scale) : maxVal(_max), minVal(_min), scaleVal(_scale), value(_min) {setMax(_max); setMin(_min);}
+  BoundedEncoderValue() : scaleVal(T(0.01)), value(T(0)) {setMax(0.9); setMin(0.0);}
 
 
   void update(const int change) {
@@ -27,16 +27,26 @@ public:
   }
 
   void setScale(T newScale) {scaleVal = newScale;}
-  void setMax(T newMax) {maxVal = newMax; value = std::min(maxVal, value);}
-  void setMin(T newMin) {minVal = newMin; value = std::max(minVal, value);}
+  void setMax(T newMax) {
+    maxVal = newMax; value = std::min(maxVal, value);
+    if (maxVal != 0) {
+      invMax = 1.0/maxVal;
+    }
+  }
+  void setMin(T newMin) {minVal = newMin; value = std::max(minVal, value);
+  }
 
-  float getNormalisedValue() {
+  T getNormalisedValue() {
     return (value - minVal) / (maxVal - minVal);
+  }
+
+  T getInvMax() {
+    return invMax;
   }
   
 private:
   T value;
-  T maxVal, minVal, scaleVal;
+  T maxVal, minVal, scaleVal, invMax;
 };
 
 
@@ -67,6 +77,7 @@ public:
 
     virtual void draw(TFT_eSPI &tft) {};
 
+    virtual std::array<float, N>& getValues() =0;
 
 protected:
   //add screen bounds
@@ -87,6 +98,11 @@ public:
     std::array<float, N> update(const float (&adcs)[4]) override {
         return vals;
     }
+
+    std::array<float, N>& getValues() override {
+      return vals;
+    };
+
 
 private:
   std::array<float, N> vals;
@@ -118,6 +134,10 @@ public:
         }
         return sines;
     }
+
+    std::array<float, N>& getValues() override {
+      return sines;
+    };
 
     void draw(TFT_eSPI &tft) override { 
       const int32_t barwidth=4;
@@ -166,6 +186,10 @@ public:
         }
         return sines;
     }
+
+    std::array<float, N>& getValues() override {
+      return sines;
+    };
 
     void draw(TFT_eSPI &tft) override { 
       const int32_t barwidth=4;
@@ -248,6 +272,10 @@ public:
       }
     }
 
+    std::array<float, N>& getValues() override {
+      return arrOutput;
+    };
+
 
 private:
   MLP<float> *net; //({ 6, 16, 8, 8, N }, { ACTIVATION_FUNCTIONS::RELU, ACTIVATION_FUNCTIONS::LINEAR, ACTIVATION_FUNCTIONS::RELU, ACTIVATION_FUNCTIONS::SIGMOID });
@@ -303,6 +331,10 @@ public:
         tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, TFT_GREEN);
       }
     }
+
+    std::array<float, N>& getValues() override {
+      return mods;
+    };
 
 private:
   std::array<float, N> mods;

@@ -14,7 +14,7 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING};
 
   std::vector<oscVisData*> oscVisDataPtrs;
 
@@ -23,13 +23,21 @@ public:
   struct OscBankScreenStates {
     size_t oscModel[3];
     std::array<float, N_OSCS> oscWavelengths;
+    metaOscPtr<N_OSCS> ptr;
+    std::array<float, N_OSCS> modLineX, modLineY, modLineXStart, modLineYStart;
   };
 
   struct MetaOscVisScreenStates {
     int metaOsc;
     float moddepth;
     float modspeed;
+    bool modTargetPitch;
     metaOscPtr<N_OSCS> ptr;
+  };
+
+  struct TuningScreenStates {
+    float voltage=0;
+    float finetune=0;
   };
 
   struct displayStates {
@@ -78,6 +86,10 @@ public:
     nextState.screenMode = newMode;
   }
 
+  void setModTarget(bool isPitch) {
+    nextState.metaOscVisScreenState.modTargetPitch = isPitch;
+  }
+
   void setOscBankModel(size_t newBank, size_t newOscModel) {
     nextState.oscBankScreenState.oscModel[newBank] = newOscModel;
   }
@@ -85,6 +97,7 @@ public:
   void setMetaOsc(size_t newIdx, metaOscPtr<N_OSCS> newPtr) {
     nextState.metaOscVisScreenState.metaOsc = newIdx;
     nextState.metaOscVisScreenState.ptr = newPtr; 
+    nextState.oscBankScreenState.ptr = newPtr; 
     nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue();
     nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue();
     nextState.redraw = true;   
@@ -141,7 +154,7 @@ private:
 
   std::array<float,N_OSCS> oscVisPhase{};
 
-  void drawOscBankScreen(const OscBankScreenStates &currState, const OscBankScreenStates &nextState, const bool fullRedraw) {
+  void drawOscBankScreen(const OscBankScreenStates &currState, OscBankScreenStates &nextState, const bool fullRedraw) {
     if (fullRedraw) {
       tft.fillScreen(ELI_BLUE);
     }
@@ -168,17 +181,37 @@ private:
     static constexpr float slowestOscVisSpeed = 0.001;
     static constexpr float fastestOscVisSpeed = 0.03;
     static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
-    static constexpr float unitR=9;
+    static constexpr float unitR=7;
+    float bank=0;
+    // int col;
+    auto modVals = nextState.ptr->getValues();
     for(size_t i=0; i < N_OSCS; i++) {
-      float pos = oscVisPhase[i] * TWOPI;
+      // if (i>5) {
+      //   bank=2;
+      //   col = TFT_GREEN;
+      // }
+      // else if (i>2) {
+      //   bank=1;
+      //   col = TFT_YELLOW;
+      // }else{
+      //   col = ELI_PINK;
+      // }
+      const float prevpos = oscVisPhase[i] * TWOPI;
+      const float prevcospos = sineTable::fast_cos(prevpos);
+      const float prevsinpos = sineTable::fast_sin(prevpos);
+      const float linelen=18 + ((i+1)*unitR);
+      const float halflinelen = linelen * 0.5;
+
       // tft.drawLine(120,120, 120+ (100 * cos(pos)), 120+ (100 * sin(pos)), ELI_BLUE );
-      const size_t cx = 120+ (((i+1)*unitR) * sineTable::fast_cos(pos));
-      const size_t cy = 120+ (((i+1)*unitR) * sineTable::fast_sin(pos));
+      const size_t cx = 120+ (linelen * prevcospos);
+      const size_t cy = 120+ (linelen * prevsinpos);
       tft.drawLine(120,120, cx,cy, ELI_BLUE );
+      tft.drawLine(currState.modLineXStart[i], currState.modLineYStart[i], currState.modLineX[i], currState.modLineY[i], ELI_BLUE );
       tft.drawCircle(cx, cy, 5, ELI_BLUE);
+
       float normwavelen = 1.0 - ((nextState.oscWavelengths[i] - fastestWavelen) * rangeWavelenRcp);
       normwavelen= normwavelen * normwavelen * normwavelen;
-      normwavelen = std::max(normwavelen,0);
+      normwavelen = std::max(normwavelen,0.f);
       // normwavelen = std::sqrt(normwavelen);
       const float speed = (rangeOscVisSpeed * normwavelen) + slowestOscVisSpeed;
       if (i==0) {
@@ -188,15 +221,35 @@ private:
       if (oscVisPhase[i] >= 1.f) {
         oscVisPhase[i] = 0.f;
       }
-      pos = oscVisPhase[i] * TWOPI;
+      const float pos = oscVisPhase[i] * TWOPI;
       // tft.drawLine(120,120, 120+ (100 * cos(pos)), 120+ (100 * sin(pos)), ELI_PINK );
       // tft.drawCircle(120+ (((i+1)*10) * cos(pos)), 120+ (((i+1)*10) * sin(pos)), 5, ELI_PINK);
-      const size_t cx2 = 120+ (((i+1)*unitR) * sineTable::fast_cos(pos));
-      const size_t cy2 = 120+ (((i+1)*unitR) * sineTable::fast_sin(pos));
+      const float cospos = sineTable::fast_cos(pos);
+      const float sinpos = sineTable::fast_sin(pos);
+      const size_t cx2 = 120+ (linelen * cospos);
+      const size_t cy2 = 120+ (linelen * sinpos);
       tft.drawLine(120,120, cx2,cy2, ELI_PINK );
+
+      float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5);
+      // if (i==0) {
+        // Serial.print(modv);
+        // Serial.print("\t");
+      // }
+      const size_t cx3start = 120+ (halflinelen * cospos);
+      const size_t cy3start = 120+ (halflinelen * sinpos);
+      const size_t cx3 = 120+ ((halflinelen + (modv * halflinelen)) * cospos);
+      const size_t cy3 = 120+ ((halflinelen + (modv * halflinelen)) * sinpos);
+      tft.drawLine(cx3start,cy3start, cx3,cy3, TFT_GREEN );
+      nextState.modLineX[i] = cx3;
+      nextState.modLineY[i] = cy3;
+      nextState.modLineXStart[i] = cx3start;
+      nextState.modLineYStart[i] = cy3start;
+      
+
       tft.drawCircle(cx2, cy2, 5, ELI_PINK);
 
-    }    
+    } 
+    // Serial.println();   
     constexpr float angleRange = 120/ N_OSCILLATOR_MODELS;
     constexpr std::array<size_t, 10> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE };
 
@@ -223,22 +276,52 @@ private:
     }
     if (fullRedraw || currState.metaOsc != nextState.metaOsc) {
       tft.fillRect(sqbound,0,84+84,sqbound-1, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString(nextState.ptr->getName(), 120, 26);
     }
     if (fullRedraw || currState.moddepth != nextState.moddepth) {
-      const int h = (84+84) * nextState.moddepth;
-      Serial.printf("depth redraw %d\n", h);
-      tft.fillRectVGradient(240-sqbound+1, sqbound, sqbound, h, TFT_DARKGREEN, TFT_GREEN);
-      tft.fillRect(240-sqbound+1, sqbound + h, sqbound,(84+84) -h, ELI_BLUE);
+      // const int h = (84+84) * nextState.moddepth;
+      // Serial.printf("depth redraw %d\n", h);
+      // tft.fillRect(240-sqbound+1, sqbound, sqbound,h, ELI_BLUE);
+      // tft.fillRect(240-sqbound+1, sqbound+h, 5, (84+84) -h, TFT_GREEN);
+      const float angle = 220 + (currState.moddepth * 80);
+      tft.drawSmoothArc(120, 120, 120, 115, angle , angle+10, ELI_BLUE, ELI_BLUE);
+      if (nextState.metaOsc > 0) {
+        const float angle2 = 220 + (nextState.moddepth * 80);
+        tft.drawSmoothArc(120, 120, 120, 115, angle2 , angle2+10, ELI_PINK, ELI_PINK);
+      }
     }
     if (fullRedraw || currState.modspeed != nextState.modspeed) {
-      const int h = (84+84) * (1.0-nextState.modspeed);
-      Serial.printf("depth redraw %d\n", h);
-      tft.fillRect(0, sqbound, sqbound-1,h, ELI_BLUE);
-      tft.fillRectVGradient(0, sqbound + h, sqbound-1, (84+84) -h, TFT_VIOLET, TFT_PURPLE);
+      // const int h = (84+84) * (1.0-nextState.modspeed);
+      // // Serial.printf("depth redraw %d\n", h);
+      // tft.fillRect(0, sqbound, sqbound-1,h, ELI_BLUE);
+      // tft.fillRect(sqbound-5, sqbound + h, 5, (84+84) -h, TFT_VIOLET);
+      const float angle = 140 - (currState.modspeed * 80);
+      tft.drawSmoothArc(120, 120, 120, 115, angle-10 , angle, ELI_BLUE, ELI_BLUE);
+      if (nextState.metaOsc > 0) {
+        const float angle2 = 140 - (nextState.modspeed * 80);
+        tft.drawSmoothArc(120, 120, 120, 115, angle2-10 , angle2, ELI_PINK, ELI_PINK);
+        Serial.printf("angle: %f %f\n", angle, angle2);
+      }
     }
+    if (fullRedraw || currState.modTargetPitch != nextState.modTargetPitch) {
+      tft.fillRect(0,200,240,240, ELI_BLUE);
+      tft.setFreeFont(&FreeMonoOblique9pt7b);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setTextDatum(CC_DATUM);
+      if (nextState.modTargetPitch) {
+        tft.drawString(">pitch<", 120, 210);
+      }else{
+        tft.drawString(">eps<", 120, 210);
+      }
+      tft.setFreeFont(&FreeMonoBold9pt7b);
+      tft.setTextColor(TFT_GREEN, TFT_LIGHTGREY);
+      tft.drawString("Z", 170, 210);
+
+    }
+
     nextState.ptr->draw(tft);
 
   }
