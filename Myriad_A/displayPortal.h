@@ -148,6 +148,7 @@ private:
     const int32_t bankTxtY[3] = {120+49,20,120+49};
     tft.setFreeFont(&FreeMono9pt7b);
     tft.setTextDatum(CC_DATUM);
+    tft.setTextColor(TFT_WHITE, ELI_BLUE);
     tft.drawString(String(oscModelIdx), bankTxtX[oscIdx], bankTxtY[oscIdx]);
 
   }
@@ -261,6 +262,7 @@ private:
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(CC_DATUM);
         tft.drawRect(bankTxtX[i]-5, bankTxtY[i]-5, 10, 10, ELI_BLUE);
+        tft.setTextColor(TFT_WHITE, ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
         tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE,  ELI_BLUE);
         size_t colour = colours.at(nextState.oscModel[i] % colours.size());

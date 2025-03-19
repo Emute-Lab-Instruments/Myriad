@@ -389,15 +389,15 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
         break;
       }
       case MODTARGETS::EPSILON: {
-        ctrlVal0 *= (1.f + (metamods[0]));
-        ctrlVal1 *= (1.f + (metamods[1]));
-        ctrlVal2 *= (1.f + (metamods[2]));
-        ctrlVal3 *= (1.f + (metamods[3]));
-        ctrlVal4 *= (1.f + (metamods[4]));
-        ctrlVal5 *= (1.f + (metamods[5]));
-        ctrlVal6 *= (1.f + (metamods[6]));
-        ctrlVal7 *= (1.f + (metamods[7]));
-        ctrlVal8 *= (1.f + (metamods[8]));
+        ctrlVal0 *= (1.f + (metamods[0] * 5.f));
+        ctrlVal1 *= (1.f + (metamods[1] * 5.f));
+        ctrlVal2 *= (1.f + (metamods[2] * 5.f));
+        ctrlVal3 *= (1.f + (metamods[3] * 5.f));
+        ctrlVal4 *= (1.f + (metamods[4] * 5.f));
+        ctrlVal5 *= (1.f + (metamods[5] * 5.f));
+        ctrlVal6 *= (1.f + (metamods[6] * 5.f));
+        ctrlVal7 *= (1.f + (metamods[7] * 5.f));
+        ctrlVal8 *= (1.f + (metamods[8] * 5.f));
         break;
       }
     }
