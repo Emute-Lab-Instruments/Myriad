@@ -290,21 +290,11 @@ public:
         w = acc >> 5;
       }
       int val;
-      // if (state) {
-      //   val = 1;
-      // }else{
-      //   val = w;
-      //   // w = w - (w>>4) -1;
-
-      // }
-      // state = !state;
       val = w;
       acc -= w;
 
       w=w - (w>>4) - 1;
       w=std::max(w,acc>>2);
-
-      
       *(bufferA + i) = static_cast<uint32_t>(val);
 
     }

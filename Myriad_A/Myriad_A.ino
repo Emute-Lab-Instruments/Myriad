@@ -79,9 +79,12 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_sha
 
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 5> metaOscsList = {metaOscBlank, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+
+
+std::array<metaOscPtr<N_OSCILLATORS>, 6> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
 

@@ -6,6 +6,7 @@
 
 #include "src/memlp/MLP.h"
 #include "drawing.h"
+#include <deque>
 
 enum MODTARGETS {PITCH, EPSILON, PITCH_AND_EPSILON} modTarget = MODTARGETS::PITCH;
 
@@ -316,9 +317,24 @@ public:
         for(size_t i=0; i < N; i++) {
           walkersBefore[i].x = walkers[i].x;
           walkersBefore[i].y = walkers[i].y;
+          
+          //random walk
           walkers[i].x += (random(-2000,2000)/100.0) * this->modspeed.getValue();
           walkers[i].y += (random(-2000,2000)/100.0) * this->modspeed.getValue();
-        
+
+          //wrap
+          if (walkers[i].x < sqbound) {
+            walkers[i].x += sqwidth;
+          }else if (walkers[i].x > sqboundBR) {
+            walkers[i].x -= sqwidth;
+          }
+          if (walkers[i].y < sqbound) {
+            walkers[i].y += sqwidth;
+          }else if (walkers[i].y > sqboundBR) {
+            walkers[i].y -= sqwidth;
+          }
+
+          //distance from the centre
           const float dx = 120 - walkers[i].x;
           const float dy = 120 - walkers[i].y;
           mods[i] = std::sqrt((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
@@ -327,6 +343,7 @@ public:
     }
 
     void draw(TFT_eSPI &tft) override { 
+
       for(size_t i=0; i < N; i++) {
         tft.fillRect(walkersBefore[i].x, walkersBefore[i].y, 2, 2, ELI_BLUE);
         tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, TFT_GREEN);
@@ -341,6 +358,125 @@ private:
   std::array<float, N> mods;
 };
 
+
+template<size_t N>
+class metaLorenz : public metaOsc<N> {
+public:
+    struct point {float x; float y;};
+
+    metaLorenz() {
+        this->modspeed.setMax(0.1);
+        this->modspeed.setScale(0.001);
+        this->moddepth.setMax(0.1);
+        this->moddepth.setScale(0.0009);
+        lastPoint = {120,120};
+        lastlastPoint = {120,120};
+        pastPoints.push_back(lastPoint);
+    }
+
+    String getName() override {return "lorenz";}
+
+    void lorenz(const std::vector<float>& state, std::vector<float>& deriv) {
+        float x = state[0];
+        float y = state[1];
+        float z = state[2];
+        deriv[0] = sigma * (y - x);
+        deriv[1] = x * (rho - z) - y;
+        deriv[2] = x * y - beta * z;
+    }
+
+    void runge_kutta(std::vector<float>& state) {
+        std::vector<float> k1(3), k2(3), k3(3), k4(3), temp(3);
+
+        lorenz(state, k1);
+        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5 * dt * k1[i];
+
+        lorenz(temp, k2);
+        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5 * dt * k2[i];
+
+        lorenz(temp, k3);
+        for (int i = 0; i < 3; ++i) temp[i] = state[i] + dt * k3[i];
+
+        lorenz(temp, k4);
+        for (int i = 0; i < 3; ++i) state[i] += (dt / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+    }    
+
+    std::array<float, N> update(const float (&adcs)[4]) override {
+      sigma = 10.0 + (this->modspeed.getValue()*50.f);
+      rho = 27 + (this->modspeed.getValue()*10.f);
+      dt = (this->modspeed.getValue()*0.2) + 0.001;
+      runge_kutta(state);    
+      pastStates.push_back(state);
+      if (pastStates.size() > 40) {
+        pastStates.pop_front();
+      }
+      // for(size_t i=0; i < 3; i++) {
+      //   Serial.printf("%f, ", state[i]);
+      // }  
+      // Serial.println();
+      //position
+      mods[0] = state[0] * 0.1 * this->moddepth.getValue();
+      mods[1] = state[1] * 0.1 * this->moddepth.getValue();
+      mods[2] = state[2] * 0.01 * this->moddepth.getValue();
+
+
+      size_t top=pastStates.size()-1;
+      if (top > 1) {
+        //velocity
+        mods[3] = (pastStates[top][0] - pastStates[top-1][0]) * 2.f * this->moddepth.getValue();
+        mods[4] = (pastStates[top][1] - pastStates[top-1][1]) * 2.f * this->moddepth.getValue();
+        mods[5] = (pastStates[top][2] - pastStates[top-1][2]) * 2.f * this->moddepth.getValue();
+      }
+      if (top > 2) {
+        //velocity
+
+        mods[6] = ((pastStates[top][0] - pastStates[top-1][0]) - (pastStates[top-1][0] - pastStates[top-2][0])) * 10.f * this->moddepth.getValue();
+        mods[7] = ((pastStates[top][1] - pastStates[top-1][1]) - (pastStates[top-1][1] - pastStates[top-2][1])) * 10.f * this->moddepth.getValue();
+        mods[8] = ((pastStates[top][2] - pastStates[top-1][2]) - (pastStates[top-1][2] - pastStates[top-2][2])) * 10.f * this->moddepth.getValue();
+      }
+      for(size_t i=6; i < 9; i++) {
+        Serial.printf("%f, ", mods[i]);
+      }  
+      Serial.println();
+      return mods;
+    }
+
+    //TODO: need to keep a deque of recent values (maybe 100), then draw a selection of these each time, and keep a track of which ones were drawn, 
+    // each time delete the last line and add a new line
+    // so need states deque and drawnsates deque
+
+    void draw(TFT_eSPI &tft) override {
+      constexpr size_t lineLength = 70;
+      // if (pastPoints.size() > lineLength) {
+      // }
+      // tft.drawLine(lastlastPoint.x, lastlastPoint.y, lastPoint.x, lastPoint.y, ELI_BLUE); 
+      // point newPoint = {120.f + (state[1] * 4.f), 120.f + (state[1] * 4.f)}; 
+      point newPoint = {120.f + (state[1] * 4.f), sqbound + (state[2] * 3.5f)}; 
+      tft.drawLine(pastPoints.back().x, pastPoints.back().y, newPoint.x, newPoint.y, TFT_CYAN); 
+      // lastlastPoint = lastPoint;
+      // lastPoint = newPoint;)
+      pastPoints.push_back(newPoint);
+      if (pastPoints.size() > lineLength) {
+        tft.drawLine(pastPoints[0].x, pastPoints[0].y, pastPoints[1].x, pastPoints[1].y, ELI_BLUE); 
+        pastPoints.pop_front();
+      }
+    }
+
+    std::array<float, N>& getValues() override {
+      return mods;
+    };
+
+private:
+  std::array<float, N> mods;
+  std::vector<float> state = {1.0, 1.0, 1.0};
+  std::deque<std::vector<float> > pastStates;
+  float sigma = 10.0;
+  float rho = 28.0;
+  const float beta = 8.0 / 3.0;
+  double dt = 0.01;  // Time step
+  point lastPoint, lastlastPoint;
+  std::deque<point> pastPoints;
+};
 
 template <size_t N>
 using metaOscPtr = std::shared_ptr<metaOsc<N>>;
