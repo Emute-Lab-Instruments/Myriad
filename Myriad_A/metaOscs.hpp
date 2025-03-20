@@ -7,6 +7,7 @@
 #include "src/memlp/MLP.h"
 #include "drawing.h"
 
+enum MODTARGETS {PITCH, EPSILON, PITCH_AND_EPSILON} modTarget = MODTARGETS::PITCH;
 
 
 template <typename T>

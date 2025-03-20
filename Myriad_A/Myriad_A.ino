@@ -45,7 +45,6 @@ cfg
 
 #define FAST_MEM __not_in_flash("mydata")
 
-enum MODTARGETS {PITCH, EPSILON} modTarget = MODTARGETS::PITCH;
 
 bool core1_separate_stack = true;
 
@@ -374,8 +373,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   if (currMetaMod > 0) {
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    switch(modTarget) {
-      case MODTARGETS::PITCH: {
+
+    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
         new_wavelen0 *= (1.f + (metamods[0]));
         new_wavelen1 *= (1.f + (metamods[1]));
         new_wavelen2 *= (1.f + (metamods[2]));
@@ -385,10 +384,9 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
         new_wavelen6 *= (1.f + (metamods[6]));
         new_wavelen7 *= (1.f + (metamods[7]));
         new_wavelen8 *= (1.f + (metamods[8]));
+    }
 
-        break;
-      }
-      case MODTARGETS::EPSILON: {
+    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
         ctrlVal0 *= (1.f + (metamods[0] * 5.f));
         ctrlVal1 *= (1.f + (metamods[1] * 5.f));
         ctrlVal2 *= (1.f + (metamods[2] * 5.f));
@@ -398,9 +396,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
         ctrlVal6 *= (1.f + (metamods[6] * 5.f));
         ctrlVal7 *= (1.f + (metamods[7] * 5.f));
         ctrlVal8 *= (1.f + (metamods[8] * 5.f));
-        break;
-      }
     }
+    
     // for(int i=0; i < 6; i++) {
     //   Serial.print(metamods[i]);
     //   Serial.print("\t");
@@ -682,12 +679,21 @@ void encoder3_switch_callback() {
   if (controls::encoderSwitches[2]) {
     if (controlMode == CONTROLMODES::OSCMODE) {
     }else{
-      if (modTarget == MODTARGETS::PITCH) {
-        modTarget = MODTARGETS::EPSILON;
-      }else{
-        modTarget = MODTARGETS::PITCH;
+      switch(modTarget) {
+        case MODTARGETS::PITCH: {
+          modTarget = MODTARGETS::EPSILON;
+          break;
+        }
+        case MODTARGETS::EPSILON: {
+          modTarget = MODTARGETS::PITCH_AND_EPSILON;
+          break;
+        }
+        case MODTARGETS::PITCH_AND_EPSILON: {
+          modTarget = MODTARGETS::PITCH;
+          break;
+        }
       }
-      display.setModTarget(modTarget == MODTARGETS::PITCH);
+      display.setModTarget(modTarget);
     }
   }
  
@@ -722,7 +728,7 @@ void setup() {
   tft.setFreeFont(&FreeSans18pt7b);
   display.setScreen(displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
-  display.setModTarget(modTarget == MODTARGETS::PITCH);
+  display.setModTarget(MODTARGETS::PITCH);
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];

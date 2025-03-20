@@ -31,7 +31,7 @@ public:
     int metaOsc;
     float moddepth;
     float modspeed;
-    bool modTargetPitch;
+    MODTARGETS modTarget;
     metaOscPtr<N_OSCS> ptr;
   };
 
@@ -86,8 +86,8 @@ public:
     nextState.screenMode = newMode;
   }
 
-  void setModTarget(bool isPitch) {
-    nextState.metaOscVisScreenState.modTargetPitch = isPitch;
+  void setModTarget(MODTARGETS target) {
+    nextState.metaOscVisScreenState.modTarget = target;
   }
 
   void setOscBankModel(size_t newBank, size_t newOscModel) {
@@ -308,15 +308,24 @@ private:
         Serial.printf("angle: %f %f\n", angle, angle2);
       }
     }
-    if (fullRedraw || currState.modTargetPitch != nextState.modTargetPitch) {
+    if (fullRedraw || currState.modTarget != nextState.modTarget) {
       tft.fillRect(0,200,240,240, ELI_BLUE);
       tft.setFreeFont(&FreeMonoOblique9pt7b);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setTextDatum(CC_DATUM);
-      if (nextState.modTargetPitch) {
+      switch(nextState.modTarget) {
+        case MODTARGETS::PITCH: {
         tft.drawString(">pitch<", 120, 210);
-      }else{
-        tft.drawString(">eps<", 120, 210);
+          break;
+        }
+        case MODTARGETS::EPSILON: {
+          tft.drawString(">eps<", 120, 210);
+          break;
+        }
+        case MODTARGETS::PITCH_AND_EPSILON: {
+          tft.drawString(">pit+eps<", 120, 210);
+          break;
+        }
       }
       tft.setFreeFont(&FreeMonoBold9pt7b);
       tft.setTextColor(TFT_GREEN, TFT_LIGHTGREY);
