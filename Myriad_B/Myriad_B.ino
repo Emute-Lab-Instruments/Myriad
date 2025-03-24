@@ -225,21 +225,22 @@ inline void __not_in_flash_func(readUart)() {
                 oscsReadyToStart = true;
               }
               break;
-              case CTRL:
-              {
-                float v = decodeMsg.value;
-                currOscModels0[0]->ctrl(v); 
-                currOscModels0[1]->ctrl(v); 
-                currOscModels0[2]->ctrl(v); 
-                currOscModels1[0]->ctrl(v); 
-                currOscModels1[1]->ctrl(v); 
-                currOscModels1[2]->ctrl(v); 
-                break;
-              }
+              // case CTRL:
+              // {
+              //   float v = decodeMsg.value;
+              //   currOscModels0[0]->ctrl(v); 
+              //   currOscModels0[1]->ctrl(v); 
+              //   currOscModels0[2]->ctrl(v); 
+              //   currOscModels1[0]->ctrl(v); 
+              //   currOscModels1[1]->ctrl(v); 
+              //   currOscModels1[2]->ctrl(v); 
+              //   break;
+              // }
               case CTRL0:
               {
                 float v = decodeMsg.value;
                 currOscModels0[0]->ctrl(v); 
+                // Serial.println(v);
                 break;
               }
               case CTRL1:

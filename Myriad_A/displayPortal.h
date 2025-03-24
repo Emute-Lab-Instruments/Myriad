@@ -7,6 +7,8 @@
 #include "oscDisplayModes.hpp"
 #include "clockfreq.h"
 #include "sinetable.h"
+#include <sstream>
+#include <iomanip>
 
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 
@@ -14,7 +16,7 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE};
 
   std::vector<oscVisData*> oscVisDataPtrs;
 
@@ -40,10 +42,18 @@ public:
     float finetune=0;
   };
 
+  struct CalibrationScreenStates {
+    size_t adc0,adc1,adc2,adc3;
+    size_t adcMin0,adcMin1,adcMin2,adcMin3;
+    size_t adcMax0,adcMax1,adcMax2,adcMax3;
+    size_t adcfilt0,adcfilt1,adcfilt2,adcfilt3;
+  };
+
   struct displayStates {
     SCREENMODES screenMode;
     OscBankScreenStates oscBankScreenState;
     MetaOscVisScreenStates metaOscVisScreenState;
+    CalibrationScreenStates calibrationScreenState;
     bool redraw=false; //override and redraw anyway
   };
 
@@ -65,22 +75,44 @@ public:
     }else{
       nextState.redraw = false;
     }
-    if (nextState.screenMode == SCREENMODES::OSCBANKS) {
-      drawOscBankScreen(currState.oscBankScreenState, nextState.oscBankScreenState, redraw);
-    }else{
-      drawMetaModScreen(currState.metaOscVisScreenState, nextState.metaOscVisScreenState, redraw);
+    switch(nextState.screenMode) {
+      case SCREENMODES::OSCBANKS:
+      {
+        drawOscBankScreen(currState.oscBankScreenState, nextState.oscBankScreenState, redraw);
+        break;
+      }
+      case SCREENMODES::METAOSCVIS:
+      {
+        drawMetaModScreen(currState.metaOscVisScreenState, nextState.metaOscVisScreenState, redraw);
+        break;
+      }
+      case SCREENMODES::TUNING:
+      {
+        break;
+      }
+      case SCREENMODES::CALIBRATE:
+      {
+        drawCalibrationScreen(currState.calibrationScreenState, nextState.calibrationScreenState, redraw);
+        break;
+      }
+
     }
+    // if (nextState.screenMode == SCREENMODES::OSCBANKS) {
+    //   drawOscBankScreen(currState.oscBankScreenState, nextState.oscBankScreenState, redraw);
+    // }else{
+    //   drawMetaModScreen(currState.metaOscVisScreenState, nextState.metaOscVisScreenState, redraw);
+    // }
     currState = nextState;
   }
 
 
-  void toggleScreen() {
-    if (currState.screenMode == SCREENMODES::OSCBANKS) {
-      nextState.screenMode = SCREENMODES::METAOSCVIS;
-    }else{
-      nextState.screenMode = SCREENMODES::OSCBANKS;
-    }
-  }
+  // void toggleScreen() {
+  //   if (currState.screenMode == SCREENMODES::OSCBANKS) {
+  //     nextState.screenMode = SCREENMODES::METAOSCVIS;
+  //   }else{
+  //     nextState.screenMode = SCREENMODES::OSCBANKS;
+  //   }
+  // }
 
   void setScreen(SCREENMODES newMode) {
     nextState.screenMode = newMode;
@@ -111,7 +143,33 @@ public:
     nextState.metaOscVisScreenState.modspeed = newSpeed;
   }
 
+  void setCalibADCValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
+    nextState.calibrationScreenState.adc0 = adc0;
+    nextState.calibrationScreenState.adc1 = adc1;
+    nextState.calibrationScreenState.adc2 = adc2;
+    nextState.calibrationScreenState.adc3 = adc3;
+  }
+
+  void setCalibADCFiltValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
+    nextState.calibrationScreenState.adcfilt0 = adc0;
+    nextState.calibrationScreenState.adcfilt1 = adc1;
+    nextState.calibrationScreenState.adcfilt2 = adc2;
+    nextState.calibrationScreenState.adcfilt3 = adc3;
+  }
+
+  void setCalibADCMinMaxValues(size_t adcMins[4], size_t adcMaxs[4]) {
+    nextState.calibrationScreenState.adcMin0 = adcMins[0];
+    nextState.calibrationScreenState.adcMin1 = adcMins[1];
+    nextState.calibrationScreenState.adcMin2 = adcMins[2];
+    nextState.calibrationScreenState.adcMin3 = adcMins[3];
+    nextState.calibrationScreenState.adcMax0 = adcMaxs[0];
+    nextState.calibrationScreenState.adcMax1 = adcMaxs[1];
+    nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
+    nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
+  }
+
 private:
+
   void updateOscVis(size_t oscIdx, size_t oscModelIdx) {
     uint32_t startAngle = 120*oscIdx;
     uint32_t endAngle = 120 + (120*oscIdx);
@@ -119,11 +177,6 @@ private:
     uint32_t col1;
     const uint32_t cols[3] = {TFT_PURPLE, TFT_DARKGREEN, TFT_DARKCYAN};
     col1 = cols[oscIdx];
-    // for(size_t i=0; i < oscVisDataPtrs.at(oscModelIdx)->spec.size(); i++) {
-    //   if (oscVisDataPtrs.at(oscModelIdx)->spec.at(i)> 0) {    
-    //     tft.drawSmoothArc(120, 120, 120-i, 120-i-1, startAngle, endAngle, col1, col1);
-    //   }
-    // }
     switch(oscvis.at(oscModelIdx)->mode) {
       case oscDisplayModes::MODES::SPECTRAL:
       {
@@ -334,6 +387,138 @@ private:
     }
 
     nextState.ptr->draw(tft);
+
+  }
+
+  std::string padNumberWithZeros(int number, int width) {
+      std::ostringstream ss;
+      ss << std::setw(width) << std::setfill('0') << number;
+      return ss.str();
+  }
+
+  void drawCalibrationScreen(const CalibrationScreenStates &currState, const CalibrationScreenStates &nextState, const bool fullRedraw) {
+    if (fullRedraw) {
+      tft.fillScreen(ELI_BLUE);
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString("Calibrate", 120, 26);
+    }
+    if (fullRedraw || currState.adc0 != nextState.adc0) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adc0,4);
+      tft.drawString(str.c_str(), 30, 60);
+    }
+    if (fullRedraw || currState.adc1 != nextState.adc1) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adc1,4);
+      tft.drawString(str.c_str(), 30, 90);
+    }
+    if (fullRedraw || currState.adc2 != nextState.adc2) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adc2,4);
+      tft.drawString(str.c_str(), 30, 120);
+    }
+    if (fullRedraw || currState.adc3 != nextState.adc3) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adc3,4);
+      tft.drawString(str.c_str(), 30, 150);
+    }
+
+    if (fullRedraw || currState.adcfilt0 != nextState.adcfilt0) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcfilt0,4);
+      tft.drawString(str.c_str(), 100, 60);
+    }
+    if (fullRedraw || currState.adcfilt1 != nextState.adcfilt1) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcfilt1,4);
+      tft.drawString(str.c_str(), 100, 90);
+    }
+    if (fullRedraw || currState.adcfilt2 != nextState.adcfilt2) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcfilt2,4);
+      tft.drawString(str.c_str(), 100, 120);
+    }
+    if (fullRedraw || currState.adcfilt3 != nextState.adcfilt3) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcfilt3,4);
+      tft.drawString(str.c_str(), 100, 150);
+    }
+
+    if (fullRedraw || currState.adcMin0 != nextState.adcMin0) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMin0,2);
+      tft.drawString(str.c_str(), 150, 60);
+    }
+    if (fullRedraw || currState.adcMin1 != nextState.adcMin1) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMin1,2);
+      tft.drawString(str.c_str(), 150, 90);
+    }
+    if (fullRedraw || currState.adcMin2 != nextState.adcMin2) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMin2,2);
+      tft.drawString(str.c_str(), 150, 120);
+    }
+    if (fullRedraw || currState.adcMin3 != nextState.adcMin3) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMin3,2);
+      tft.drawString(str.c_str(), 150, 150);
+    }
+
+    if (fullRedraw || currState.adcMax0 != nextState.adcMax0) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMax0,4);
+      tft.drawString(str.c_str(), 180, 60);
+    }
+    if (fullRedraw || currState.adcMax1 != nextState.adcMax1) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMax1,4);
+      tft.drawString(str.c_str(), 180, 90);
+    }
+    if (fullRedraw || currState.adcMax2 != nextState.adcMax2) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMax2,4);
+      tft.drawString(str.c_str(), 180, 120);
+    }
+    if (fullRedraw || currState.adcMax3 != nextState.adcMax3) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(TL_DATUM);
+      std::string str=padNumberWithZeros(nextState.adcMax3,4);
+      tft.drawString(str.c_str(), 180, 150);
+    }
 
   }
 

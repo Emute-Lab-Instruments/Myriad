@@ -1,6 +1,7 @@
 #pragma once
 
 #define LED_PIN 22
+#define CALIBRATE_BUTTON 0 //connected to myriad A
 
 
 //core A1
@@ -17,3 +18,5 @@
 #define OSC4_PIN 6
 #define OSC5_PIN 7
 #define OSC6_PIN 8
+
+
