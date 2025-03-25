@@ -213,7 +213,7 @@ int __not_in_flash("mydata") oscTypeBank1=0;
 int __not_in_flash("mydata") oscTypeBank2=0;
 
 static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
-static FAST_MEM std::array<size_t,4> adcMaxs{4055,4055,4055,4055};
+static FAST_MEM std::array<size_t,4> adcMaxs{4025,4025,4025,4025};
 std::array<size_t,4> adcRanges;
 
 void setup_adcs() {
@@ -276,7 +276,7 @@ inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  return (controlValues[adcIndex] - adcMins[adcIndex]) / adcRanges[adcIndex];
+  return (controlValues[adcIndex] - (adcMins[adcIndex] + 16)) / adcRanges[adcIndex];
 }
 
 
