@@ -20,6 +20,7 @@ cfg
 // #include "pio_expdec.h"
 #include "pios/pio_sq.h"
 #include "pios/pio_pulse.h"
+#include "pios/pio_expdec.h"
 
 #include "smBitStreamOsc.h"
 #include "oscillatorModels.hpp"
@@ -241,7 +242,7 @@ void setup_adcs() {
   // cycles, so in general you want a divider of 0 (hold down the button
   // continuously) or > 95 (take samples less frequently than 96 cycle
   // intervals). This is all timed by the 48 MHz ADC clock.
-  adc_set_clkdiv(96 * 128);
+  adc_set_clkdiv(96 * 2048);
   // adc_set_clkdiv(0);
 
   // printf("Arming DMA\n");
