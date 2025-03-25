@@ -12,10 +12,10 @@
 // pin_ctrl //
 // -------- //
 
-#define pin_ctrl_wrap_target 0
-#define pin_ctrl_wrap 14
+#define expdec_wrap_target 0
+#define expdec_wrap 14
 
-static const uint16_t pin_ctrl_program_instructions[] = {
+static const uint16_t expdec_program_instructions[] = {
             //     .wrap_target
     0x80a0, //  0: pull   block                      
     0x6040, //  1: out    y, 32                      
@@ -36,15 +36,15 @@ static const uint16_t pin_ctrl_program_instructions[] = {
 };
 
 #if !PICO_NO_HARDWARE
-static const struct pio_program pin_ctrl_program = {
-    .instructions = pin_ctrl_program_instructions,
+static const struct pio_program expdec_program = {
+    .instructions = expdec_program_instructions,
     .length = 15,
     .origin = -1,
 };
 
-static inline pio_sm_config pin_ctrl_program_get_default_config(uint offset) {
+static inline pio_sm_config expdec_program_get_default_config(uint offset) {
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, offset + pin_ctrl_wrap_target, offset + pin_ctrl_wrap);
+    sm_config_set_wrap(&c, offset + expdec_wrap_target, offset + expdec_wrap);
     sm_config_set_sideset(&c, 2, true, false);
     return c;
 }

@@ -358,6 +358,35 @@ public:
   std::vector<float> oscTemplate;
 };
 
+class expdecOscillatorModel1 : public virtual oscillatorModel {
+  public:
+  expdecOscillatorModel1() : oscillatorModel(){
+      loopLength=2;
+      prog=expdec_program;
+      vis.mode = oscDisplayModes::MODES::SPECTRAL;
+      vis.data.resize(24);
+      for(size_t i=0; i < vis.data.size(); i++) {
+        vis.data[i] = i % 4 == 0 ? 1 : 0;
+      }
+  
+    }
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      for (size_t i = 0; i < oscTemplate.size(); ++i) {
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+      }
+    }
+    std::vector<float> oscTemplate {0.01,0.09};
+  
+    void ctrl(const float v) override {
+      //receive a control parameter
+      // const float v1 = v * 0.98;
+      // const float v2 = 1.0 - v;
+      // oscTemplate [0] = v1;
+      // oscTemplate [1] = v2;
+    }
+  
+  };
+  
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
