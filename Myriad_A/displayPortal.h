@@ -38,8 +38,8 @@ public:
   };
 
   struct TuningScreenStates {
-    float voltage=0;
-    float finetune=0;
+    int coursetune=0;
+    int finetune=0;
   };
 
   struct CalibrationScreenStates {
@@ -54,6 +54,7 @@ public:
     OscBankScreenStates oscBankScreenState;
     MetaOscVisScreenStates metaOscVisScreenState;
     CalibrationScreenStates calibrationScreenState;
+    TuningScreenStates tuningState;
     bool redraw=false; //override and redraw anyway
   };
 
@@ -88,6 +89,7 @@ public:
       }
       case SCREENMODES::TUNING:
       {
+        drawTuningScreen(currState.tuningState, nextState.tuningState, redraw);
         break;
       }
       case SCREENMODES::CALIBRATE:
@@ -166,6 +168,11 @@ public:
     nextState.calibrationScreenState.adcMax1 = adcMaxs[1];
     nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
     nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
+  }
+
+  void setTuning(int course, int fine) {
+    nextState.tuningState.coursetune = course;
+    nextState.tuningState.finetune = fine;
   }
 
 private:
@@ -521,6 +528,33 @@ private:
     }
 
   }
+
+  void drawTuningScreen(const TuningScreenStates &currState, const TuningScreenStates &nextState, const bool fullRedraw) {
+    if (fullRedraw) {
+      tft.fillScreen(ELI_BLUE);
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString("Tuning", 120, 26);
+      tft.drawString("Course", 60, 180);
+      tft.drawString("Fine", 180, 180);
+    }
+    if (fullRedraw || currState.coursetune != nextState.coursetune) {
+      tft.fillRect(0,50,100,100, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setFreeFont(&FreeSansBold24pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawNumber(nextState.coursetune, 60, 100);
+    }
+    if (fullRedraw || currState.finetune != nextState.finetune) {
+      tft.fillRect(110,50,100,130, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setFreeFont(&FreeSansBold24pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawNumber(nextState.finetune, 180, 100);
+    }
+  }
+
 
   displayStates currState, nextState;
 

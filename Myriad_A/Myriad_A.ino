@@ -214,7 +214,11 @@ int __not_in_flash("mydata") oscTypeBank2=0;
 
 static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
 static FAST_MEM std::array<size_t,4> adcMaxs{4025,4025,4025,4025};
-std::array<size_t,4> adcRanges;
+static FAST_MEM std::array<size_t,4> adcRanges;
+static FAST_MEM float courseTuning=0;
+static FAST_MEM float fineTuning=0;
+static FAST_MEM int tuningOctaves=0;
+static FAST_MEM int tuningMillis=0;
 
 void setup_adcs() {
   adc_init();
@@ -305,6 +309,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       if (controlValues[i] > adcMaxs[i]) {
         adcMaxs[i] = controlValues[i];
       }
+      adcRanges[i] = adcMaxs[i] - adcMins[i];
     }
     display.setCalibADCValues(capture_buf[0], capture_buf[1], capture_buf[2], capture_buf[3]);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
@@ -312,6 +317,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   }
   
 
+  // size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
   size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
   if (octaveIdx != lastOctaveIdx) {
     lastOctaveIdx = octaveIdx;
@@ -342,7 +348,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // float acc =  1.f - (adcMap(2) * 0.02f);
 
   // float new_wavelen0 = freqtable[std::lround(controlValues[0])];
-  float freq = pow(2, adcMap(0) * 10.f); // 10 octaves
+  float pitchCV = std::max(0.f,(adcMap(0)));
+  float freq = pow(2, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
   float new_wavelen0 = 1.0f/freq * 1250000.f ; // 1250000 is wavelen of 20hz @200MHz clock speed and 8 clockdiv
 
   // Serial.println(new_wavelen0);
@@ -553,7 +560,14 @@ void updateMetaOscMode(size_t &currMetaModMode, const int change) {
 
 }
 
+void updateTuning() {
+  courseTuning = tuningOctaves *  0.1;
+  fineTuning = tuningMillis * 0.001 * 0.1;
+  display.setTuning(tuningOctaves, tuningMillis);
+  Serial.printf("%f %f\n", courseTuning, fineTuning);
+}
 
+//centre
 void encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   switch(controlMode) {
@@ -595,6 +609,7 @@ void encoder1_callback() {
   // }
 }
 
+//left
 void encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
   switch(controlMode) {
@@ -624,6 +639,8 @@ void encoder2_callback() {
     }
     case CONTROLMODES::TUNINGMODE:
     {
+      tuningOctaves += change;
+      updateTuning();
       break;
     }
   }
@@ -646,6 +663,7 @@ void encoder2_callback() {
 
 }
 
+//right
 void encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   switch(controlMode) {
@@ -673,6 +691,8 @@ void encoder3_callback() {
     }
     case CONTROLMODES::TUNINGMODE:
     {
+      tuningMillis += change;
+      updateTuning();
       break;
     }
   }
@@ -791,6 +811,9 @@ void encoder3_switch_callback() {
       }
       case CONTROLMODES::OSCMODE:
       {
+        controlMode = CONTROLMODES::TUNINGMODE;
+        display.setScreen(portal::SCREENMODES::TUNING);
+        display.setTuning(tuningOctaves, tuningMillis);
         break;
       }
       case CONTROLMODES::CALIBRATEMODE:
@@ -799,6 +822,8 @@ void encoder3_switch_callback() {
       }
       case CONTROLMODES::TUNINGMODE:
       {
+        controlMode = CONTROLMODES::OSCMODE;
+        display.setScreen(portal::SCREENMODES::OSCBANKS);
         break;
       }
     }
