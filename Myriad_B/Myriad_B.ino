@@ -2,11 +2,10 @@
 
 
 #include "myriad_pins.h"
-#include "myriad_setup.h"
 #include "hardware/sync.h"
-// #include "pio_expdec.h"
 #include "pios/pio_sq.h"
 #include "pios/pio_pulse.h"
+#include "pios/pio_expdec.h"
 #include "smBitStreamOsc.h"
 #include "myriad_messages.h"
 #include "SLIP.h"

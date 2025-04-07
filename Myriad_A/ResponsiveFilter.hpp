@@ -22,7 +22,7 @@
 class ResponsiveFilter {
 public:
     // Constructor to initialize the filter with optional snap multiplier and activity threshold
-    ResponsiveFilter(float snapMultiplier = 0.01, float activityThreshold = 1.0)
+    ResponsiveFilter(float snapMultiplier = 0.02, float activityThreshold = 1.0)
         : smoothValue(0), outputValue(0), snapMultiplier(snapMultiplier), activityThreshold(activityThreshold) {}
 
     // Method to process a raw analog value and return a smoothed output value

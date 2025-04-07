@@ -275,9 +275,9 @@ private:
       normwavelen = std::max(normwavelen,0.f);
       // normwavelen = std::sqrt(normwavelen);
       const float speed = (rangeOscVisSpeed * normwavelen) + slowestOscVisSpeed;
-      if (i==0) {
-        Serial.println(normwavelen);
-      }
+      // if (i==0) {
+      //   Serial.println(normwavelen);
+      // }
       oscVisPhase[i] += speed;
       if (oscVisPhase[i] >= 1.f) {
         oscVisPhase[i] = 0.f;

@@ -49,6 +49,8 @@ cfg
 
 #define FAST_MEM __not_in_flash("mydata")
 
+// #define SINGLEOSCILLATOR
+
 
 bool core1_separate_stack = true;
 
@@ -146,6 +148,8 @@ void startOscBankA() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
+#ifndef SINGLEOSCILLATOR
+
   // smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0B->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, clockdiv, currOscModels[1]->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
@@ -156,12 +160,15 @@ void startOscBankA() {
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
   // Serial.println("started");
+#endif
 }
 
 void stopOscBankA() {
   smOsc0.stop();
+#ifndef SINGLEOSCILLATOR
   smOsc1.stop();
   smOsc2.stop();
+#endif
 }
 
 #define SCREEN_WIDTH tft.width()    //
@@ -189,12 +196,12 @@ namespace controls {
 
 boidsSim boids;
 
-MovingAverageFilter<float> FAST_MEM adcFilters[4];
-MedianFilter<float> FAST_MEM adcMedians[4];
+// MovingAverageFilter<float> FAST_MEM adcFilters[4];
+// MedianFilter<float> FAST_MEM adcMedians[4];
 ResponsiveFilter FAST_MEM adcRsFilters[4];
 
 static float __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
-static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
+// static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
 
@@ -267,7 +274,6 @@ void setup_adcs() {
                         true            // start immediately
   );
 
-  // printf("Starting capture\n");
   adc_select_input(0);
   adc_run(true);
 }
@@ -281,27 +287,19 @@ inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  return (controlValues[adcIndex] - (adcMins[adcIndex] + 16)) / adcRanges[adcIndex];
+  return std::max(0.f,(controlValues[adcIndex] - (adcMins[adcIndex]))) / adcRanges[adcIndex];
 }
 
 
 size_t msgCt=0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   static size_t __not_in_flash("acdData") lastOctaveIdx = 0;
-  // controlValues[0] = capture_buf[0];
-  // controlValues[1] = capture_buf[1];
-  // controlValues[2] = capture_buf[2];
-  // controlValues[3] = capture_buf[3];
 
   controlValues[0] = adcRsFilters[0].process(capture_buf[0]);
   controlValues[1] = adcRsFilters[1].process(capture_buf[1]);
   controlValues[2] = adcRsFilters[2].process(capture_buf[2]);
   controlValues[3] = adcRsFilters[3].process(capture_buf[3]);
 
-  // controlValueMedians[0] = adcMedians[0].process(capture_buf[0]);
-  // controlValueMedians[1] = adcMedians[1].process(capture_buf[1]);
-  // controlValueMedians[2] = adcMedians[2].process(capture_buf[2]);
-  // controlValueMedians[3] = adcMedians[3].process(capture_buf[3]);
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
       if (controlValues[i] < adcMins[i]) {
@@ -349,11 +347,15 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   // float acc =  1.f - (adcMap(2) * 0.02f);
 
   // float new_wavelen0 = freqtable[std::lround(controlValues[0])];
-  float pitchCV = std::max(0.f,(adcMap(0)));
-  float freq = pow(2, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
-  float new_wavelen0 = 1.0f/freq * 1250000.f ; // 1250000 is wavelen of 20hz @200MHz clock speed and 8 clockdiv
+  // constexpr float wavelen20hz = sampleClock/20.f;
+  constexpr float wavelen20hz = sampleClock/20.f;
+  constexpr float wavelenTesthz = sampleClock/0.01f;
+  float pitchCV = adcMap(0);
+  float freq = std::pow(2.f, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
+  float new_wavelen0 = 1.0f/freq * wavelen20hz ; 
 
-  // Serial.println(new_wavelen0);
+  // float new_wavelen0 = 1.0f/freq * wavelenTesthz ; 
+
   float detune = (adcMap(1) * 0.01f) * new_wavelen0;
   float acc = 1.f - (adcMap(1) * 0.02f);
   // new_wavelen0 = 200000;
@@ -433,8 +435,9 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     // }
   }
 
-  if (msgCt == 800) {
-    Serial.printf("%f \n", controlValues[0]);
+  if (msgCt == 100) {
+    // Serial.printf("%f \n", controlValues[0]);
+    Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
     msgCt=0;
   }
   msgCt++;
@@ -451,16 +454,16 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   currOscModels[1]->ctrl(ctrlVal1);
   currOscModels[2]->ctrl(ctrlVal2);
 
-  sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
-  sendToMyriadB(messageTypes::WAVELEN1, new_wavelen1);
-  sendToMyriadB(messageTypes::WAVELEN2, new_wavelen2);
-  sendToMyriadB(messageTypes::WAVELEN3, new_wavelen3);
-  sendToMyriadB(messageTypes::WAVELEN4, new_wavelen4);
-  sendToMyriadB(messageTypes::WAVELEN5, new_wavelen5);
+  sendToMyriadB(messageTypes::WAVELEN0, new_wavelen3);
+  sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
+  sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
+  sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
+  sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
+  sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
-  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen6);
-  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen7);
-  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen8);
+  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen0);
+  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen1);
+  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen2);
 
 
   oscsReadyToStart = true;
@@ -915,10 +918,10 @@ void setup() {
   digitalWrite(LED_PIN, 1);
 
   //ADCs
-  const size_t filterSize=5;
-  for(auto &filter: adcFilters) {
-    filter.init(filterSize);
-  }
+  // const size_t filterSize=5;
+  // for(auto &filter: adcFilters) {
+  //   filter.init(filterSize);
+  // }
 
   // for(auto &filter: adcMedians) {
   //   filter.init(15);
@@ -977,7 +980,7 @@ void loop() {
   // Serial.println("Hello from Myriad A");
 
   // __wfi();
-  delay(100);
+  delay(1);
 }
 
 

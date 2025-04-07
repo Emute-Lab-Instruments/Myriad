@@ -15,25 +15,27 @@
 #define expdec_wrap_target 0
 #define expdec_wrap 14
 
+
 static const uint16_t expdec_program_instructions[] = {
-            //     .wrap_target
-    0x80a0, //  0: pull   block                      
-    0x6040, //  1: out    y, 32                      
-    0xb822, //  2: mov    x, y            side 1     
-    0x0043, //  3: jmp    x--, 3                     
-    0x4040, //  4: in     y, 32                      
-    0x5864, //  5: in     null, 4         side 1     
-    0xa046, //  6: mov    y, isr                     
-    0xb022, //  7: mov    x, y            side 0     
-    0x0048, //  8: jmp    x--, 8                     
-    0xa0c3, //  9: mov    isr, null                  
-    0x4040, // 10: in     y, 32                      
-    0x5861, // 11: in     null, 1         side 1     
-    0xa046, // 12: mov    y, isr                     
-    0x0060, // 13: jmp    !y, 0                      
-    0x0002, // 14: jmp    2                          
-            //     .wrap
+    //     .wrap_target
+0x80a0, //  0: pull   block                      
+0x6040, //  1: out    y, 32                      
+0xb822, //  2: mov    x, y            side 1     
+0x0043, //  3: jmp    x--, 3                     
+0x4040, //  4: in     y, 32                      
+0x4061, //  5: in     null, 2                    
+0xa046, //  6: mov    y, isr                     
+0xb022, //  7: mov    x, y            side 0     
+0x0048, //  8: jmp    x--, 8                     
+0xa0c3, //  9: mov    isr, null                  
+0x4040, // 10: in     y, 32                      
+0x4063, // 11: in     null, 1                    
+0xa046, // 12: mov    y, isr                     
+0x0060, // 13: jmp    !y, 0                      
+0x0002, // 14: jmp    2                          
+    //     .wrap
 };
+
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program expdec_program = {

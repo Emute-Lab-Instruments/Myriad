@@ -57,7 +57,7 @@ public:
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 0.5);
     }
   }
   std::vector<float> oscTemplate {0.1,0.9};
@@ -93,7 +93,7 @@ public:
     return pulse_program_get_default_config(offset);
   }
 
-  const std::vector<float> oscTemplate {0.5,0.5};
+  const std::vector<float> oscTemplate {0.5,0.5}; 
 
 
 };
@@ -112,7 +112,7 @@ public:
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 2.5f);
     }
   }
 
@@ -163,7 +163,7 @@ public:
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     wavelen = wavelen * 2;
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 1.75f);
     }
   }
 
@@ -237,19 +237,19 @@ public:
   noiseOscillatorModel() : oscillatorModel(){
     loopLength=16;
     prog=pulse_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 12 ==0 ? 1 : 0;
-    }
+    // vis.mode = oscDisplayModes::MODES::SPECTRAL;
+    // vis.data.resize(24);
+    // for(size_t i=0; i < vis.data.size(); i++) {
+    //   vis.data[i] = i % 12 ==0 ? 1 : 0;
+    // }
     randBaseMin = randMin = sampleClock/20000;
     randBaseMax = randMax = sampleClock/20;
     randRange = randMax - randBaseMin;
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-    randMax = randBaseMax - wavelen;
-    randRange = randMax - randMin;
+    // randMax = randBaseMax - wavelen;
+    // randRange = randMax - randMin;
     for (size_t i = 0; i < loopLength; ++i) {
         *(bufferA + i) = static_cast<uint32_t>(random(randMin,randMax));
     }
@@ -258,7 +258,8 @@ public:
     return pulse_program_get_default_config(offset);
   }
   void ctrl(const float v) override {
-    randMin = randBaseMin + (v * randRange);
+    randMax = randBaseMin + (v * randRange);
+    Serial.println(randMax);
   }
 
 
@@ -327,55 +328,60 @@ public:
     }
     tempOscTemplate.resize(loopLength,1.0/loopLength);
     oscTemplate.resize(loopLength,1.0/loopLength);
-    ctrl(0.1);
+    ctrl(0.0);
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 2.55f);
     }
   }
 
   void ctrl(const float v) override {
     float vscale = ((v * 0.01) + 0.65) * 8;
-    Serial.println(v);
     float total=0;
     for(float i=0; i < loopLength; i++) {
       const float w = std::max(0.0001f, fabs(sinf(i * vscale)));
       tempOscTemplate[i] = w;
       total += w;
     }
+
     //normalise
+    const float lenscale = total/4.69f;
     const float scale=1.f/total;
     for(size_t i=0; i < loopLength; i++) {
-      oscTemplate[i] = tempOscTemplate[i] * scale;
+      oscTemplate[i] = tempOscTemplate[i] * lenscale;
       // Serial.printf("%f\t",oscTemplate[i]);
     }
-    // Serial.println();
+    Serial.println(lenscale);
   }
 
   std::vector<float> tempOscTemplate;
   std::vector<float> oscTemplate;
+
+  pio_sm_config getBaseConfig(uint offset) {
+    return pulse_program_get_default_config(offset);
+  }
+
 };
 
 class expdecOscillatorModel1 : public virtual oscillatorModel {
   public:
   expdecOscillatorModel1() : oscillatorModel(){
-      loopLength=2;
+      loopLength=8;
       prog=expdec_program;
-      vis.mode = oscDisplayModes::MODES::SPECTRAL;
-      vis.data.resize(24);
-      for(size_t i=0; i < vis.data.size(); i++) {
-        vis.data[i] = i % 4 == 0 ? 1 : 0;
-      }
-  
     }
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f);
       }
+      // wmult = wmult * wmultmult;
+      // if (wmult < 0.125f) {
+      //   wmult=1.f;
+      // }
     }
-    std::vector<float> oscTemplate {0.01,0.09};
+    std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
+    // std::vector<float> oscTemplate {0.1,0.5};
   
     void ctrl(const float v) override {
       //receive a control parameter
@@ -383,19 +389,197 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
       // const float v2 = 1.0 - v;
       // oscTemplate [0] = v1;
       // oscTemplate [1] = v2;
+      oscTemplate[0] = 0.05 + (v * 0.02);
+      oscTemplate[1] = 0.025 - (v * 0.02);
+
+      oscTemplate[4] = 0.001 - (v * 0.0005);
+      oscTemplate[5] = 0.001 + (v * 0.0005);
+
+      oscTemplate[5] = 0.01 - (v * 0.05);
+      oscTemplate[6] = 0.025 + (v * 0.05);
     }
+
+    pio_sm_config getBaseConfig(uint offset) {
+      return expdec_program_get_default_config(offset);
+    }
+  
+  private:
+  
+  };
+
+  class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
+    public:
+    expdecOscillatorBytebeatModel() : oscillatorModel(){
+        loopLength=8;
+        prog=expdec_program;
+      }
+      inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+        for (size_t i = 0; i < oscTemplate.size(); ++i) {
+            *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f * wmult);
+        }
+        wmult = wmult * wmultmult;
+        if (wmult < 0.125f) {
+          wmult=1.f;
+        }
+      }
+      std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
+      // std::vector<float> oscTemplate {0.1,0.5};
+    
+      void ctrl(const float v) override {
+        wmultmult = 0.3f + (v*0.5f);
+      }
+  
+      pio_sm_config getBaseConfig(uint offset) {
+        return expdec_program_get_default_config(offset);
+      }
+    
+    private:
+      float wmult=1;
+      float wmultmult=1.f;
+    
+    };
+  
+class sawOscillatorModel : public virtual oscillatorModel {
+  public:
+    sawOscillatorModel() : oscillatorModel(){
+      loopLength=8;
+      prog=pin_ctrl_program;
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      for (size_t i = 0; i < loopLength; ++i) {
+  
+      }
+    }
+    void ctrl(const float v) override {
+    }
+  
+  
+  private:
+    int phase=0;
+    bool y=0;
+    int err0;
+
+  };
+
+class slideOscillatorModel : public virtual oscillatorModel {
+  public:
+  slideOscillatorModel() : oscillatorModel(){
+      loopLength=6;
+      prog=pulse_program;
+      vis.mode = oscDisplayModes::MODES::SPECTRAL;
+      vis.data.resize(24);
+      for(size_t i=0; i < vis.data.size(); i++) {
+        vis.data[i] = i % 7 ==0 ? 1 : 0;
+      }
+      // for(size_t i=0; i < oscTemplate.size()-loopLength; i++) {
+      //   float total=0;
+      //   for(size_t j=0; j < loopLength; j++) {
+      //     total += oscTemplate[i+j];
+      //   }
+      //   scales.push_back(1.f/total);
+      // }
+      oscInterpTemplate.resize(loopLength);
+      ctrl(0);
+  
+    }
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      for (size_t i = 0; i < oscTemplate.size(); ++i) {
+        // *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i+offset] * wavelen * scales[offset]);
+        *(bufferA + i) = static_cast<uint32_t>(oscInterpTemplate[i] * wavelen);
+      }
+    }
+
+    void ctrl(const float v) override {
+      float scaledV = v*9.99;
+      offset = static_cast<size_t>(scaledV);
+      size_t offsetNext = offset+1;
+      float remainder = scaledV - offset; 
+      float remainderInv = 1.f - remainder;
+      float total=0.f;
+      for(size_t i=0; i < loopLength; i++) {
+        float val = (remainderInv * oscTemplate[i+offset]) + (remainder * oscTemplate[i+offsetNext]);
+        oscInterpTemplate[i] = val;
+        total += val;
+      }
+      float scale = 1.f/total;
+      for(size_t i=0; i < loopLength; i++) {
+        oscInterpTemplate[i] *= scale;
+        // Serial.printf("%f ", oscInterpTemplate[i]);
+      }
+      // Serial.println();
+      // Serial.printf("%f %f %f\n", oscInterpTemplate[0], oscTemplate[offset], oscTemplate[offsetNext]);
+
+    }
+
+    pio_sm_config getBaseConfig(uint offset) override {
+      return pulse_program_get_default_config(offset);
+    }
+  
+    const std::vector<float> oscTemplate {0.1, 0.3, 0.001, 0.2, 0.003,
+      0.0023, 0.00001, 0.04, 0.057, 0.034,
+     0.002, 0.003, 0.001, 0.2, 0.023,
+    0.4}; 
+  
+  private:
+  size_t offset=0;
+  std::vector<float> scales;
+  std::vector<float> oscInterpTemplate;
+
+  };
+    
+
+class noiseOscillatorModel2 : public virtual oscillatorModel {
+  public:
+    noiseOscillatorModel2() : oscillatorModel(){
+      loopLength=16;
+      prog=pulse_program;
+      // vis.mode = oscDisplayModes::MODES::SPECTRAL;
+      // vis.data.resize(24);
+      // for(size_t i=0; i < vis.data.size(); i++) {
+      //   vis.data[i] = i % 12 ==0 ? 1 : 0;
+      // }
+      randBaseMin = randMin = sampleClock/10000;
+      randBaseMax = randMax = sampleClock/20;
+      randRange = randMax - randBaseMin;
+  
+    }
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      for (size_t i = 0; i < loopLength; ++i) {
+          // bool on = random(0,1000) > 500;
+          *(bufferA + i) = static_cast<uint32_t>(wavelen * 0.01, random(0,randMult) * wavelen * 0.01);
+      }
+    }
+    pio_sm_config getBaseConfig(uint offset) {
+      return pulse_program_get_default_config(offset);
+    }
+    void ctrl(const float v) override {
+      randMult = 5 + (v * 500);
+    }
+  
+  
+  private:
+    long randMin, randMax, randBaseMin, randRange, randBaseMax;
+    float randMult=100;
+    // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
+  
   
   };
   
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 7;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
 
 // Array of "factory" lambdas returning oscModelPtr
 
 std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("mydata") oscModelFactories = {
+  // []() { return std::make_shared<noiseOscillatorModel2>(); }
   []() { return std::make_shared<squareOscillatorModel>(); }
+  
+  ,
+  []() { return std::make_shared<expdecOscillatorModel1>(); }
   ,
   []() { return std::make_shared<pulse10OscillatorModel>(); }
   ,
@@ -403,9 +587,9 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
   []() { return std::make_shared<squareOscillatorModel14>();}
   ,
-  []() { return std::make_shared<sinOscillatorModel8>(); }
+  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); }
   ,
-  []() { return std::make_shared<noiseOscillatorModel>();}
+  []() { return std::make_shared<noiseOscillatorModel2>();}
   ,
   []() { return std::make_shared<silentOscillatorModel>();}
 };
