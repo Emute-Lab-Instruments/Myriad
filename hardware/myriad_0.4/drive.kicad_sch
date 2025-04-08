@@ -2939,14 +2939,14 @@
 	(symbol
 		(lib_id "Device:R_Potentiometer_Dual_Separate")
 		(at 191.008 56.388 90)
-		(unit 1)
+		(unit 2)
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a2d509a8-389e-4c8a-9258-e26512fcbfe1")
-		(property "Reference" "RV2"
+		(property "Reference" "RV1"
 			(at 191.008 59.69 90)
 			(effects
 				(font
@@ -3010,8 +3010,8 @@
 		(instances
 			(project "myriad_0.4"
 				(path "/d3c99813-9738-464b-b3f3-e345070450f9/171d2d53-6201-4692-91db-b27b5aef0843"
-					(reference "RV2")
-					(unit 1)
+					(reference "RV1")
+					(unit 2)
 				)
 				(path "/d3c99813-9738-464b-b3f3-e345070450f9/6f7a2319-f689-49f3-9cb7-a33f6a9bd79a"
 					(reference "RV1")
