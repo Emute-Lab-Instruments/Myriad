@@ -2518,7 +2518,7 @@
 				)
 			)
 		)
-		(property "Footprint" "LED_THT:LED_D3.0mm_Clear"
+		(property "Footprint" "emutelab:LED_D3.0mm_Clear_Annotated"
 			(at 186.563 79.248 0)
 			(effects
 				(font
@@ -2727,7 +2727,7 @@
 		(fields_autoplaced yes)
 		(uuid "85f14bc4-ae9f-4897-9c69-99b818cc7f2c")
 		(property "Reference" "D4"
-			(at 182.4355 80.518 0)
+			(at 182.4355 80.01 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -2735,14 +2735,14 @@
 			)
 		)
 		(property "Value" "LED"
-			(at 182.4355 83.058 0)
+			(at 182.4355 82.55 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Footprint" "LED_THT:LED_D3.0mm_Clear"
+		(property "Footprint" "emutelab:LED_D3.0mm_Clear_Annotated"
 			(at 184.023 86.868 0)
 			(effects
 				(font
@@ -2962,7 +2962,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Potentiometer_THT:Potentiometer_Alpha_RD902F-40-00D_Dual_Vertical_CircularHoles"
 			(at 191.008 56.388 0)
 			(effects
 				(font
@@ -3343,7 +3343,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Package_SO:TSSOP-14_4.4x5mm_P0.65mm"
 			(at 83.312 114.554 0)
 			(effects
 				(font
@@ -3451,7 +3451,7 @@
 				)
 			)
 		)
-		(property "Footprint" ""
+		(property "Footprint" "Package_SO:TSSOP-14_4.4x5mm_P0.65mm"
 			(at 181.483 105.918 0)
 			(effects
 				(font
