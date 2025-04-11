@@ -13639,21 +13639,21 @@
 		(fields_autoplaced yes)
 		(uuid "15216ed4-6a92-4839-acc2-f9151e01cb03")
 		(property "Reference" "R29"
-			(at 537.464 179.0701 0)
+			(at 533.4 176.5299 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
-		(property "Value" "100k"
-			(at 537.464 176.5301 0)
+		(property "Value" "100k 0603"
+			(at 533.4 179.0699 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -14374,15 +14374,15 @@
 		(fields_autoplaced yes)
 		(uuid "200b0356-02f4-461f-8379-602389152439")
 		(property "Reference" "R51"
-			(at 771.525 91.8677 90)
+			(at 771.525 91.44 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "33k"
-			(at 771.525 94.2919 90)
+		(property "Value" "33k_0402"
+			(at 771.525 93.98 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -15547,15 +15547,15 @@
 		(fields_autoplaced yes)
 		(uuid "2ba3a23b-cb91-4b19-be9f-393fc2791218")
 		(property "Reference" "R50"
-			(at 770.255 206.1677 90)
+			(at 770.255 205.74 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "33k"
-			(at 770.255 208.5919 90)
+		(property "Value" "33k_0402"
+			(at 770.255 208.28 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -16966,21 +16966,21 @@
 		(fields_autoplaced yes)
 		(uuid "4645a93a-4eec-4322-8fba-b0322428c913")
 		(property "Reference" "R94"
-			(at 540.258 321.6911 0)
+			(at 535.94 319.1509 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
-		(property "Value" "100k"
-			(at 540.258 319.1511 0)
+		(property "Value" "100k 0603"
+			(at 535.94 321.6909 0)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
-				(justify left)
+				(justify right)
 			)
 		)
 		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
@@ -20551,15 +20551,15 @@
 		(fields_autoplaced yes)
 		(uuid "7160bf18-69ee-4e7c-8f04-9d8da7609608")
 		(property "Reference" "R53"
-			(at 771.525 263.3177 90)
+			(at 771.525 262.89 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "33k"
-			(at 771.525 265.7419 90)
+		(property "Value" "33k_0402"
+			(at 771.525 265.43 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -28376,7 +28376,7 @@
 		(fields_autoplaced yes)
 		(uuid "ea873243-420d-403d-bacc-65e01f4809a5")
 		(property "Reference" "R93"
-			(at 539.369 337.1849 0)
+			(at 539.75 337.1849 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -28384,8 +28384,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "100k"
-			(at 539.369 339.7249 0)
+		(property "Value" "100k 0603"
+			(at 539.75 339.7249 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -29178,15 +29178,15 @@
 		(fields_autoplaced yes)
 		(uuid "f417bc0b-832d-4f55-9ddf-9bd2bf6e8107")
 		(property "Reference" "R52"
-			(at 771.525 142.6677 90)
+			(at 771.525 142.24 90)
 			(effects
 				(font
 					(size 1.27 1.27)
 				)
 			)
 		)
-		(property "Value" "33k"
-			(at 771.525 145.0919 90)
+		(property "Value" "33k_0402"
+			(at 771.525 144.78 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -29512,7 +29512,7 @@
 		(fields_autoplaced yes)
 		(uuid "f9857fa9-003c-4387-a072-c671fbaa4e08")
 		(property "Reference" "R28"
-			(at 536.575 194.5639 0)
+			(at 537.21 194.5639 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -29520,8 +29520,8 @@
 				(justify left)
 			)
 		)
-		(property "Value" "100k"
-			(at 536.575 197.1039 0)
+		(property "Value" "100k 0603"
+			(at 537.21 197.1039 0)
 			(effects
 				(font
 					(size 1.27 1.27)

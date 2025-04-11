@@ -1602,7 +1602,7 @@
 		(at 196.723 56.388)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "c6b0bd6d-ed3d-4ccf-b94f-1733c584e479")
+		(uuid "d4b64fa2-6333-4bbb-97ed-37e69528fc08")
 	)
 	(junction
 		(at 96.012 112.014)
@@ -1729,16 +1729,6 @@
 			(type default)
 		)
 		(uuid "5fab2834-d124-4b47-a493-44ca46315d33")
-	)
-	(wire
-		(pts
-			(xy 196.723 48.768) (xy 196.723 56.388)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "61db31f7-50c8-4c57-a554-4afd09263928")
 	)
 	(wire
 		(pts
@@ -2131,7 +2121,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0R0"
+		(property "Value" "DNP"
 			(at 185.039 46.228 0)
 			(effects
 				(font
@@ -3312,6 +3302,79 @@
 				)
 				(path "/d3c99813-9738-464b-b3f3-e345070450f9/6f7a2319-f689-49f3-9cb7-a33f6a9bd79a"
 					(reference "R75")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 196.723 52.578 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c334a565-bb0d-460d-ae4f-19eb929e00fa")
+		(property "Reference" "R97"
+			(at 195.453 43.688 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0R0"
+			(at 195.453 46.228 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+			(at 194.945 52.578 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 196.723 52.578 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 196.723 52.578 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "c466d396-69c5-4803-99e8-661094c27408")
+		)
+		(pin "1"
+			(uuid "20941c6f-cadf-4162-b2bc-a6a645970fdf")
+		)
+		(instances
+			(project "myriad_0.4"
+				(path "/d3c99813-9738-464b-b3f3-e345070450f9/171d2d53-6201-4692-91db-b27b5aef0843"
+					(reference "R98")
+					(unit 1)
+				)
+				(path "/d3c99813-9738-464b-b3f3-e345070450f9/6f7a2319-f689-49f3-9cb7-a33f6a9bd79a"
+					(reference "R97")
 					(unit 1)
 				)
 			)
