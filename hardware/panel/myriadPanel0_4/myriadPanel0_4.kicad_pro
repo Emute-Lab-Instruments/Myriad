@@ -6,7 +6,7 @@
         "apply_defaults_to_fp_fields": false,
         "apply_defaults_to_fp_shapes": false,
         "apply_defaults_to_fp_text": false,
-        "board_outline_line_width": 0.05,
+        "board_outline_line_width": 0.1,
         "copper_line_width": 0.2,
         "copper_text_italic": false,
         "copper_text_size_h": 1.5,
@@ -30,25 +30,26 @@
         "fab_text_size_v": 1.0,
         "fab_text_thickness": 0.15,
         "fab_text_upright": false,
-        "other_line_width": 0.1,
+        "other_line_width": 0.15,
         "other_text_italic": false,
         "other_text_size_h": 1.0,
         "other_text_size_v": 1.0,
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.0,
-          "height": 0.95,
-          "width": 0.9
+          "drill": 0.762,
+          "height": 1.524,
+          "width": 1.524
         },
-        "silk_line_width": 0.1,
+        "silk_line_width": 0.15,
         "silk_text_italic": false,
         "silk_text_size_h": 1.0,
         "silk_text_size_v": 1.0,
-        "silk_text_thickness": 0.1,
+        "silk_text_thickness": 0.15,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.127
+          "45_degree_only": false,
+          "min_clearance": 0.508
         }
       },
       "diff_pair_dimensions": [
@@ -93,7 +94,7 @@
         "missing_footprint": "warning",
         "net_conflict": "warning",
         "npth_inside_courtyard": "ignore",
-        "padstack": "warning",
+        "padstack": "error",
         "pth_inside_courtyard": "ignore",
         "shorting_items": "error",
         "silk_edge_clearance": "warning",
@@ -115,10 +116,12 @@
         "zones_intersect": "error"
       },
       "rules": {
+        "allow_blind_buried_vias": false,
+        "allow_microvias": false,
         "max_error": 0.005,
         "min_clearance": 0.0,
         "min_connection": 0.0,
-        "min_copper_edge_clearance": 0.5,
+        "min_copper_edge_clearance": 0.0,
         "min_hole_clearance": 0.25,
         "min_hole_to_hole": 0.25,
         "min_microvia_diameter": 0.2,
@@ -128,9 +131,11 @@
         "min_text_height": 0.8,
         "min_text_thickness": 0.08,
         "min_through_hole_diameter": 0.3,
-        "min_track_width": 0.0,
-        "min_via_annular_width": 0.1,
-        "min_via_diameter": 0.5,
+        "min_track_width": 0.2,
+        "min_via_annular_width": 0.05,
+        "min_via_diameter": 0.4,
+        "solder_mask_clearance": 0.0,
+        "solder_mask_min_width": 0.0,
         "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
@@ -178,9 +183,7 @@
         }
       ],
       "track_widths": [
-        0.0,
-        0.5,
-        0.7
+        0.0
       ],
       "tuning_pattern_settings": {
         "diff_pair_defaults": {
@@ -214,7 +217,8 @@
           "drill": 0.0
         }
       ],
-      "zones_allow_external_fillets": false
+      "zones_allow_external_fillets": false,
+      "zones_use_no_outline": true
     },
     "ipc2581": {
       "dist": "",
@@ -446,7 +450,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "myriad_0.4.kicad_pro",
+    "filename": "myriadPanel0_4.kicad_pro",
     "version": 1
   },
   "net_settings": {
@@ -463,26 +467,9 @@
         "name": "Default",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.2,
-        "via_diameter": 0.6,
-        "via_drill": 0.3,
-        "wire_width": 6
-      },
-      {
-        "bus_width": 12,
-        "clearance": 0.2,
-        "diff_pair_gap": 0.25,
-        "diff_pair_via_gap": 0.25,
-        "diff_pair_width": 0.2,
-        "line_style": 0,
-        "microvia_diameter": 0.3,
-        "microvia_drill": 0.1,
-        "name": "PWR",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
-        "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.5,
-        "via_diameter": 0.6,
-        "via_drill": 0.3,
+        "track_width": 0.25,
+        "via_diameter": 0.8,
+        "via_drill": 0.4,
         "wire_width": 6
       }
     ],
@@ -491,16 +478,7 @@
     },
     "net_colors": null,
     "netclass_assignments": null,
-    "netclass_patterns": [
-      {
-        "netclass": "PWR",
-        "pattern": "+12V"
-      },
-      {
-        "netclass": "PWR",
-        "pattern": "-12V"
-      }
-    ]
+    "netclass_patterns": []
   },
   "pcbnew": {
     "last_paths": {
@@ -510,8 +488,8 @@
       "plot": "",
       "pos_files": "",
       "specctra_dsn": "",
-      "step": "",
-      "svg": "svg",
+      "step": "myriadPanel0_4.step",
+      "svg": "./",
       "vrml": ""
     },
     "page_layout_descr_file": ""
@@ -615,27 +593,6 @@
     "subpart_first_id": 65,
     "subpart_id_separator": 0
   },
-  "sheets": [
-    [
-      "d3c99813-9738-464b-b3f3-e345070450f9",
-      "Root"
-    ],
-    [
-      "d694f663-d6b4-4a77-8012-9096eec4044e",
-      "filter-vca"
-    ],
-    [
-      "5ac1673e-9267-499d-809d-cf733d5a1b58",
-      "filter-vca1"
-    ],
-    [
-      "6f7a2319-f689-49f3-9cb7-a33f6a9bd79a",
-      "waveshape overdrive"
-    ],
-    [
-      "171d2d53-6201-4692-91db-b27b5aef0843",
-      "waveshape overdrive1"
-    ]
-  ],
+  "sheets": [],
   "text_variables": {}
 }
