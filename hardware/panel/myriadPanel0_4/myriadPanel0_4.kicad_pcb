@@ -49400,6 +49400,18 @@
 			(justify left bottom)
 		)
 	)
+	(gr_text "Clean L\n"
+		(at 37.91 134.47 0)
+		(layer "F.SilkS")
+		(uuid "3cbf1cc7-3eee-4b77-bae3-ffd098eac922")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+			(justify left bottom)
+		)
+	)
 	(gr_text "1V/Oct\n"
 		(at 64.7 139.23 0)
 		(layer "F.SilkS")
@@ -49416,19 +49428,6 @@
 		(at 74.71 150.01 0)
 		(layer "F.SilkS" knockout)
 		(uuid "73e58f8f-5845-4506-b4b5-8a53cb4dd4f4")
-		(effects
-			(font
-				(size 3 3)
-				(thickness 0.3)
-				(bold yes)
-			)
-			(justify left bottom)
-		)
-	)
-	(gr_text "Emute Lab Instruments"
-		(at 60.4 27.48 0)
-		(layer "F.SilkS" knockout)
-		(uuid "76f91ac0-2343-4a87-8643-2293b562bc50")
 		(effects
 			(font
 				(size 3 3)
@@ -49474,34 +49473,22 @@
 			(justify left bottom)
 		)
 	)
+	(gr_text "Shaped L"
+		(at 37.8 115.49 0)
+		(layer "F.SilkS")
+		(uuid "be2af767-c7e3-45b3-8b93-d3e05f9c4061")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+			(justify left bottom)
+		)
+	)
 	(gr_text "Clean R\n"
 		(at 116.24 139.14 0)
 		(layer "F.SilkS")
 		(uuid "d448df75-8cdc-4fae-a5b8-34a9081fea24")
-		(effects
-			(font
-				(size 1 1)
-				(thickness 0.15)
-			)
-			(justify left bottom)
-		)
-	)
-	(gr_text "Clean L\n"
-		(at 37.91 134.47 0)
-		(layer "Dwgs.User")
-		(uuid "3cbf1cc7-3eee-4b77-bae3-ffd098eac922")
-		(effects
-			(font
-				(size 1 1)
-				(thickness 0.15)
-			)
-			(justify left bottom)
-		)
-	)
-	(gr_text "Shaped L"
-		(at 37.8 115.49 0)
-		(layer "Dwgs.User")
-		(uuid "be2af767-c7e3-45b3-8b93-d3e05f9c4061")
 		(effects
 			(font
 				(size 1 1)

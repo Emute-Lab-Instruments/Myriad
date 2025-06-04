@@ -249,7 +249,8 @@ void setup_adcs() {
   // cycles, so in general you want a divider of 0 (hold down the button
   // continuously) or > 95 (take samples less frequently than 96 cycle
   // intervals). This is all timed by the 48 MHz ADC clock.
-  adc_set_clkdiv(96 * 2048);
+  // adc_set_clkdiv(96 * 512);
+  adc_set_clkdiv(960);
   // adc_set_clkdiv(0);
 
   // printf("Arming DMA\n");
@@ -294,11 +295,27 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
 size_t msgCt=0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   static size_t __not_in_flash("acdData") lastOctaveIdx = 0;
+  static size_t __not_in_flash("acdData") adcCount = 0;
+  static size_t __not_in_flash("acdData") adcAccumulator[4] = {0,0,0,0};
+  adcAccumulator[0] += capture_buf[0];
+  adcAccumulator[1] += capture_buf[1];
+  adcAccumulator[2] += capture_buf[2];
+  adcAccumulator[3] += capture_buf[3];
+  adcCount++;
+  if (adcCount == 256) {
+    adcCount=0;
+    adcAccumulator[0] = adcAccumulator[0] >> 8;
+    adcAccumulator[1] = adcAccumulator[1] >> 8;
+    adcAccumulator[2] = adcAccumulator[2] >> 8;
+    adcAccumulator[3] = adcAccumulator[3] >> 8;
+  }else{
+    return true;
+  }
 
-  controlValues[0] = adcRsFilters[0].process(capture_buf[0]);
-  controlValues[1] = adcRsFilters[1].process(capture_buf[1]);
-  controlValues[2] = adcRsFilters[2].process(capture_buf[2]);
-  controlValues[3] = adcRsFilters[3].process(capture_buf[3]);
+  controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
+  controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
+  controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
+  controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
@@ -310,7 +327,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
       }
       adcRanges[i] = adcMaxs[i] - adcMins[i];
     }
-    display.setCalibADCValues(capture_buf[0], capture_buf[1], capture_buf[2], capture_buf[3]);
+    display.setCalibADCValues(adcAccumulator[0], adcAccumulator[1], adcAccumulator[2], adcAccumulator[3]);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
     display.setCalibADCMinMaxValues(adcMins.data(), adcMaxs.data());
   }
@@ -965,7 +982,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(CALIBRATE_BUTTON), calibrate_button_callback,
                     CHANGE);
 
-  add_repeating_timer_ms(5, adcProcessor, NULL, &timerAdcProcessor);
+  add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
   add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
 
 
