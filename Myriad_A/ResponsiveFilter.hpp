@@ -22,19 +22,29 @@
 class ResponsiveFilter {
 public:
     // Constructor to initialize the filter with optional snap multiplier and activity threshold
-    ResponsiveFilter(float snapMultiplier = 0.02, float activityThreshold = 1.0)
+    ResponsiveFilter(float snapMultiplier = 0.1, float activityThreshold = 0.1)
         : smoothValue(0), outputValue(0), snapMultiplier(snapMultiplier), activityThreshold(activityThreshold) {}
 
     // Method to process a raw analog value and return a smoothed output value
-    float process(float rawValue) {
-        float diff = std::abs(rawValue - smoothValue); // Calculate the difference between raw value and smoothed value
-        float snap = constrain(diff * snapMultiplier, 0.0, 1.0); // Calculate the snap value based on the difference and snap multiplier
+    float process(const float rawValue) {
+        float diff = fabs(rawValue - smoothValue); // Calculate the difference between raw value and smoothed value
+        float snap  = diff * snapMultiplier; // Calculate the snap value based on the difference and snap multiplier
+        if (snap < 0.0f) { // If the snap value is too small, set it to a minimum value
+            snap = 0.0f;
+        }else if (snap > 1.0f) { // If the snap value is too large, set it to a maximum value
+            snap = 1.0f;
+        }
+
         smoothValue += (rawValue - smoothValue) * snap; // Update the smoothed value
 
-        // float rounded = std::round(smoothValue); // Round the smoothed value to the nearest integer
-        if (std::abs(smoothValue - outputValue) >= activityThreshold) { // Check if the change is above the activity threshold
+        if (fabs(smoothValue - outputValue) >= activityThreshold) { // Check if the change is above the activity threshold
             outputValue = smoothValue; // Update the output value
         }
+        if (!std::isfinite(smoothValue) || !std::isfinite(smoothValue)) {
+            // Reset or handle error
+            smoothValue = rawValue;
+            outputValue = rawValue;
+        }        
         return outputValue; // Return the output value
     }
 

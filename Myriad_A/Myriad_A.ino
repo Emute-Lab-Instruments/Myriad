@@ -498,7 +498,7 @@ inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *
   return true;
 }
 
-int8_t read_rotary(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
+int8_t __not_in_flash_func(read_rotary)(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
   static int8_t rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
 
   prevNextCode <<= 2;
@@ -519,6 +519,7 @@ int8_t read_rotary(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin)
 
 static uint8_t enc1Code = 0;
 static uint16_t enc1Store = 0;
+
 static uint8_t enc2Code = 0;
 static uint16_t enc2Store = 0;
 static uint8_t enc3Code = 0;
