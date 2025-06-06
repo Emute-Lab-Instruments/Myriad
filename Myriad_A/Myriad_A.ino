@@ -47,9 +47,9 @@ cfg
 #include "boids.h"
 
 
-#define FAST_MEM __not_in_flash("mydata")
+#define FAST_MEM __not_in_flash("myriaddata")
 
-// #define SINGLEOSCILLATOR
+#define SINGLEOSCILLATOR
 
 
 bool core1_separate_stack = true;
@@ -499,7 +499,7 @@ inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *
 }
 
 int8_t __not_in_flash_func(read_rotary)(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
-  static int8_t rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
+  static int8_t FAST_MEM rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
 
   prevNextCode <<= 2;
   if (digitalRead(b_pin)) prevNextCode |= 0x02;
@@ -517,15 +517,15 @@ int8_t __not_in_flash_func(read_rotary)(uint8_t &prevNextCode, uint16_t &store, 
   return 0;
 }
 
-static uint8_t enc1Code = 0;
-static uint16_t enc1Store = 0;
+static uint8_t FAST_MEM enc1Code = 0;
+static uint16_t FAST_MEM enc1Store = 0;
 
-static uint8_t enc2Code = 0;
-static uint16_t enc2Store = 0;
-static uint8_t enc3Code = 0;
-static uint16_t enc3Store = 0;
+static uint8_t FAST_MEM enc2Code = 0;
+static uint16_t FAST_MEM enc2Store = 0;
+static uint8_t FAST_MEM enc3Code = 0;
+static uint16_t FAST_MEM enc3Store = 0;
 
-void assignOscModels(size_t modelIdx) {
+void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
   Serial.printf("assign %d\n", modelIdx);
 
   for(auto &model: currOscModels) {
@@ -537,7 +537,7 @@ void assignOscModels(size_t modelIdx) {
   // currOscModels[2] = std::make_shared<squareOscillatorModel>(); 
 }
 
-bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
+bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
   int newOscTypeBank = currOscBank + change;
   bool changed=false;
   //clip
@@ -565,7 +565,7 @@ bool updateOscBank(int &currOscBank, int change, std::optional<messageTypes> OSC
   return changed;
 }
 
-void updateMetaOscMode(size_t &currMetaModMode, const int change) {
+void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int change) {
   int newMetaModMode = static_cast<int>(currMetaModMode) + change;
   //clip
   newMetaModMode = max(0, newMetaModMode);
@@ -590,7 +590,7 @@ void updateTuning() {
 }
 
 //centre
-void encoder1_callback() {
+void __isr encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   switch(controlMode) {
     case CONTROLMODES::METAOSCMODE:
@@ -632,7 +632,7 @@ void encoder1_callback() {
 }
 
 //left
-void encoder2_callback() {
+void __isr encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
   switch(controlMode) {
     case CONTROLMODES::METAOSCMODE:
@@ -686,7 +686,7 @@ void encoder2_callback() {
 }
 
 //right
-void encoder3_callback() {
+void __isr encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   switch(controlMode) {
     case CONTROLMODES::METAOSCMODE:
@@ -734,10 +734,10 @@ void encoder3_callback() {
   // }
 }
 
-debouncer enc1Debouncer;
-debouncer enc2Debouncer;
-debouncer enc3Debouncer;
-debouncer calibrateButtonDebouncer;
+debouncer FAST_MEM enc1Debouncer;
+debouncer FAST_MEM enc2Debouncer;
+debouncer FAST_MEM enc3Debouncer;
+debouncer FAST_MEM calibrateButtonDebouncer;
 
 void switchToOSCMode() {
   controlMode = CONTROLMODES::OSCMODE;
@@ -745,7 +745,7 @@ void switchToOSCMode() {
 }
 
 //central
-void encoder1_switch_callback() {
+void __isr encoder1_switch_callback() {
   //gpio pull-up, so the value is inverted
   controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
   // Serial.printf("enc %d\n", controls::encoderSwitches[0]);
@@ -784,31 +784,12 @@ void encoder1_switch_callback() {
 }
 
 //left
-void encoder2_switch_callback() {
+void __isr encoder2_switch_callback() {
   controls::encoderSwitches[1] = 1 - enc2Debouncer.debounce(ENCODER2_SWITCH);  
-  // switch(controlMode) {
-  //   case CONTROLMODES::METAOSCMODE:
-  //   {
-  //     break;
-  //   }
-  //   case CONTROLMODES::OSCMODE:
-  //   {
-  //     break;
-  //   }
-  //   case CONTROLMODES::CALIBRATEMODE:
-  //   {
-  //     break;
-  //   }
-  //   case CONTROLMODES::TUNINGMODE:
-  //   {
-  //     break;
-  //   }
-  // }
-
 }
 
 //right
-void encoder3_switch_callback() {
+void __isr encoder3_switch_callback() {
   controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH); 
   if (controls::encoderSwitches[2]) {
     switch(controlMode) {
@@ -849,25 +830,6 @@ void encoder3_switch_callback() {
         break;
       }
     }
-
-    // if (controlMode == CONTROLMODES::OSCMODE) {
-    // }else{
-    //   switch(modTarget) {
-    //     case MODTARGETS::PITCH: {
-    //       modTarget = MODTARGETS::EPSILON;
-    //       break;
-    //     }
-    //     case MODTARGETS::EPSILON: {
-    //       modTarget = MODTARGETS::PITCH_AND_EPSILON;
-    //       break;
-    //     }
-    //     case MODTARGETS::PITCH_AND_EPSILON: {
-    //       modTarget = MODTARGETS::PITCH;
-    //       break;
-    //     }
-    //   }
-    //   display.setModTarget(modTarget);
-    // }
   }
  
 }
@@ -926,25 +888,10 @@ void setup() {
   Serial1.setTX(12);
   Serial1.begin(115200);
 
-  // boids.init();
-
-  // queue_init(&coreCommsQueue, sizeof(queueItem), 5);
-
-
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 1);
 
-  //ADCs
-  // const size_t filterSize=5;
-  // for(auto &filter: adcFilters) {
-  //   filter.init(filterSize);
-  // }
-
-  // for(auto &filter: adcMedians) {
-  //   filter.init(15);
-  // }
-  
   setup_adcs();  
 
   //Encoders
@@ -1003,27 +950,6 @@ void loop() {
 
 
 void setup1() {
-// static FAST_MEM smBitStreamOsc smOsc0;
-// static FAST_MEM smBitStreamOsc smOsc1;
-// static FAST_MEM smBitStreamOsc smOsc2;
-// #ifdef RUNCORE0_OSCS
-//   smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, timing_swapbuffer_0_A, dma_irh, clockdiv, DMA_IRQ_1);
-//   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
-//   smOsc0.go();
-
-//   smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, timing_swapbuffer_1_A, dma_irh, clockdiv, DMA_IRQ_1);
-//   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
-//   smOsc1.go();
-
-//   smOsc2_dma_chan = smOsc2.init(pio1, 2, OSC9_PIN, programOffset, timing_swapbuffer_2_A, dma_irh, clockdiv, DMA_IRQ_1);
-//   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
-//   smOsc2.go();
-// #endif
-//wait for serial
-  // currOscModelBank0 = oscModel2;
-  // currOscModels[0] = std::make_shared<squareOscillatorModel2>(); 
-  // currOscModels[1] = std::make_shared<squareOscillatorModel2>(); 
-  // currOscModels[2] = std::make_shared<squareOscillatorModel2>(); 
   assignOscModels(0);
 
 #ifdef RUN_OSCS

@@ -21,6 +21,8 @@ public:
     vis.mode = oscDisplayModes::MODES::SILENCE;
     vis.data.resize(1);
     vis.data[0] = 0;
+    newFreq = false;
+    newBuffer = false;
   };
   
   pio_program prog;
@@ -32,6 +34,9 @@ public:
   }
 
   oscDisplayModes vis;
+
+  volatile bool newFreq;
+  volatile bool newBuffer;
 
   virtual void ctrl(const float v) {
     //receive a control parameter
@@ -57,7 +62,7 @@ public:
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 0.5);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
     }
   }
   std::vector<float> oscTemplate {0.1,0.9};
@@ -547,7 +552,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < loopLength; ++i) {
           // bool on = random(0,1000) > 500;
-          *(bufferA + i) = static_cast<uint32_t>(wavelen * 0.01, random(0,randMult) * wavelen * 0.01);
+          *(bufferA + i) = static_cast<uint32_t>(wavelen * 0.01f, random(0,randMult) * wavelen * 0.01f);
       }
     }
     pio_sm_config getBaseConfig(uint offset) {
@@ -560,7 +565,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
   
   private:
     long randMin, randMax, randBaseMin, randRange, randBaseMax;
-    float randMult=100;
+    float randMult=100.f;
     // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
   
   

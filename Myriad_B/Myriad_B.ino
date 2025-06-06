@@ -224,99 +224,57 @@ inline void __not_in_flash_func(readUart)() {
                 oscsReadyToStart = true;
               }
               break;
-              // case CTRL:
-              // {
-              //   float v = decodeMsg.value;
-              //   currOscModels0[0]->ctrl(v); 
-              //   currOscModels0[1]->ctrl(v); 
-              //   currOscModels0[2]->ctrl(v); 
-              //   currOscModels1[0]->ctrl(v); 
-              //   currOscModels1[1]->ctrl(v); 
-              //   currOscModels1[2]->ctrl(v); 
-              //   break;
-              // }
               case CTRL0:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels0[0]->ctrl(v); 
                 // Serial.println(v);
                 break;
               }
               case CTRL1:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels0[1]->ctrl(v); 
                 break;
               }
               case CTRL2:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels0[2]->ctrl(v); 
                 break;
               }
               case CTRL3:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels1[0]->ctrl(v); 
                 break;
               }
               case CTRL4:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels1[1]->ctrl(v); 
                 break;
               }
               case CTRL5:
               {
-                float v = decodeMsg.value;
+                const float v = decodeMsg.value;
                 currOscModels1[2]->ctrl(v); 
                 break;
               }
               case BANK0:
               {
-                // // osc0Mode = decodeMsg.value;                
-                Serial.println("bank0");
-                // // Serial.println(decodeMsg.value);
+                // Serial.println("bank0");
                 stopOscBankA();
-                // delay(500);
-                // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
-                // currOscModelBank0 = std::move(newOscModelBank0);
                 assignOscModels0(decodeMsg.value);
-                // switch((int)decodeMsg.value) {
-                //   case 0:
-                //   // currOscModelBank0 = oscModel1; //std::make_unique<squareOscillatorModel>();
-                //     assignOscModels0(0);
-                //   break;
-                //   case 1:
-                //   // currOscModelBank0 = oscModel2; //std::make_unique<squareOscillatorModel2>();
-                //     assignOscModels0(1);
-                //   break;              
-                // }
-                // Serial.println("Starting");
                 startOscBankA();
               }
               break;
               case BANK1:
               {
-                // // osc0Mode = decodeMsg.value;                
-                Serial.println("bank1");
+                // Serial.println("bank1");
                 // // Serial.println(decodeMsg.value);
                 stopOscBankB();
-                // delay(500);
-                // auto  newOscModelBank0 = std::make_unique<squareOscillatorModel>();
-                // currOscModelBank0 = std::move(newOscModelBank0);
                 assignOscModels1(decodeMsg.value);
-                // switch((int)decodeMsg.value) {
-                //   case 0:
-                //   // currOscModelBank1 = oscModel1; //std::make_unique<squareOscillatorModel>();
-                //     assignOscModels1(0);
-                //   break;
-                //   case 1:
-                //   // currOscModelBank1 = oscModel2; //std::make_unique<squareOscillatorModel2>();
-                //     assignOscModels1(1);
-                //   break;              
-                // }
-                // Serial.println("Starting");
                 startOscBankB();
               }
               break;
