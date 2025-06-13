@@ -21,6 +21,7 @@ cfg
 #include "pios/pio_sq.h"
 #include "pios/pio_pulse.h"
 #include "pios/pio_expdec.h"
+#include "pios/pio_bitbybit.h"
 
 #include "smBitStreamOsc.h"
 #include "oscillatorModels.hpp"
@@ -47,9 +48,9 @@ cfg
 #include "boids.h"
 
 
-#define FAST_MEM __not_in_flash("myriaddata")
+// #define FAST_MEM __not_in_flash("myriaddata")
 
-#define SINGLEOSCILLATOR
+// #define SINGLEOSCILLATOR
 
 
 bool core1_separate_stack = true;
@@ -102,6 +103,12 @@ uint32_t FAST_MEM smOsc1_dma_chan_bit;
 uint32_t FAST_MEM smOsc2_dma_chan;
 uint32_t FAST_MEM smOsc2_dma_chan_bit;
 
+volatile bool FAST_MEM bufSent0 = false;
+volatile bool FAST_MEM bufSent1 = false;
+volatile bool FAST_MEM bufSent2 = false;
+
+volatile size_t newBufRq0 =0;
+volatile size_t bufCalcCount0=0;
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
 void __isr dma_irh() {
@@ -111,16 +118,20 @@ void __isr dma_irh() {
   if (triggered_channels & smOsc0_dma_chan_bit) {
     dma_hw->ints1 = smOsc0_dma_chan_bit;  
     dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
+    bufSent0 = true;
+    newBufRq0++;
   }
   else
   if (triggered_channels & smOsc1_dma_chan_bit) {
     dma_hw->ints1 = smOsc1_dma_chan_bit;
     dma_hw->ch[smOsc1_dma_chan].al3_read_addr_trig = nextTimingBuffer1;
+    bufSent1 = true;
   }
   else
   if (triggered_channels & smOsc2_dma_chan_bit) {
     dma_hw->ints1 = smOsc2_dma_chan_bit;
     dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer2;
+    bufSent2 = true;
   }
 }
 
@@ -128,18 +139,18 @@ smBitStreamOsc FAST_MEM smOsc0;
 smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
 
+volatile bool oscsRunning = false;
+
 void startOscBankA() {
 
   Serial.println("StartoscbankA");
 
+  //reset the pio block
   pio_clear_instruction_memory(pio1);
-  // uint programOffset = currOscModelBank0A->loadProg(pio1);
   uint programOffset = currOscModels[0]->loadProg(pio1);
   pio_sm_config baseConfig = currOscModels[0]->getBaseConfig(programOffset);
-  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModelBank0, 50000);
-  Serial.printf("OFfset %d\n", programOffset);
+  Serial.printf("Offset %d\n", programOffset);
 
-  // smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, nextTimingBuffer0, dma_irh, clockdiv, currOscModelBank0A->loopLength, DMA_IRQ_1);
   smOsc0_dma_chan = smOsc0.init(pio1, 0, OSC7_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, clockdiv, currOscModels[0]->loopLength, DMA_IRQ_1);
   // Serial.println("init");
   // if (smOsc0_dma_chan < 0) {
@@ -147,8 +158,8 @@ void startOscBankA() {
   // }
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
-
-#ifndef SINGLEOSCILLATOR
+  
+  #ifndef SINGLEOSCILLATOR
 
   // smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, nextTimingBuffer1, dma_irh, clockdiv, currOscModelBank0B->loopLength, DMA_IRQ_1);
   smOsc1_dma_chan = smOsc1.init(pio1, 1, OSC8_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, clockdiv, currOscModels[1]->loopLength, DMA_IRQ_1);
@@ -161,9 +172,12 @@ void startOscBankA() {
   smOsc2.go();
   // Serial.println("started");
 #endif
+
+  oscsRunning = true;
 }
 
 void stopOscBankA() {
+  oscsRunning = false;
   smOsc0.stop();
 #ifndef SINGLEOSCILLATOR
   smOsc1.stop();
@@ -280,7 +294,7 @@ void setup_adcs() {
 }
 
 
-inline void __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
+void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
   static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
   spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
@@ -302,12 +316,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   adcAccumulator[2] += capture_buf[2];
   adcAccumulator[3] += capture_buf[3];
   adcCount++;
-  if (adcCount == 256) {
+  if (adcCount == 256U) {
     adcCount=0;
-    adcAccumulator[0] = adcAccumulator[0] >> 8;
-    adcAccumulator[1] = adcAccumulator[1] >> 8;
-    adcAccumulator[2] = adcAccumulator[2] >> 8;
-    adcAccumulator[3] = adcAccumulator[3] >> 8;
+    adcAccumulator[0] = adcAccumulator[0] >> 8U;
+    adcAccumulator[1] = adcAccumulator[1] >> 8U;
+    adcAccumulator[2] = adcAccumulator[2] >> 8U;
+    adcAccumulator[3] = adcAccumulator[3] >> 8U;
   }else{
     return true;
   }
@@ -368,7 +382,7 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   constexpr float wavelen20hz = sampleClock/20.f;
   constexpr float wavelenTesthz = sampleClock/0.01f;
   float pitchCV = adcMap(0);
-  float freq = std::pow(2.f, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
+  float freq = powf(2.f, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
   float new_wavelen0 = 1.0f/freq * wavelen20hz ; 
 
   // float new_wavelen0 = 1.0f/freq * wavelenTesthz ; 
@@ -478,10 +492,17 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
-  updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen0);
-  updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen1);
-  updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen2);
+  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen0);
+  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen1);
+  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen2);
+  currOscModels[0]->wavelen = new_wavelen0;
+  currOscModels[0]->newFreq = true;
+  
+  currOscModels[1]->wavelen = new_wavelen1;
+  currOscModels[1]->newFreq = true;
 
+  currOscModels[2]->wavelen = new_wavelen2;
+  currOscModels[2]->newFreq = true;
 
   oscsReadyToStart = true;
 
@@ -525,6 +546,25 @@ static uint16_t FAST_MEM enc2Store = 0;
 static uint8_t FAST_MEM enc3Code = 0;
 static uint16_t FAST_MEM enc3Store = 0;
 
+void __force_inline calculateOscBuffers() {
+  if ((currOscModels[0]->updateBufferInSyncWithDMA && bufSent0) || (!currOscModels[0]->updateBufferInSyncWithDMA && currOscModels[0]->newFreq)) {
+    currOscModels[0]->newFreq = false;
+    updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], currOscModels[0]->wavelen);
+    bufSent0 = false;
+    bufCalcCount0++;
+  }
+  if ((currOscModels[1]->updateBufferInSyncWithDMA && bufSent1) || (!currOscModels[1]->updateBufferInSyncWithDMA && currOscModels[1]->newFreq)) {
+    currOscModels[1]->newFreq = false;
+    updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], currOscModels[1]->wavelen);
+    bufSent1 = false;
+  }
+  if ((currOscModels[2]->updateBufferInSyncWithDMA && bufSent2) || (!currOscModels[2]->updateBufferInSyncWithDMA && currOscModels[2]->newFreq)) {
+    currOscModels[2]->newFreq = false;
+    updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], currOscModels[2]->wavelen);
+    bufSent2 = false;
+  }
+}
+
 void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
   Serial.printf("assign %d\n", modelIdx);
 
@@ -532,9 +572,6 @@ void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
     model = oscModelFactories[modelIdx](); 
 
   }
-  // currOscModels[0] = std::make_shared<squareOscillatorModel>(); 
-  // currOscModels[1] = std::make_shared<squareOscillatorModel>(); 
-  // currOscModels[2] = std::make_shared<squareOscillatorModel>(); 
 }
 
 bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
@@ -556,6 +593,14 @@ bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optio
       stopOscBankA();
 
       assignOscModels(currOscBank);
+
+      //refill from new oscillator
+      //trigger buffer refills
+      currOscModels[0]->newFreq=true;
+      currOscModels[1]->newFreq=true;
+      currOscModels[2]->newFreq=true;
+
+      calculateOscBuffers();
 
       startOscBankA();
 
@@ -859,7 +904,7 @@ void setup() {
 
   //USB Serial
   Serial.begin();
-
+  // while(!Serial) {}
   //get vis data from osc models and store in memory
   // for(size_t i=0; i < oscModels.size(); i++) {
   //   display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
@@ -966,15 +1011,9 @@ void setup1() {
 
 }
 
+
 void loop1() {
-  // __wfi();
-  // if (restartOscsFlag) {
-  //   restartOscsFlag=false;
-  //   startOscBankA();
-  // }
-  // tight_loop_contents();
-  // if (oscsReadyToStart) {
-  //   startOscBankA();
-  //   oscsReadyToStart = false;
-  // }  
+  if (oscsRunning) {
+    calculateOscBuffers();
+  }
 }

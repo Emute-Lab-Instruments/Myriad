@@ -24,7 +24,7 @@ public:
   }
 
 
-  void pin_ctrl_program_init(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, size_t clockdiv) {
+  void pin_ctrl_program_init(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, size_t clockdiv, bool autoPull = false) {
     // Setup pin to be accessible from the PIO
     pio_gpio_init(pio, pin);
     // pio_gpio_init(pio, pin + 1);
@@ -38,9 +38,11 @@ public:
     Serial.println("cfg");
     Serial.println(c.execctrl);
     Serial.println(c.pinctrl);
-
+    sm_config_set_out_pins(&c, pin, 1);
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_clkdiv(&c, clockdiv);
+
+
 
     sm_config_set_in_shift(&c, true, false, 32);
     // don't join FIFOs together to get an 8 entry TX FIFO
@@ -61,7 +63,7 @@ public:
     // Write to the same address (the PIO SM TX FIFO)
     channel_config_set_write_increment(&pio_dma_chan_config, false);
     // Set read address to wrap on a 16-byte boundary
-    channel_config_set_ring(&pio_dma_chan_config, false, 4);
+    // channel_config_set_ring(&pio_dma_chan_config, false, 4);
     // Transfer when PIO SM TX FIFO has space
     channel_config_set_dreq(&pio_dma_chan_config, pio_get_dreq(pio, sm, true));
 

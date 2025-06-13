@@ -22,7 +22,7 @@ public:
     vis.data.resize(1);
     vis.data[0] = 0;
     newFreq = false;
-    newBuffer = false;
+    updateBufferInSyncWithDMA = false;
   };
   
   pio_program prog;
@@ -36,7 +36,8 @@ public:
   oscDisplayModes vis;
 
   volatile bool newFreq;
-  volatile bool newBuffer;
+  bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
+  float wavelen=100000.f;
 
   virtual void ctrl(const float v) {
     //receive a control parameter
@@ -250,6 +251,7 @@ public:
     randBaseMin = randMin = sampleClock/20000;
     randBaseMax = randMax = sampleClock/20;
     randRange = randMax - randBaseMin;
+    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -412,58 +414,245 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
   
   };
 
-  class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
+class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
     public:
     expdecOscillatorBytebeatModel() : oscillatorModel(){
         loopLength=8;
         prog=expdec_program;
+        updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+        
+    }
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      for (size_t i = 0; i < oscTemplate.size(); ++i) {
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f * wmult);
       }
-      inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-        for (size_t i = 0; i < oscTemplate.size(); ++i) {
-            *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f * wmult);
-        }
-        wmult = wmult * wmultmult;
-        if (wmult < 0.125f) {
-          wmult=1.f;
-        }
+      wmult = wmult * wmultmult;
+      if (wmult < 0.125f) {
+        wmult=1.f;
       }
-      std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
-      // std::vector<float> oscTemplate {0.1,0.5};
-    
-      void ctrl(const float v) override {
-        wmultmult = 0.3f + (v*0.5f);
-      }
+    }
+    std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
+    // std::vector<float> oscTemplate {0.1,0.5};
   
-      pio_sm_config getBaseConfig(uint offset) {
-        return expdec_program_get_default_config(offset);
-      }
-    
-    private:
-      float wmult=1;
-      float wmultmult=1.f;
-    
-    };
+    void ctrl(const float v) override {
+      wmultmult = 0.01f + (v*0.5f);
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+      return expdec_program_get_default_config(offset);
+    }
   
+  private:
+    float wmult=1;
+    float wmultmult=1.f;
+  
+};
+  
+#define WAVETABLE_SIZE 1024
+
+class DeltaSigmaGenerator {
+private:
+    float accumulator;
+    float error;
+    
+public:
+    DeltaSigmaGenerator() : accumulator(0.0f), error(0.0f) {}
+    
+    // Reset the modulator state (call when starting new waveform)
+    void reset() {
+        accumulator = 0.0f;
+        error = 0.0f;
+    }
+    
+    // Generate a single bit output for given input amplitude (0.0 to 1.0)
+    bool generateBit(float input) {
+        // Add input to accumulator
+        accumulator += input;
+        
+        bool output;
+        if (accumulator >= 0.5f) {
+            output = true;
+            accumulator -= 1.0f;  // Subtract quantization level
+        } else {
+            output = false;
+        }
+        
+        return output;
+    }
+    
+
+  };
+
+size_t debugcount=0;
 class sawOscillatorModel : public virtual oscillatorModel {
   public:
+
+    constexpr uint32_t generate_multiplier(int index) {
+        // Convert (1.0 + index * 9.0/99.0) to 16.16 fixed point
+        return (uint32_t)((2.0 + index * 9.0/990.0) * 32768.0 + 0.5);
+    }  
+
     sawOscillatorModel() : oscillatorModel(){
-      loopLength=8;
-      prog=pin_ctrl_program;
+      loopLength=128;
+      prog=bitbybit_program;
+      // generateSawtoothTable();
+      for(size_t i = 0; i < 1000; ++i) {
+        MULTIPLIER_TABLE[i] = generate_multiplier(i);
+      }
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      // float waveleninv = 1.f/wavelen;
+      // // Serial.println(amp);
+      // // Serial.println(index);
+      // for (size_t i = 0; i < loopLength; ++i) {
+      //     float amp = (float) phase * waveleninv;
+      //     // if (amp > 1.0f) {
+      //     //   amp = 1.0f; // clamp to 1.0
+      //     // } 
+      //     size_t index = static_cast<size_t>(amp * (WAVETABLE_SIZE-1));
+      //     if (index >= WAVETABLE_SIZE) {
+      //       index = 0; // wrap around
+      //     }
+      //     // *(bufferA + i) = phase < wavelen/2 ?  4294967295U: 0; //sawtooth_table[index];
+      //     *(bufferA + i) = sawtooth_table[index];
+
+      //     // if (debugcount++ < 10000) {
+      //     //   Serial.print(debugcount);
+      //     //   Serial.print("\t");
+      //     //   Serial.print(i);
+      //     //   Serial.print("\t");
+      //     //   Serial.print(phase);
+      //     //   Serial.print("\t");
+      //     //   Serial.print(index);
+      //     //   Serial.print("\t");
+      //     //   Serial.print(*(bufferA + i));
+      //     //   Serial.print("\t");
+      //     //   Serial.print("\n");
+      //     // }
+
+      //     phase += 32;
+      //     if (phase >= wavelen) {
+      //       phase -= wavelen;
+      //     }        
+      // }
+      // Serial.println(amp);
+      // Serial.println(index);
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          if (phase>=wavelen) {
+            phase = 0U;
+          }
+          phase++;
+
+        
+          size_t amp = (phase * phaseMul) >> 15U;
+          // size_t amp = phase * phaseMul;
+          if (amp >= wavelen) {
+            amp = 0U; // wrap around
+          }
+
+          const bool y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wavelen : 0) - amp + err0;
+          word |= (y << bit);
+
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+    void ctrl(const float v) override {
+      const size_t index = v < 0.05 ? 1 : static_cast<size_t>((0.2f +(v * 0.8f)) * 950.f);
+      phaseMul = MULTIPLIER_TABLE[index];
+    }
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+  
+  private:
+    size_t phase=0;
+    size_t phaseMul = 0;
+    bool y=0;
+    int err0=0;
+    size_t val=0;
+    // size_t sawtooth_table[WAVETABLE_SIZE];
+    uint32_t MULTIPLIER_TABLE[1000];
+
+    // DeltaSigmaGenerator deltaSigma;
+
+    // void generateSawtoothTable() {
+    //   double increment = 1.0 / (WAVETABLE_SIZE * 32.0);
+    //   double phase=0;
+    //     for (size_t i = 0; i < WAVETABLE_SIZE; ++i) {
+    //         size_t word = 0U;
+            
+    //         // Generate each bit with slightly different amplitude
+    //         for (int bit = 0; bit < 32; bit++) {
+                
+    //             // if (phase < 0.5) {
+    //             //     word |= (1U << bit);
+    //             // }
+    //             if (deltaSigma.generateBit((float)phase)) {
+    //                 word |= (1U << bit);
+    //             }
+                
+    //             phase += increment;
+    //         }
+    //         sawtooth_table[i] = word;
+    //         // sawtooth_table[i] = phase < 0.5 ?  4294967295U : 0U;
+    //         // Serial.println(phase);
+    //         // Serial.println(sawtooth_table[i]);
+    //     }
+    // }
+
+  };
+
+
+//bit by bit square wave oscillator
+//better latency at lower frequencies than the timing buffer model
+class squareBBBOscillatorModel : public virtual oscillatorModel {
+  public:
+    squareBBBOscillatorModel() : oscillatorModel(){
+      loopLength=512;
+      prog=bitbybit_program;
+      // generate_sawtooth_wavetable();   
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < loopLength; ++i) {
-  
+        if (phase >= wavelen/2) {
+            val = 4294967295U;
+        }else{
+          val = 0;
+        }
+        *(bufferA + i) = val;
+        phase+=32;
+        if (phase >= wavelen) {
+          phase  -=wavelen; // wrap around
+        }
       }
     }
     void ctrl(const float v) override {
     }
   
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
   
   private:
-    int phase=0;
+    size_t phase=0;
     bool y=0;
     int err0;
+    size_t val=0;
 
   };
 
@@ -580,8 +769,11 @@ const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
 // Array of "factory" lambdas returning oscModelPtr
 
 std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("mydata") oscModelFactories = {
-  // []() { return std::make_shared<noiseOscillatorModel2>(); }
-  []() { return std::make_shared<squareOscillatorModel>(); }
+  
+  
+  []() { return std::make_shared<sawOscillatorModel>(); }
+  // []() { return std::make_shared<squareBBBOscillatorModel>(); }
+  // []() { return std::make_shared<squareOscillatorModel>(); }
   
   ,
   []() { return std::make_shared<expdecOscillatorModel1>(); }

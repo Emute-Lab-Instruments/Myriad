@@ -54,7 +54,7 @@ start:
 wait_loop:
     jmp x--, wait_loop ; Delay for (x + 1) cycles
     mov x, y side 0   ; 
-wait_loop2:
+wait_loop2: 
     jmp x--, wait_loop2 ; Delay for (x + 1) cycles
 .wrap
 */
