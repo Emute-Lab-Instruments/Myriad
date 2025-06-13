@@ -63,7 +63,7 @@ public:
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 0.5);
     }
   }
   std::vector<float> oscTemplate {0.1,0.9};
@@ -380,7 +380,7 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
     }
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f);
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * (7.19f * 2.f));
       }
       // wmult = wmult * wmultmult;
       // if (wmult < 0.125f) {

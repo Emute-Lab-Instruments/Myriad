@@ -107,8 +107,6 @@ volatile bool FAST_MEM bufSent0 = false;
 volatile bool FAST_MEM bufSent1 = false;
 volatile bool FAST_MEM bufSent2 = false;
 
-volatile size_t newBufRq0 =0;
-volatile size_t bufCalcCount0=0;
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
 void __isr dma_irh() {
@@ -119,7 +117,6 @@ void __isr dma_irh() {
     dma_hw->ints1 = smOsc0_dma_chan_bit;  
     dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
     bufSent0 = true;
-    newBufRq0++;
   }
   else
   if (triggered_channels & smOsc1_dma_chan_bit) {
@@ -139,7 +136,7 @@ smBitStreamOsc FAST_MEM smOsc0;
 smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
 
-volatile bool oscsRunning = false;
+volatile bool FAST_MEM oscsRunning = false;
 
 void startOscBankA() {
 
@@ -551,7 +548,6 @@ void __force_inline calculateOscBuffers() {
     currOscModels[0]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], currOscModels[0]->wavelen);
     bufSent0 = false;
-    bufCalcCount0++;
   }
   if ((currOscModels[1]->updateBufferInSyncWithDMA && bufSent1) || (!currOscModels[1]->updateBufferInSyncWithDMA && currOscModels[1]->newFreq)) {
     currOscModels[1]->newFreq = false;
