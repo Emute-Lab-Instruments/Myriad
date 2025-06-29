@@ -137,6 +137,7 @@ smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
 
 volatile bool FAST_MEM oscsRunning = false;
+static spin_lock_t FAST_MEM *calcOscsSpinlock;
 
 void startOscBankA() {
 
@@ -174,12 +175,16 @@ void startOscBankA() {
 }
 
 void stopOscBankA() {
-  oscsRunning = false;
-  smOsc0.stop();
+  uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
+  if (oscsRunning) {
+    oscsRunning = false;
+    smOsc0.stop();
 #ifndef SINGLEOSCILLATOR
-  smOsc1.stop();
-  smOsc2.stop();
+    smOsc1.stop();
+    smOsc2.stop();
 #endif
+  }
+  spin_unlock(calcOscsSpinlock, save);
 }
 
 #define SCREEN_WIDTH tft.width()    //
@@ -516,6 +521,9 @@ inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *
   return true;
 }
 
+
+
+
 int8_t __not_in_flash_func(read_rotary)(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
   static int8_t FAST_MEM rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
 
@@ -570,6 +578,35 @@ void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
   }
 }
 
+size_t FAST_MEM oscModeBankChangeTS[3] = {0,0,0};
+// size_t FAST_MEM oscModeBankChange[3] = {0,0,0};
+
+inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_timer *t) {
+  if (oscModeBankChangeTS[2] > 0) {
+    size_t elapsed = millis() - oscModeBankChangeTS[2];
+    if (elapsed > 100) {
+      oscModeBankChangeTS[2] = 0;
+      stopOscBankA();
+
+      assignOscModels(oscTypeBank2);
+
+      //refill from new oscillator
+      //trigger buffer refills
+      currOscModels[0]->newFreq=true;
+      currOscModels[1]->newFreq=true;
+      currOscModels[2]->newFreq=true;
+
+      calculateOscBuffers();
+
+      startOscBankA();
+
+
+    }
+  }
+  return true;
+}
+
+
 bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
   int newOscTypeBank = currOscBank + change;
   bool changed=false;
@@ -584,7 +621,7 @@ bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optio
       sendToMyriadB(OSCBANKMSG.value(), currOscBank);
     }else{
       //assume bank C
-      Serial.println("bank change");
+      // Serial.println("bank change");
       // // Serial.println(decodeMsg.value);
       stopOscBankA();
 
@@ -601,7 +638,7 @@ bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optio
       startOscBankA();
 
     }
-    Serial.println(currOscBank);  
+    // Serial.println(currOscBank);  
   } 
   return changed;
 }
@@ -630,7 +667,8 @@ void updateTuning() {
   Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
 
-//centre
+
+
 void __isr encoder1_callback() {
   int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
   switch(controlMode) {
@@ -741,11 +779,23 @@ void __isr encoder3_callback() {
     }
     case CONTROLMODES::OSCMODE:
     {
-      bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
-      if (changed) {
+      int newOscTypeBank = oscTypeBank2 + change;
+      //clip
+      newOscTypeBank = max(0, newOscTypeBank);
+      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+      //prepare for osc mode change
+      if (newOscTypeBank != oscTypeBank2) {
+        oscModeBankChangeTS[2] = millis();
+        // oscModeBankChange[2] = newOscTypeBank;
+        oscTypeBank2 = newOscTypeBank;
         display.setOscBankModel(2, oscTypeBank2);
-
       }
+
+      // bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
+      // if (changed) {
+      //   display.setOscBankModel(2, oscTypeBank2);
+
+      // }
       break;
     }
     case CONTROLMODES::CALIBRATEMODE:
@@ -892,6 +942,7 @@ void calibrate_button_callback() {
 struct repeating_timer timerAdcProcessor;
 struct repeating_timer timerDisplay;
 struct repeating_timer timerFreqReceiver;
+struct repeating_timer timerOscModeChangeMonitor;
 
 
 
@@ -906,6 +957,7 @@ void setup() {
   //   display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
   // }
 
+  calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
   //create reference models lists to keep display data
   for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {
@@ -973,6 +1025,8 @@ void setup() {
 
   add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
   add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
+  add_repeating_timer_ms(50, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
+  
 
 
 }
@@ -1009,7 +1063,9 @@ void setup1() {
 
 
 void loop1() {
+  uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
   if (oscsRunning) {
     calculateOscBuffers();
   }
+  spin_unlock(calcOscsSpinlock, save);
 }
