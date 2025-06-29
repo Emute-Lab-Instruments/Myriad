@@ -232,9 +232,12 @@ static float __not_in_flash("mydata") octave7=1;
 static float __not_in_flash("mydata") octave8=1;
 static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,1, 1,1,1, 1,1,1};
 
-int __not_in_flash("mydata") oscTypeBank0=0;
-int __not_in_flash("mydata") oscTypeBank1=0;
-int __not_in_flash("mydata") oscTypeBank2=0;
+
+size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
+
+// int __not_in_flash("mydata") oscTypeBank0=0;
+// int __not_in_flash("mydata") oscTypeBank1=0;
+// int __not_in_flash("mydata") oscTypeBank2=0;
 
 static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
 static FAST_MEM std::array<size_t,4> adcMaxs{4025,4025,4025,4025};
@@ -582,27 +585,39 @@ size_t FAST_MEM oscModeBankChangeTS[3] = {0,0,0};
 // size_t FAST_MEM oscModeBankChange[3] = {0,0,0};
 
 inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_timer *t) {
-  if (oscModeBankChangeTS[2] > 0) {
-    size_t elapsed = millis() - oscModeBankChangeTS[2];
-    if (elapsed > 100) {
-      oscModeBankChangeTS[2] = 0;
-      stopOscBankA();
+  for(size_t bank=0; bank < 3; bank++) {
+    if (oscModeBankChangeTS[bank] > 0) {
+      size_t elapsed = millis() - oscModeBankChangeTS[bank];
+      if (elapsed > 100) {
+        
+        oscModeBankChangeTS[bank] = 0;
 
-      assignOscModels(oscTypeBank2);
+        if (bank ==2) {
 
-      //refill from new oscillator
-      //trigger buffer refills
-      currOscModels[0]->newFreq=true;
-      currOscModels[1]->newFreq=true;
-      currOscModels[2]->newFreq=true;
+          stopOscBankA();
 
-      calculateOscBuffers();
+          assignOscModels(oscBankTypes[2]);
 
-      startOscBankA();
+          //refill from new oscillator
+          //trigger buffer refills
+          currOscModels[0]->newFreq=true;
+          currOscModels[1]->newFreq=true;
+          currOscModels[2]->newFreq=true;
 
+          calculateOscBuffers();
 
+          startOscBankA();
+
+        } else {
+
+          sendToMyriadB(bank == 1 ? messageTypes::BANK1 : messageTypes::BANK0, oscBankTypes[bank]);
+        
+        }
+      }
     }
+
   }
+
   return true;
 }
 
@@ -681,11 +696,21 @@ void __isr encoder1_callback() {
     case CONTROLMODES::OSCMODE:
     {
       controls::encoderValues[0] += change;
-      bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-      if (changed) {
-        display.setOscBankModel(1, oscTypeBank1);
-        Serial.printf("model %d\n", oscTypeBank1);
+      int newOscTypeBank = oscBankTypes[1] + change;
+      //clip
+      newOscTypeBank = max(0, newOscTypeBank);
+      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+      //prepare for osc mode change
+      if (newOscTypeBank != oscBankTypes[1]) {
+        oscModeBankChangeTS[1] = millis();
+        oscBankTypes[1] = newOscTypeBank;
+        display.setOscBankModel(1, oscBankTypes[1]);
       }
+      // bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+      // if (changed) {
+      //   display.setOscBankModel(1, oscTypeBank1);
+      //   Serial.printf("model %d\n", oscTypeBank1);
+      // }
       break;
     }
     case CONTROLMODES::CALIBRATEMODE:
@@ -726,12 +751,23 @@ void __isr encoder2_callback() {
     case CONTROLMODES::OSCMODE:
     {
       controls::encoderValues[1] += change;
-      bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
-      if (changed) {
-        display.setOscBankModel(0, oscTypeBank0);
-        Serial.printf("enc 2 model %d\n", oscTypeBank0);
+      int newOscTypeBank = oscBankTypes[0] + change;
+      //clip
+      newOscTypeBank = max(0, newOscTypeBank);
+      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+      //prepare for osc mode change
+      if (newOscTypeBank != oscBankTypes[0]) {
+        oscModeBankChangeTS[0] = millis();
+        // oscModeBankChange[2] = newOscTypeBank;
+        oscBankTypes[0] = newOscTypeBank;
+        display.setOscBankModel(0, oscBankTypes[0]);
+      }
+      // bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+      // if (changed) {
+      //   display.setOscBankModel(0, oscTypeBank0);
+      //   Serial.printf("enc 2 model %d\n", oscTypeBank0);
 
-      }  
+      // }  
       break;
     }
     case CONTROLMODES::CALIBRATEMODE:
@@ -779,16 +815,17 @@ void __isr encoder3_callback() {
     }
     case CONTROLMODES::OSCMODE:
     {
-      int newOscTypeBank = oscTypeBank2 + change;
+      controls::encoderValues[2] += change;
+      int newOscTypeBank = oscBankTypes[2] + change;
       //clip
       newOscTypeBank = max(0, newOscTypeBank);
       newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
       //prepare for osc mode change
-      if (newOscTypeBank != oscTypeBank2) {
+      if (newOscTypeBank != oscBankTypes[2]) {
         oscModeBankChangeTS[2] = millis();
         // oscModeBankChange[2] = newOscTypeBank;
-        oscTypeBank2 = newOscTypeBank;
-        display.setOscBankModel(2, oscTypeBank2);
+        oscBankTypes[2] = newOscTypeBank;
+        display.setOscBankModel(2, oscBankTypes[2]);
       }
 
       // bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
