@@ -540,23 +540,28 @@ class sawOscillatorModel : public virtual oscillatorModel {
       // Serial.println(amp);
       // Serial.println(index);
 
+      
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
-          if (phase>=wavelen) {
-            phase = 0U;
-          }
+          // if (phase>=wavelen) {
+          //   phase = 0U;
+          // }
+          const size_t phasemask = -(phase < wavelen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
+          phase &= phasemask;
           phase++;
 
         
           size_t amp = (phase * phaseMul) >> 15U;
-          // size_t amp = phase * phaseMul;
-          if (amp >= wavelen) {
-            amp = 0U; // wrap around
-          }
+          // if (amp >= wavelen) {
+          //   amp = 0U; // wrap around
+          // }
+          const size_t mask = -(amp < wavelen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+          amp &= mask;
 
           const bool y = amp >= err0 ? 1 : 0;
           err0 = (y ? wavelen : 0) - amp + err0;
+
           word |= (y << bit);
 
         }
