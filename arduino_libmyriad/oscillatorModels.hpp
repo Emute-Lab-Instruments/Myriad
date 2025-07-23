@@ -163,7 +163,7 @@ public:
   
   inline void fillBuffer(uint32_t* bufferA, size_t wlen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 1.75f * 0.5f);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 1.75f * 2.0f);
     }
   }
 
@@ -374,30 +374,22 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
     }
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * (7.19f * 0.5f));
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 3.57f);
       }
-      // wmult = wmult * wmultmult;
-      // if (wmult < 0.125f) {
-      //   wmult=1.f;
-      // }
     }
     std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
     // std::vector<float> oscTemplate {0.1,0.5};
   
     void ctrl(const float v) override {
-      //receive a control parameter
-      // const float v1 = v * 0.98;
-      // const float v2 = 1.0 - v;
-      // oscTemplate [0] = v1;
-      // oscTemplate [1] = v2;
-      oscTemplate[0] = 0.05 + (v * 0.02);
-      oscTemplate[1] = 0.025 - (v * 0.02);
+      const float mul = 0.25f;
+      oscTemplate[0] = 0.05 + (v * 0.02 * mul);
+      oscTemplate[1] = 0.025 - (v * 0.02 * mul);
 
-      oscTemplate[4] = 0.001 - (v * 0.0005);
-      oscTemplate[5] = 0.001 + (v * 0.0005);
+      oscTemplate[4] = 0.001 - (v * 0.0005 * mul);
+      oscTemplate[5] = 0.001 + (v * 0.0005 * mul);
 
-      oscTemplate[5] = 0.01 - (v * 0.05);
-      oscTemplate[6] = 0.025 + (v * 0.05);
+      oscTemplate[5] = 0.01 - (v * 0.05 * mul);
+      oscTemplate[6] = 0.025 + (v * 0.05 * mul);
     }
 
     pio_sm_config getBaseConfig(uint offset) {
@@ -1204,7 +1196,7 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
   []() { return std::make_shared<squareOscillatorModel14>();}
   ,
-  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); }
+  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //TODO: drop this one
   ,
   []() { return std::make_shared<noiseOscillatorModel2>();}
   ,
