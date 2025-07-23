@@ -19,7 +19,7 @@ On unix:
 ln -s [path to this repo]/arduino_libmyriad/ 
 ```
 
-You need to install the TFT_eSPI library, and configure to use the following driver in Arduino/libraries/TFT_eSPT/User_Setup_Select.h by making this edit:
+You need to install the Emute Lab Instruments fork of TFT_eSPI library, and configure to use the following driver in Arduino/libraries/TFT_eSPT/User_Setup_Select.h by making this edit:
 
 ```
 //#include <User_Setup.h>           // Default setup is root library folder
