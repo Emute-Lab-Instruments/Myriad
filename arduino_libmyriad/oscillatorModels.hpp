@@ -7,6 +7,7 @@
 #include "oscVisData.hpp"
 #include "oscDisplayModes.hpp"
 #include "clockfreq.h"
+#include <limits>
 
 
 
@@ -37,7 +38,7 @@ public:
 
   volatile bool newFreq;
   bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
-  float wavelen=100000.f;
+  size_t wavelen=100000;
 
   virtual void ctrl(const float v) {
     //receive a control parameter
@@ -45,6 +46,9 @@ public:
 
   virtual pio_sm_config getBaseConfig(uint offset) {
     return pin_ctrl_program_get_default_config(offset);
+  }
+
+  virtual void reset() {
   }
 };
 
@@ -484,6 +488,7 @@ public:
   };
 
 size_t debugcount=0;
+
 class sawOscillatorModel : public virtual oscillatorModel {
   public:
 
@@ -565,6 +570,7 @@ class sawOscillatorModel : public virtual oscillatorModel {
           word |= (y << bit);
 
         }
+        // word = word << 1U;
         *(bufferA + i) = word;
 
       }
@@ -618,6 +624,190 @@ class sawOscillatorModel : public virtual oscillatorModel {
     // }
 
   };
+
+class triOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    triOscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      for(size_t i = 0; i < 1000; ++i) {
+        float v = i/1000.f;
+        float gradRising = 2.f + (v * 7.f);
+        float gradRisingInv = 1.f/gradRising; 
+        float gradFalling = 1.f/(1.f - (1.f / gradRising));
+        phaseRisingMul = static_cast<size_t>((gradRising * qfpMul) + 0.5f);
+        phaseRisingInvMul = static_cast<size_t>((gradRisingInv * qfpMul) + 0.5f);
+        phaseFallingMul = static_cast<size_t>((gradFalling * qfpMul) + 0.5f);
+        MULTIPLIER_TABLE_RISING[i] = phaseRisingMul;
+        MULTIPLIER_TABLE_RISING_INV[i] = phaseRisingInvMul;
+        MULTIPLIER_TABLE_FALLING[i] = phaseFallingMul;
+      }
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {      
+
+      if (ctrlChange) {
+        ctrlChange = false;
+      }
+
+      const int32_t triPeakPoint = (wavelen * phaseRisingInvMul) >> qfp;
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        uint32_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          // if (phase>=wavelen) {
+          //   phase = 0U;
+          // }
+          phase = phase >= wavelen ? 0 : phase; // wrap around
+
+          
+          // int32_t isRising = phase <= triPeakPoint;
+          // amp_fp += isRising ? risingInc : fallingInc;
+          
+          // // Handle wraparound
+          // if (phase == 0) amp_fp = 0;
+          // if (phase == triPeakPoint) amp_fp = wavelen << qfp;
+          
+          // size_t amp = amp_fp >> qfp;
+
+          int32_t amp=0;
+          // if (phase <= triPeakPoint) {
+          //   amp = ( phase * phaseRisingMul) >> qfp; 
+          // }else{
+          //   const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
+          //   // fallingPhase = (fallingPhase * phaseFallingMul) >> qfp;
+          //   amp = wavelen - fallingPhase; 
+          // }
+
+          int32_t temp;  // declare this before the asm block
+          if (phase <= triPeakPoint) {
+              // Rising phase - use inline assembly for the multiply and shift
+              asm volatile (
+                  "mul    %[result], %[multiplicand]  \n\t"
+                  "asr    %[result], %[shift_amount]  \n\t"
+                  : [result] "=&l" (amp)
+                  : [multiplicand] "l" (phaseRisingMul), 
+                    [shift_amount] "l" (qfp),
+                    "0" (phase)  // input tied to output register
+                  : "cc"
+              );
+          } else {
+              // Falling phase
+              int32_t fallingPhase;
+              asm volatile (
+                  "sub    %[temp], %[ph], %[peak]     \n\t"
+                  "mul    %[temp], %[fallMul]         \n\t"
+                  "asr    %[temp], %[shift]           \n\t"
+                  "sub    %[result], %[wlen], %[temp] \n\t"
+                  : [result] "=&l" (amp), [temp] "=&l" (fallingPhase)
+                  : [ph] "l" (phase), [peak] "l" (triPeakPoint),
+                    [fallMul] "l" (phaseFallingMul), [shift] "l" (qfp),
+                    [wlen] "l" (wavelen)
+                  : "cc"
+              );
+          }
+          // size_t amp = (phase <= triPeakPoint) 
+          //     ? (phase * phaseRisingMul) >> qfp
+          //     : wavelen - (((phase - triPeakPoint) * phaseFallingMul) >> qfp);
+        
+          // size_t amp = (phase * phaseMul) >> 15U;
+          // if (amp >= wavelen) {
+          //   amp = 0U; // wrap around
+          // }
+          // const size_t mask = -(amp < wavelen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+          // amp &= mask;
+
+
+          //delta-sigma modulation
+
+          int32_t y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wavelen : 0) - amp + err0;
+
+          // bit operations TODO: - get some aliasing here, but maybe works on faster saw osc.
+          if (phase <= triPeakPoint) {
+            y = !y;
+          }
+
+          word |= (y << bit);
+
+          phase++;
+
+        }
+        // word = (word * bitmul) >> 15U;;
+        // word = ~word;
+        // uint64_t word64 = word << bitshift;
+        // word = word << 20U; 
+        // *(bufferA + i) = static_cast<uint32_t>(word64);  
+        // *(bufferA + i) = word & lastWord & lastWord2 & lastWord3; 
+        // lastWord2 = lastWord;
+        // lastWord3 = lastWord2;                                                              
+        // lastWord = word;
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+    void ctrl(const float v) override {
+      // float gradRising = 2.f + (v * v * 100.f);
+      // float gradFalling = 1.f/(1.f - (1.f / gradRising));
+      // phaseRisingMul = static_cast<size_t>((gradRising * 32768.f) + 0.5f);
+      // phaseFallingMul = static_cast<size_t>((gradFalling * 32768.f) + 0.5f);
+
+
+      const size_t index = static_cast<size_t>(v * 999.f + 0.5f);
+      if (index != lastPW || wavelen != lastWavelen) {
+        lastPW = index;
+        lastWavelen = wavelen;
+        // Serial.printf("index: %zu, wavelen: %zu\n", index, wavelen);
+        phaseRisingMul = MULTIPLIER_TABLE_RISING[index];
+        phaseRisingInvMul = MULTIPLIER_TABLE_RISING_INV[index];
+        phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
+        risingInc = phaseRisingMul;
+        fallingInc = -phaseFallingMul;  
+        ctrlChange=true;    
+        // amp_fp=0;
+      }
+        // bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
+      // Serial.printf("%zu, phaseRisingMul: %zu, phaseRisingInvMul: %zu, phaseFallingMul: %zu\n", index, phaseRisingMul,phaseRisingInvMul, phaseFallingMul);
+    }
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+  
+  private:
+    int32_t phase=0;
+    size_t phaseMul = 0;
+    bool y=0;
+    int32_t err0=0;
+    size_t val=0;
+    int32_t MULTIPLIER_TABLE_RISING[1000];
+    int32_t MULTIPLIER_TABLE_RISING_INV[1000];
+    int32_t MULTIPLIER_TABLE_FALLING[1000];
+    
+    int32_t phaseRisingMul=2;
+    int32_t phaseRisingInvMul=2;
+    int32_t phaseFallingMul=2;
+    // int32_t triPeakPoint = 1;
+    int32_t risingInc =1;
+    int32_t fallingInc = -1;      
+    int32_t amp_fp = 0; // accumulator for amplitude in fixed point
+
+    static constexpr size_t qfp = 14U;
+    static constexpr float qfpMul = 1U << qfp;
+
+    size_t lastPW = 0;
+    size_t lastWavelen = 1;
+    volatile bool ctrlChange = false;
+    size_t bitshift = 0;
+    uint32_t bitmul = 1U; // multiplier for bit shift, used to scale the output
+    size_t lastWord=0, lastWord2=0, lastWord3=0, lastWord4=0, lastWord5=0, lastWord6=0, lastWord7=0, lastWord8=0;
+
+};
 
 
 //bit by bit square wave oscillator
@@ -766,6 +956,236 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
   };
   
 
+//this sounds interesting in tonal variation of the mask but also clicks at regular points
+class triErrMaskOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    triErrMaskOscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      const size_t midphase = wavelen >> 1;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wavelen ? 0 : phase; // wrap around
+
+        
+          size_t amp = phase > midphase ? phase >> 1 : phase << 1; //tri wave
+
+          const bool y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wavelen : 0) - amp + err0;
+          err0 = (err0) & mul;
+
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+    inline int find_msb(uint32_t x) {
+      if (x == 0) return -1;
+      int msb = 0;
+      if (x >= 1 << 16) { msb += 16; x >>= 16; }
+      if (x >= 1 << 8)  { msb += 8;  x >>= 8;  }
+      if (x >= 1 << 4)  { msb += 4;  x >>= 4;  }
+      if (x >= 1 << 2)  { msb += 2;  x >>= 2;  }
+      if (x >= 1 << 1)  { msb += 1; }
+      return msb;
+    }
+
+    void ctrl(const float v) override {
+      constexpr size_t mask = std::numeric_limits<size_t>::max();
+      // constexpr size_t mask2 = 0b10010010010010010010010010010010; //std::numeric_limits<size_t>::max();
+      int msb = find_msb(wavelen);
+      size_t shift = (32-msb) + static_cast<size_t>((msb-8) * v);
+      if (shift < 14) {
+        shift = 14;
+      }
+      mul = (mask >> shift) ;
+      // mul = mul | wavelen;
+      // aug = static_cast<size_t>(wavelen * v * 0.2f);
+    }
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+      aug = 1;
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    size_t mul=1;
+    size_t aug=1;
+
+
+  };
+
+
+
+class triSDVar1OscillatorModel : public virtual oscillatorModel {
+  public:
+
+    triSDVar1OscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      const size_t midphase = wavelen >> 1;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wavelen ? 0 : phase; // wrap around
+
+        
+          size_t amp = phase < midphase ? 
+                phase << 1 
+                : 
+                wavelen - ((phase-midphase) << 1); //tri wave
+          // size_t amp = phase; // saw
+          // size_t amp = phase < midphase  ? 0 : wavelen; // pulse
+
+          const bool y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wavelen : 0) - amp + err0;
+          // err0 = (err0) & mul;
+          err0 = (err0 * mul) >> qfp;
+
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+
+    void ctrl(const float v) override {
+      mul = ((1.f - (v * 0.9)) * qfpMul);
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    size_t mul=1;
+
+    static constexpr size_t qfp = 14U;
+    static constexpr float qfpMul = 1U << qfp;
+
+};
+
+class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
+  public:
+
+    triSDFBVar1OscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+      const int midphase = wavelen >> 1;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wavelen ? 0 : phase; // wrap around
+
+        
+          int amp = phase < midphase ? 
+                phase << 1 
+                : 
+                wavelen - ((phase-midphase) << 1); //tri wave
+          // size_t amp = phase; // saw
+          // int amp = phase < midphase  ? 0 : wavelen; // pulse
+
+          const bool y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wavelen : 0) - amp + err0 -  err1 ;
+          // err0 = (err0) & mul;
+          // err0 = (err0 * mul) >> qfp;
+          err1 = err1 + ((err0 * mul) >> qfp);
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+
+    void ctrl(const float v) override {
+      mul = ((v * 0.9)) * qfpMul;
+      Serial.println(mul);
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+      err1=0;
+    }
+
+  
+  private:
+    int phase=0;
+    bool y=0;
+    int err0=0;
+    int err1=0;
+    int mul=1;
+
+    static constexpr int qfp = 15U;
+    static constexpr float qfpMul = 1U << qfp;
+
+};
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
@@ -776,6 +1196,10 @@ const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
 std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("mydata") oscModelFactories = {
   
   
+  
+  // []() { return std::make_shared<triSDFBVar1OscillatorModel>(); }
+  // []() { return std::make_shared<triSDVar1OscillatorModel>(); }
+  // []() { return std::make_shared<triOscillatorModel>(); }
   []() { return std::make_shared<sawOscillatorModel>(); }
   // []() { return std::make_shared<squareBBBOscillatorModel>(); }
   // []() { return std::make_shared<squareOscillatorModel>(); }

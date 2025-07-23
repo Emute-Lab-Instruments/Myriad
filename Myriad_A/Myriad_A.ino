@@ -84,9 +84,10 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_sha
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaAizawa1 = std::make_shared<metaAizawa<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 6> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaAizawa1, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
 
@@ -239,8 +240,8 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 // int __not_in_flash("mydata") oscTypeBank1=0;
 // int __not_in_flash("mydata") oscTypeBank2=0;
 
-static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
-static FAST_MEM std::array<size_t,4> adcMaxs{4025,4025,4025,4025};
+static FAST_MEM std::array<size_t,4> adcMins{0,0,0,0};
+static FAST_MEM std::array<size_t,4> adcMaxs{4096,4096,4096,4096};
 static FAST_MEM std::array<size_t,4> adcRanges;
 static FAST_MEM float courseTuning=0;
 static FAST_MEM float fineTuning=0;
@@ -588,7 +589,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
   for(size_t bank=0; bank < 3; bank++) {
     if (oscModeBankChangeTS[bank] > 0) {
       size_t elapsed = millis() - oscModeBankChangeTS[bank];
-      if (elapsed > 100) {
+      if (elapsed > 80) {
         
         oscModeBankChangeTS[bank] = 0;
 
@@ -600,6 +601,10 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
 
           //refill from new oscillator
           //trigger buffer refills
+          currOscModels[0]->reset();
+          currOscModels[1]->reset();
+          currOscModels[2]->reset();
+          
           currOscModels[0]->newFreq=true;
           currOscModels[1]->newFreq=true;
           currOscModels[2]->newFreq=true;
@@ -1002,12 +1007,38 @@ void setup() {
     display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
   }
 
-  tft.begin();
+  
+  tft.init();
+  // // Keep display OFF while clearing
+  // tft.writecommand(0x28);  // Display OFF
+  
+  // // Clear memory
+  // tft.writecommand(0x2C);  // Memory Write command
+  // tft.startWrite();
+  
+  // for(int i = 0; i < 240 * 240; i++) {
+  //   tft.pushColor(TFT_BLACK);
+  // }
+  
+  // tft.endWrite();
+  
+  // // Small delay to ensure clear is complete
+  // delay(10);
+  
+  // // Now turn display ON
+  // tft.writecommand(0x29);  // Display ON
+  
   tft.setRotation(3);
-  tft.setFreeFont(&FreeSans18pt7b);
+
+
+  // tft.setFreeFont(&FreeSans18pt7b);
   display.setScreen(portal::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
   display.setModTarget(MODTARGETS::PITCH);
+  display.update();
+
+  // Now turn display on
+  digitalWrite(TFT_BL, HIGH);  
 
   for(size_t i=0; i < 4; i++) {
     adcRanges[i] = adcMaxs[i] - adcMins[i];
@@ -1062,10 +1093,7 @@ void setup() {
 
   add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
   add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
-  add_repeating_timer_ms(50, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
-  
-
-
+  add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 }
 
 

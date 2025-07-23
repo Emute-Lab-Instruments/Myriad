@@ -358,11 +358,11 @@ private:
   std::array<float, N> mods;
 };
 
+struct point {float x; float y;};
 
 template<size_t N>
 class metaLorenz : public metaOsc<N> {
 public:
-    struct point {float x; float y;};
 
     metaLorenz() {
         this->modspeed.setMax(0.1);
@@ -376,7 +376,7 @@ public:
 
     String getName() override {return "lorenz";}
 
-    void lorenz(const std::vector<float>& state, std::vector<float>& deriv) {
+    virtual void iterate(const std::vector<float>& state, std::vector<float>& deriv) {
         float x = state[0];
         float y = state[1];
         float z = state[2];
@@ -388,32 +388,39 @@ public:
     void runge_kutta(std::vector<float>& state) {
         std::vector<float> k1(3), k2(3), k3(3), k4(3), temp(3);
 
-        lorenz(state, k1);
-        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5 * dt * k1[i];
+        iterate(state, k1);
+        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5f * dt * k1[i];
 
-        lorenz(temp, k2);
-        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5 * dt * k2[i];
+        iterate(temp, k2);
+        for (int i = 0; i < 3; ++i) temp[i] = state[i] + 0.5f * dt * k2[i];
 
-        lorenz(temp, k3);
+        iterate(temp, k3);
         for (int i = 0; i < 3; ++i) temp[i] = state[i] + dt * k3[i];
 
-        lorenz(temp, k4);
-        for (int i = 0; i < 3; ++i) state[i] += (dt / 6.0) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
+        iterate(temp, k4);
+        for (int i = 0; i < 3; ++i) state[i] += (dt / 6.0f) * (k1[i] + 2.f * k2[i] + 2.f * k3[i] + k4[i]);
     }    
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    virtual void updateCoefficients() {
       sigma = 10.0 + (this->modspeed.getValue()*50.f);
-      rho = 27 + (this->modspeed.getValue()*10.f);
+      rho = 28.0 + (this->modspeed.getValue()*10.f);
       dt = (this->modspeed.getValue()*0.2) + 0.001;
+    }
+
+    std::array<float, N> update(const float (&adcs)[4]) override {
+      // sigma = 10.0 + (this->modspeed.getValue()*50.f);
+      // rho = 27 + (this->modspeed.getValue()*10.f);
+      // dt = (this->modspeed.getValue()*0.2) + 0.001;
+      updateCoefficients();
       runge_kutta(state);    
       pastStates.push_back(state);
       if (pastStates.size() > 40) {
         pastStates.pop_front();
       }
-      // for(size_t i=0; i < 3; i++) {
-      //   Serial.printf("%f, ", state[i]);
-      // }  
-      // Serial.println();
+      for(size_t i=0; i < 3; i++) {
+        Serial.printf("%f, ", state[i]);
+      }  
+      Serial.println();
       //position
       mods[0] = state[0] * 0.1 * this->moddepth.getValue();
       mods[1] = state[1] * 0.1 * this->moddepth.getValue();
@@ -434,16 +441,20 @@ public:
         mods[7] = ((pastStates[top][1] - pastStates[top-1][1]) - (pastStates[top-1][1] - pastStates[top-2][1])) * 10.f * this->moddepth.getValue();
         mods[8] = ((pastStates[top][2] - pastStates[top-1][2]) - (pastStates[top-1][2] - pastStates[top-2][2])) * 10.f * this->moddepth.getValue();
       }
-      for(size_t i=6; i < 9; i++) {
-        Serial.printf("%f, ", mods[i]);
-      }  
-      Serial.println();
+      // for(size_t i=6; i < 9; i++) {
+      //   Serial.printf("%f, ", mods[i]);
+      // }  
+      // Serial.println();
       return mods;
     }
 
-    //TODO: need to keep a deque of recent values (maybe 100), then draw a selection of these each time, and keep a track of which ones were drawn, 
-    // each time delete the last line and add a new line
-    // so need states deque and drawnsates deque
+    virtual point project2D(const std::vector<float>& state) {
+      //project xD state to 2D
+      point p;
+      p.x = 120.f + (state[1] * 4.f);
+      p.y = 120.f + (state[2] * 3.5f);
+      return p;
+    }
 
     void draw(TFT_eSPI &tft) override {
       constexpr size_t lineLength = 70;
@@ -451,7 +462,8 @@ public:
       // }
       // tft.drawLine(lastlastPoint.x, lastlastPoint.y, lastPoint.x, lastPoint.y, ELI_BLUE); 
       // point newPoint = {120.f + (state[1] * 4.f), 120.f + (state[1] * 4.f)}; 
-      point newPoint = {120.f + (state[1] * 4.f), sqbound + (state[2] * 3.5f)}; 
+      // point newPoint = {120.f + (state[1] * 4.f), sqbound + (state[2] * 3.5f)}; 
+      const point newPoint = project2D(state); 
       tft.drawLine(pastPoints.back().x, pastPoints.back().y, newPoint.x, newPoint.y, TFT_CYAN); 
       // lastlastPoint = lastPoint;
       // lastPoint = newPoint;)
@@ -466,17 +478,70 @@ public:
       return mods;
     };
 
-private:
-  std::array<float, N> mods;
-  std::vector<float> state = {1.0, 1.0, 1.0};
-  std::deque<std::vector<float> > pastStates;
-  float sigma = 10.0;
-  float rho = 28.0;
-  const float beta = 8.0 / 3.0;
+protected:
   double dt = 0.01;  // Time step
   point lastPoint, lastlastPoint;
   std::deque<point> pastPoints;
+  std::array<float, N> mods;
+  std::vector<float> state = {1.0, 1.0, 1.0};
+  std::deque<std::vector<float> > pastStates;
+
+private:
+  float sigma = 10.0;
+  float rho = 28.0;
+  const float beta = 8.0 / 3.0;
 };
+
+template<size_t N>
+class metaAizawa : public metaLorenz<N> {
+public:
+
+    metaAizawa() : metaLorenz<N>() {
+        // this->modspeed.setMax(0.1);
+        // this->modspeed.setScale(0.001);
+        // this->moddepth.setMax(0.1);
+        // this->moddepth.setScale(0.0009);
+        // lastPoint = {120,120};
+        // lastlastPoint = {120,120};
+        // pastPoints.push_back(lastPoint);
+        this->state[0] = -0.8f; // x
+        this->state[1] = -0.37f; // y
+        this->state[2] = -0.66f; // z
+    }
+
+    String getName() override {return "aizawa";}
+
+    void iterate(const std::vector<float>& currstate, std::vector<float>& deriv) override {
+        float x = currstate[0];
+        float y = currstate[1];
+        float z = currstate[2];
+        deriv[0] = (z-b) * x - d*y;
+        deriv[1] = d * x + (z-b) * y;
+        deriv[2] = c + (a*z) - ((z*z*z)*0.3333333f) - (x*x) + (f * z * (x*x*x));
+    }
+
+    void updateCoefficients() override{
+      // a = 0.95 + (this->modspeed.getValue() * 0.01);
+      this->dt = (this->modspeed.getValue()*0.2) + 0.001;
+    }
+
+    point project2D(const std::vector<float>& currstate) override {
+      //project 3D state to 2D
+      point p;
+      p.x = 120.f + (currstate[1] * 40.f);
+      p.y = 120.f + (currstate[2] * 40.f);
+      return p;
+    }
+
+private:
+    float a=1.52;
+    float b= 1; 
+    float c=1.14;
+    float d=1.86;
+    float e=1.81;
+    float f=0.85;
+};
+
 
 template <size_t N>
 using metaOscPtr = std::shared_ptr<metaOsc<N>>;

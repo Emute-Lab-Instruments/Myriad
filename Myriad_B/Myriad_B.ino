@@ -251,6 +251,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0], decodeMsg.value);
                 currOscModels0[0]->wavelen = decodeMsg.value;
+                currOscModels0[0]->reset();
                 currOscModels0[0]->newFreq = true; //trigger buffer refill
               }
               break;        
@@ -258,6 +259,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
                 currOscModels0[1]->wavelen = decodeMsg.value;
+                currOscModels0[1]->reset();
                 currOscModels0[1]->newFreq = true; //trigger buffer refill
               }
               break;        
@@ -265,6 +267,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
                 currOscModels0[2]->wavelen = decodeMsg.value;
+                currOscModels0[2]->reset();
                 currOscModels0[2]->newFreq = true; //trigger buffer refill
               }
               break;        
@@ -272,6 +275,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
                 currOscModels1[0]->wavelen = decodeMsg.value;
+                currOscModels1[0]->reset();
                 currOscModels1[0]->newFreq = true; //trigger buffer refill
               }
                 break;
@@ -279,6 +283,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
                 currOscModels1[1]->wavelen = decodeMsg.value;
+                currOscModels1[1]->reset();
                 currOscModels1[1]->newFreq = true; //trigger buffer refill
               }
                 break;
@@ -286,6 +291,7 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
                 currOscModels1[2]->wavelen = decodeMsg.value;
+                currOscModels1[2]->reset();
                 currOscModels1[2]->newFreq = true; //trigger buffer refill
                 //freqs sent sequentially, so all oscs should now have a freq
                 oscsReadyToStart = true;
