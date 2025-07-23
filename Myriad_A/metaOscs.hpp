@@ -404,7 +404,7 @@ public:
     virtual void updateCoefficients() {
       sigma = 10.0 + (this->modspeed.getValue()*50.f);
       rho = 28.0 + (this->modspeed.getValue()*10.f);
-      dt = (this->modspeed.getValue()*0.2) + 0.001;
+      dt = (this->modspeed.getValue()*0.07f) + 0.001f;
     }
 
     std::array<float, N> update(const float (&adcs)[4]) override {
@@ -414,7 +414,7 @@ public:
       updateCoefficients();
       runge_kutta(state);    
       pastStates.push_back(state);
-      if (pastStates.size() > 40) {
+      if (pastStates.size() > 45) {
         pastStates.pop_front();
       }
       for(size_t i=0; i < 3; i++) {
@@ -452,22 +452,19 @@ public:
       //project xD state to 2D
       point p;
       p.x = 120.f + (state[1] * 4.f);
-      p.y = 120.f + (state[2] * 3.5f);
+      p.y = 20.f + (state[2] * 3.5f);
+      Serial.printf("projected point: %f, %f\n", p.x, p.y);
       return p;
     }
 
     void draw(TFT_eSPI &tft) override {
       constexpr size_t lineLength = 70;
-      // if (pastPoints.size() > lineLength) {
-      // }
-      // tft.drawLine(lastlastPoint.x, lastlastPoint.y, lastPoint.x, lastPoint.y, ELI_BLUE); 
-      // point newPoint = {120.f + (state[1] * 4.f), 120.f + (state[1] * 4.f)}; 
-      // point newPoint = {120.f + (state[1] * 4.f), sqbound + (state[2] * 3.5f)}; 
       const point newPoint = project2D(state); 
       tft.drawLine(pastPoints.back().x, pastPoints.back().y, newPoint.x, newPoint.y, TFT_CYAN); 
       // lastlastPoint = lastPoint;
       // lastPoint = newPoint;)
       pastPoints.push_back(newPoint);
+      //blank out last segment
       if (pastPoints.size() > lineLength) {
         tft.drawLine(pastPoints[0].x, pastPoints[0].y, pastPoints[1].x, pastPoints[1].y, ELI_BLUE); 
         pastPoints.pop_front();
@@ -483,7 +480,7 @@ protected:
   point lastPoint, lastlastPoint;
   std::deque<point> pastPoints;
   std::array<float, N> mods;
-  std::vector<float> state = {1.0, 1.0, 1.0};
+  std::vector<float> state = {1.1,2,7};
   std::deque<std::vector<float> > pastStates;
 
 private:
@@ -492,6 +489,8 @@ private:
   const float beta = 8.0 / 3.0;
 };
 
+
+//this one is (apparently well know to be) unstable, doesn't work great without small dt values
 template<size_t N>
 class metaAizawa : public metaLorenz<N> {
 public:
@@ -540,6 +539,50 @@ private:
     float d=1.86;
     float e=1.81;
     float f=0.85;
+};
+
+
+//hopefully this is more stable than Aizawa?
+template<size_t N>
+class metaRossler : public metaLorenz<N> {
+public:
+
+    metaRossler() : metaLorenz<N>() {
+        this->state[0] = 10.f; // x
+        this->state[1] = 0.f; // y
+        this->state[2] = 10.f; // z
+    }
+
+    String getName() override {return "rossler";}
+
+    void iterate(const std::vector<float>& currstate, std::vector<float>& deriv) override {
+        float x = currstate[0];
+        float y = currstate[1];
+        float z = currstate[2];
+        deriv[0] = -(y+z);
+        deriv[1] = x + (a * y);
+        deriv[2] = b + (z * (x - c));
+    }
+
+    void updateCoefficients() override{
+      a = 0.2 + (this->modspeed.getValue() * 0.5f);
+      b = 0.2 + (this->modspeed.getValue() * -0.1f);
+      c = 5.7 + (this->modspeed.getValue() * -2.4f);
+      this->dt = (this->modspeed.getValue()*0.2f) + 0.001f;
+    }
+
+    point project2D(const std::vector<float>& currstate) override {
+      //project 3D state to 2D
+      point p;
+      p.x = 120.f + (currstate[0] * 7.f);
+      p.y = 120.f + (currstate[1] * 4.f);
+      return p;
+    }
+
+private:
+    float a=0.2;
+    float b= 0.2; 
+    float c=5.7;
 };
 
 

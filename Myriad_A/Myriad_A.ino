@@ -84,10 +84,11 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_sha
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaAizawa1 = std::make_shared<metaAizawa<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaAizawa1 = std::make_shared<metaAizawa<N_OSCILLATORS>>();
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaAizawa1, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaRossler1, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
 
@@ -440,6 +441,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   if (currMetaMod > 0) {
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    metamods = metaOscsList.at(currMetaMod)->update(controlValues);
 
     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
         new_wavelen0 *= (1.f + (metamods[0]));
