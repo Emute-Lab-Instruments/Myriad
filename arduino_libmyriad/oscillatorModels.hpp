@@ -56,13 +56,9 @@ public:
 class pulse10OscillatorModel : public virtual oscillatorModel {
 public:
   pulse10OscillatorModel() : oscillatorModel(){
-    loopLength=2;
+    loopLength=4;
     prog=pin_ctrl_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 4 == 0 ? 1 : 0;
-    }
+    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -163,17 +159,11 @@ public:
   squareOscillatorModel14() : oscillatorModel() {
     loopLength=14;
     prog=pin_ctrl_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 5 < 2 ? 1 : 0;
-    }
-
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-    wavelen = wavelen * 2;
+  
+  inline void fillBuffer(uint32_t* bufferA, size_t wlen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 1.75f);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 1.75f * 0.5f);
     }
   }
 
@@ -384,7 +374,7 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
     }
     inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * (7.19f * 1.f));
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * (7.19f * 0.5f));
       }
       // wmult = wmult * wmultmult;
       // if (wmult < 0.125f) {
@@ -1205,6 +1195,7 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   // []() { return std::make_shared<squareOscillatorModel>(); }
   
   ,
+  // []() { return std::make_shared<sawOscillatorModel>(); }
   []() { return std::make_shared<expdecOscillatorModel1>(); }
   ,
   []() { return std::make_shared<pulse10OscillatorModel>(); }

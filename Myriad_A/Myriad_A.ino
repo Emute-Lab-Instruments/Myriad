@@ -185,7 +185,11 @@ void stopOscBankA() {
     smOsc2.stop();
 #endif
   }
+  bufSent0 = false;
+  bufSent1 = false;
+  bufSent2 = false;  
   spin_unlock(calcOscsSpinlock, save);
+  delayMicroseconds(100);
 }
 
 #define SCREEN_WIDTH tft.width()    //
@@ -597,18 +601,56 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
 
           stopOscBankA();
 
+          dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
+
+          auto w1 = currOscModels[0]->wavelen;
+          auto w2 = currOscModels[1]->wavelen;
+          auto w3 = currOscModels[2]->wavelen;
+
           assignOscModels(oscBankTypes[2]);
+
 
           //refill from new oscillator
           //trigger buffer refills
           currOscModels[0]->reset();
           currOscModels[1]->reset();
           currOscModels[2]->reset();
+
+          currOscModels[0]->wavelen = w1;
+          currOscModels[1]->wavelen = w2;
+          currOscModels[2]->wavelen = w3;
+
+          constexpr size_t clearSize = OSC_BUFFER_SIZE * sizeof(uint32_t);
+          memset(timing_swapbuffer_0_A, 0, clearSize);
+          memset(timing_swapbuffer_0_B, 0, clearSize);
+          memset(timing_swapbuffer_1_A, 0, clearSize);
+          memset(timing_swapbuffer_1_B, 0, clearSize);
+          memset(timing_swapbuffer_2_A, 0, clearSize);
+          memset(timing_swapbuffer_2_B, 0, clearSize);          
           
           currOscModels[0]->newFreq=true;
           currOscModels[1]->newFreq=true;
           currOscModels[2]->newFreq=true;
 
+          // nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+          // nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+          // nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;          
+                    
+          // // 9. Pre-calculate both A and B buffers for smooth start
+          // // Fill A buffers first
+          // currOscModels[0]->fillBuffer(timing_swapbuffer_0_A, currOscModels[0]->wavelen);
+          // currOscModels[1]->fillBuffer(timing_swapbuffer_1_A, currOscModels[1]->wavelen);
+          // currOscModels[2]->fillBuffer(timing_swapbuffer_2_A, currOscModels[2]->wavelen);
+          
+          // // Fill B buffers as backup
+          // currOscModels[0]->fillBuffer(timing_swapbuffer_0_B, currOscModels[0]->wavelen);
+          // currOscModels[1]->fillBuffer(timing_swapbuffer_1_B, currOscModels[1]->wavelen);
+          // currOscModels[2]->fillBuffer(timing_swapbuffer_2_B, currOscModels[2]->wavelen);
+          
+          // // Set next buffers to B since A will be consumed first
+          // nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_B;
+          // nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_B;
+          // nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_B;
           calculateOscBuffers();
 
           startOscBankA();
@@ -727,17 +769,7 @@ void __isr encoder1_callback() {
       break;
     }
   }
-  // if (controlMode == CONTROLMODES::METAOSCMODE) {
-  //   controls::encoderAltValues[0] += change;
-  //   updateMetaOscMode(currMetaMod, change);
-  // }else{
-  //   controls::encoderValues[0] += change;
-  //   bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-  //   if (changed) {
-  //     display.setOscBankModel(1, oscTypeBank1);
-  //     Serial.printf("model %d\n", oscTypeBank1);
-  //   }
-  // }
+
 }
 
 //left
@@ -787,21 +819,7 @@ void __isr encoder2_callback() {
     }
   }
 
-  // if (controlMode == CONTROLMODES::METAOSCMODE) {
-  //   controls::encoderAltValues[1] += change;
-  //   if (currMetaMod > 0) {
-  //     metaOscsList.at(currMetaMod)->setSpeed(change);
-  //     display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
-  //   }
-  // }else{
-  //   controls::encoderValues[1] += change;
-  //   bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
-  //   if (changed) {
-  //     display.setOscBankModel(0, oscTypeBank0);
-  //     Serial.printf("enc 2 model %d\n", oscTypeBank0);
 
-  //   }  
-  // }
 
 }
 
@@ -852,19 +870,7 @@ void __isr encoder3_callback() {
     }
   }
 
-  // if (controlMode == CONTROLMODES::METAOSCMODE) {
-  //   controls::encoderAltValues[2] += change;
-  //   if (currMetaMod > 0) {
-  //     metaOscsList.at(currMetaMod)->setDepth(change);
-  //     display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
-  //   }
-  // }else{    controls::encoderValues[2] += change;
-  //   bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
-  //   if (changed) {
-  //     display.setOscBankModel(2, oscTypeBank2);
 
-  //   }
-  // }
 }
 
 debouncer FAST_MEM enc1Debouncer;
