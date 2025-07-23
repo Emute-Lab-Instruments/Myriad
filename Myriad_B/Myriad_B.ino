@@ -338,7 +338,17 @@ inline void __not_in_flash_func(readUart)() {
               {
                 // Serial.println("bank0");
                 stopOscBankA();
+
+                auto w1 = currOscModels0[0]->wavelen;
+                auto w2 = currOscModels0[1]->wavelen;
+                auto w3 = currOscModels0[2]->wavelen;
+
                 assignOscModels0(decodeMsg.value);
+
+                currOscModels0[0]->wavelen = w1;
+                currOscModels0[1]->wavelen = w2;
+                currOscModels0[2]->wavelen = w3;
+
                 //refill from new oscillator
                 //trigger buffer refills
                 currOscModels0[0]->newFreq=true;
@@ -355,7 +365,15 @@ inline void __not_in_flash_func(readUart)() {
                 // Serial.println("bank1");
                 // // Serial.println(decodeMsg.value);
                 stopOscBankB();
+                auto w1 = currOscModels1[0]->wavelen;
+                auto w2 = currOscModels1[1]->wavelen;
+                auto w3 = currOscModels1[2]->wavelen;
                 assignOscModels1(decodeMsg.value);
+
+                currOscModels1[0]->wavelen = w1;
+                currOscModels1[1]->wavelen = w2;
+                currOscModels1[2]->wavelen = w3;
+
                 //refill from new oscillator
                 //trigger buffer refills
                 currOscModels1[0]->newFreq=true;

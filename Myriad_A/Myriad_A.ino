@@ -620,13 +620,13 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
           currOscModels[1]->wavelen = w2;
           currOscModels[2]->wavelen = w3;
 
-          constexpr size_t clearSize = OSC_BUFFER_SIZE * sizeof(uint32_t);
-          memset(timing_swapbuffer_0_A, 0, clearSize);
-          memset(timing_swapbuffer_0_B, 0, clearSize);
-          memset(timing_swapbuffer_1_A, 0, clearSize);
-          memset(timing_swapbuffer_1_B, 0, clearSize);
-          memset(timing_swapbuffer_2_A, 0, clearSize);
-          memset(timing_swapbuffer_2_B, 0, clearSize);          
+          // constexpr size_t clearSize = OSC_BUFFER_SIZE * sizeof(uint32_t);
+          // memset(timing_swapbuffer_0_A, 0, clearSize);
+          // memset(timing_swapbuffer_0_B, 0, clearSize);
+          // memset(timing_swapbuffer_1_A, 0, clearSize);
+          // memset(timing_swapbuffer_1_B, 0, clearSize);
+          // memset(timing_swapbuffer_2_A, 0, clearSize);
+          // memset(timing_swapbuffer_2_B, 0, clearSize);          
           
           currOscModels[0]->newFreq=true;
           currOscModels[1]->newFreq=true;
