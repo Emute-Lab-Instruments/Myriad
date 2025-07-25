@@ -38,8 +38,9 @@ If the unit doesn't appear as a drive on your computer then you need to put it i
 10. *Action*: For each CV input in turn, connect the modulation source.
     1. Does the modulation source change the sound?
     2. For everything except ```VCA```, does the corresponding knob act as an attenverter?
+    3. Does the ```VCA/SHAPE``` control scale the ```VCA``` CV level?
 11. *Action*: connect the outputs to ```SHAPED L``` and ```SHAPED R```.
     1. Does the sound become overdriven?
-    2. Does the drive control change the sound?
+    2. Does the ```DRIVE``` control change the sound?
     3. Do the four LEDs respond to changes in the sound?
 
