@@ -47,6 +47,9 @@ public:
     size_t adcMin0,adcMin1,adcMin2,adcMin3;
     size_t adcMax0,adcMax1,adcMax2,adcMax3;
     size_t adcfilt0,adcfilt1,adcfilt2,adcfilt3;
+    int encDelta[3];
+    bool encSw[3];
+    std::string calibScreenTitle;
   };
 
   struct displayStates {
@@ -62,7 +65,7 @@ public:
     nextState.redraw = true;
   }
 
-  void setDisplayWavelengths(const std::array<float, N_OSCS> &wavelengths) {
+  void __force_inline setDisplayWavelengths(const std::array<float, N_OSCS> &wavelengths) {
     nextState.oscBankScreenState.oscWavelengths = wavelengths;
   }
 
@@ -169,6 +172,22 @@ public:
     nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
     nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
   }
+
+  void setCalibEncoderDelta(int encIdx, int delta) {
+    if (encIdx < 3) {
+      nextState.calibrationScreenState.encDelta[encIdx] = delta;
+    }
+  }
+
+  void setCalibEncoderSwitch(int encIdx, bool sw) {
+    if (encIdx < 3) {
+      nextState.calibrationScreenState.encSw[encIdx] = sw;
+    }
+  }
+
+  void setCalibScreenTitle(const std::string &title) {
+    nextState.calibrationScreenState.calibScreenTitle = title;
+  } 
 
   void setTuning(int course, int fine) {
     nextState.tuningState.coursetune = course;
@@ -409,7 +428,7 @@ private:
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
-      tft.drawString("Calibrate", 120, 26);
+      tft.drawString(nextState.calibScreenTitle.c_str(), 120, 26);
     }
     if (fullRedraw || currState.adc0 != nextState.adc0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
@@ -527,6 +546,31 @@ private:
       tft.drawString(str.c_str(), 180, 150);
     }
 
+    for (auto &j: {0,1,2}) {
+      constexpr size_t indexMap[3] = {1,0,2};
+      size_t i = indexMap[j];
+      if (fullRedraw || currState.encDelta[i] != nextState.encDelta[i]) {
+        int tlx = 50 + (j*50);
+        int tly = 180;
+        tft.fillRect(tlx, tly, 45,28, ELI_BLUE);
+        tft.setTextColor(ELI_PINK, ELI_BLUE);
+        tft.setFreeFont(&FreeMono9pt7b);
+        tft.setTextDatum(TL_DATUM);
+        std::string str=padNumberWithZeros(nextState.encDelta[i],1);
+        tft.drawString(str.c_str(),tlx, tly);
+      }
+      if (fullRedraw || currState.encSw[i] != nextState.encSw[i]) {
+        int tlx = 70 + (j*50);
+        int tly = 210;
+        tft.fillRect(tlx, tly, 45,28, ELI_BLUE);
+        tft.setTextColor(ELI_PINK, ELI_BLUE);
+        tft.setFreeFont(&FreeMono9pt7b);
+        tft.setTextDatum(TL_DATUM);
+        std::string str=nextState.encSw[i] ? "1" : "0";
+        tft.drawString(str.c_str(), tlx, tly);
+      }
+    }
+
   }
 
   void drawTuningScreen(const TuningScreenStates &currState, const TuningScreenStates &nextState, const bool fullRedraw) {
@@ -536,8 +580,8 @@ private:
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString("Tuning", 120, 26);
-      tft.drawString("Course", 60, 180);
-      tft.drawString("Fine", 180, 180);
+      tft.drawString("Course", 70, 190);
+      tft.drawString("Fine", 180, 190);
     }
     if (fullRedraw || currState.coursetune != nextState.coursetune) {
       tft.fillRect(0,50,100,100, ELI_BLUE);
@@ -547,7 +591,7 @@ private:
       tft.drawNumber(nextState.coursetune, 60, 100);
     }
     if (fullRedraw || currState.finetune != nextState.finetune) {
-      tft.fillRect(110,50,100,130, ELI_BLUE);
+      tft.fillRect(110,50,120,120, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeSansBold24pt7b);
       tft.setTextDatum(CC_DATUM);

@@ -1,23 +1,9 @@
-/*
-todo:
-metaosc modes
-
-make sure no -ve frequencies
-control/constrain speed and depth individually for each mode
-
-
-cfg
-08:25:59.913 -> 1073872128
-08:25:59.913 -> 1073741824
-*/
-
-
+#define MYRIAD_VERSION "1.0.0_test"
+#define FIRMWARE_DATE "250625"
 
 #include <optional>
 #include "displayPortal.h"
 #include "myriad_pins.h"
-// #include "myriad_setup.h"
-// #include "pio_expdec.h"
 #include "pios/pio_sq.h"
 #include "pios/pio_pulse.h"
 #include "pios/pio_expdec.h"
@@ -46,9 +32,6 @@ cfg
 #include "SLIP.h"
 
 #include "boids.h"
-
-
-// #define FAST_MEM __not_in_flash("myriaddata")
 
 // #define SINGLEOSCILLATOR
 
@@ -245,8 +228,8 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 // int __not_in_flash("mydata") oscTypeBank1=0;
 // int __not_in_flash("mydata") oscTypeBank2=0;
 
-static FAST_MEM std::array<size_t,4> adcMins{0,0,0,0};
-static FAST_MEM std::array<size_t,4> adcMaxs{4096,4096,4096,4096};
+static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
+static FAST_MEM std::array<size_t,4> adcMaxs{4080,4080,4080,4080};
 static FAST_MEM std::array<size_t,4> adcRanges;
 static FAST_MEM float courseTuning=0;
 static FAST_MEM float fineTuning=0;
@@ -319,9 +302,9 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
 
 size_t msgCt=0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-  static size_t __not_in_flash("acdData") lastOctaveIdx = 0;
-  static size_t __not_in_flash("acdData") adcCount = 0;
-  static size_t __not_in_flash("acdData") adcAccumulator[4] = {0,0,0,0};
+  static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
+  static size_t __not_in_flash("adcData") adcCount = 0;
+  static size_t __not_in_flash("adcData") adcAccumulator[4] = {0,0,0,0};
   adcAccumulator[0] += capture_buf[0];
   adcAccumulator[1] += capture_buf[1];
   adcAccumulator[2] += capture_buf[2];
@@ -344,10 +327,10 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
-      if (controlValues[i] < adcMins[i]) {
+      if (controlValues[i] < adcMins[i] && controlValues[i] >= 0) {
         adcMins[i] = controlValues[i];
       }
-      if (controlValues[i] > adcMaxs[i]) {
+      if (controlValues[i] > adcMaxs[i] && controlValues[i] < 4096) {
         adcMaxs[i] = controlValues[i];
       }
       adcRanges[i] = adcMaxs[i] - adcMins[i];
@@ -479,12 +462,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     // }
   }
 
-  if (msgCt == 100) {
-    // Serial.printf("%f \n", controlValues[0]);
-    Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
-    msgCt=0;
-  }
-  msgCt++;
+  // if (msgCt == 100) {
+  //   // Serial.printf("%f \n", controlValues[0]);
+  //   Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+  //   msgCt=0;
+  // }
+  // msgCt++;
 
   //send crtl vals
   sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
@@ -505,9 +488,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
-  // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0], new_wavelen0);
-  // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1], new_wavelen1);
-  // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2], new_wavelen2);
   currOscModels[0]->wavelen = new_wavelen0;
   currOscModels[0]->newFreq = true;
   
@@ -519,9 +499,11 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   oscsReadyToStart = true;
 
-  display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
+  if (controlMode == CONTROLMODES::OSCMODE) {
+    display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
                                   new_wavelen3,new_wavelen4,new_wavelen5,
                                   new_wavelen6,new_wavelen7,new_wavelen8 });
+  }
 
   return true;
 }
@@ -623,37 +605,10 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
           currOscModels[1]->wavelen = w2;
           currOscModels[2]->wavelen = w3;
 
-          // constexpr size_t clearSize = OSC_BUFFER_SIZE * sizeof(uint32_t);
-          // memset(timing_swapbuffer_0_A, 0, clearSize);
-          // memset(timing_swapbuffer_0_B, 0, clearSize);
-          // memset(timing_swapbuffer_1_A, 0, clearSize);
-          // memset(timing_swapbuffer_1_B, 0, clearSize);
-          // memset(timing_swapbuffer_2_A, 0, clearSize);
-          // memset(timing_swapbuffer_2_B, 0, clearSize);          
-          
           currOscModels[0]->newFreq=true;
           currOscModels[1]->newFreq=true;
           currOscModels[2]->newFreq=true;
 
-          // nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
-          // nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
-          // nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;          
-                    
-          // // 9. Pre-calculate both A and B buffers for smooth start
-          // // Fill A buffers first
-          // currOscModels[0]->fillBuffer(timing_swapbuffer_0_A, currOscModels[0]->wavelen);
-          // currOscModels[1]->fillBuffer(timing_swapbuffer_1_A, currOscModels[1]->wavelen);
-          // currOscModels[2]->fillBuffer(timing_swapbuffer_2_A, currOscModels[2]->wavelen);
-          
-          // // Fill B buffers as backup
-          // currOscModels[0]->fillBuffer(timing_swapbuffer_0_B, currOscModels[0]->wavelen);
-          // currOscModels[1]->fillBuffer(timing_swapbuffer_1_B, currOscModels[1]->wavelen);
-          // currOscModels[2]->fillBuffer(timing_swapbuffer_2_B, currOscModels[2]->wavelen);
-          
-          // // Set next buffers to B since A will be consumed first
-          // nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_B;
-          // nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_B;
-          // nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_B;
           calculateOscBuffers();
 
           startOscBankA();
@@ -765,6 +720,7 @@ void __isr encoder1_callback() {
     }
     case CONTROLMODES::CALIBRATEMODE:
     {
+      display.setCalibEncoderDelta(0,change);      
       break;
     }
     case CONTROLMODES::TUNINGMODE:
@@ -812,6 +768,7 @@ void __isr encoder2_callback() {
     }
     case CONTROLMODES::CALIBRATEMODE:
     {
+      display.setCalibEncoderDelta(1,change);      
       break;
     }
     case CONTROLMODES::TUNINGMODE:
@@ -863,6 +820,7 @@ void __isr encoder3_callback() {
     }
     case CONTROLMODES::CALIBRATEMODE:
     {
+      display.setCalibEncoderDelta(2, change);      
       break;
     }
     case CONTROLMODES::TUNINGMODE:
@@ -904,30 +862,26 @@ void __isr encoder1_switch_callback() {
         display.setScreen(portal::SCREENMODES::METAOSCVIS);
         break;
       }
-      case CONTROLMODES::CALIBRATEMODE:
-      {
-        break;
-      }
       case CONTROLMODES::TUNINGMODE:
       {
         break;
       }
     }
-
-    // if (controlMode == CONTROLMODES::OSCMODE) {
-    //   controlMode = CONTROLMODES::METAOSCMODE;
-    //   // display.toggleScreen();
-    //   display.setScreen(portal::SCREENMODES::METAOSCVIS);
-    // }else{
-    //   controlMode = CONTROLMODES::OSCMODE;
-    //   display.setScreen(portal::SCREENMODES::OSCBANKS);
-    // }
   }
+  if (controlMode == CONTROLMODES::CALIBRATEMODE)
+  {
+    display.setCalibEncoderSwitch(0, controls::encoderSwitches[0]);
+  }
+
 }
 
 //left
 void __isr encoder2_switch_callback() {
   controls::encoderSwitches[1] = 1 - enc2Debouncer.debounce(ENCODER2_SWITCH);  
+  if (controlMode == CONTROLMODES::CALIBRATEMODE)
+  {
+    display.setCalibEncoderSwitch(1, controls::encoderSwitches[1]);
+  }
 }
 
 //right
@@ -973,6 +927,11 @@ void __isr encoder3_switch_callback() {
       }
     }
   }
+  if (controlMode == CONTROLMODES::CALIBRATEMODE)
+  {
+    display.setCalibEncoderSwitch(2, controls::encoderSwitches[2]);
+  }
+
  
 }
 
@@ -1016,7 +975,8 @@ void setup() {
     display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
   }
 
-  
+  display.setCalibScreenTitle(MYRIAD_VERSION);
+
   tft.init();
   // // Keep display OFF while clearing
   // tft.writecommand(0x28);  // Display OFF
