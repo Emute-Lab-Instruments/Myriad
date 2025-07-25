@@ -9,6 +9,11 @@ There are two ELI2040 modules, linked by serial.  Module A (on the left when the
 
 This compiles using Arduino enviroment, with the Earle Philhower Arduino Pico Core.
 
+Settings:
+
+<img width="454" height="598" alt="image" src="https://github.com/user-attachments/assets/81c5da8a-f282-4116-b620-a2a86a6cb852" />
+
+
 There are two sketches, Myriad_A and Myriad_B
 
 There are shared files between the two sketches.  In the Arduino system, these files need to be in the libraries folder, so create a symbolic link from the Arduino/libraries folder to ```arduino_libmyriad``` in this folder.
