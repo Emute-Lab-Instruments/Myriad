@@ -1,6 +1,9 @@
 #define MYRIAD_VERSION "1.0.0_test"
 #define FIRMWARE_DATE "250625"
 
+#include <FS.h>
+#include <LittleFS.h>
+
 #include <optional>
 #include "displayPortal.h"
 #include "myriad_pins.h"
@@ -67,11 +70,10 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_sha
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaAizawa1 = std::make_shared<metaAizawa<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaRossler1, metaLorenz1, metaOscSines1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
 
@@ -228,9 +230,22 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 // int __not_in_flash("mydata") oscTypeBank1=0;
 // int __not_in_flash("mydata") oscTypeBank2=0;
 
-static FAST_MEM std::array<size_t,4> adcMins{50,50,50,50};
-static FAST_MEM std::array<size_t,4> adcMaxs{4080,4080,4080,4080};
-static FAST_MEM std::array<size_t,4> adcRanges;
+#define CALIBMEM __not_in_flash("calib")
+
+namespace CalibrationSettings {
+  static CALIBMEM size_t adcMins[4] = {50,50,50,50};
+  static CALIBMEM size_t adcMaxs[4] = {4080,4080,4080,4080};
+  static CALIBMEM size_t adcRanges[4];
+  static CALIBMEM float adcRangesInv[4];
+
+  void __not_in_flash_func(init)(){
+    for(size_t i=0; i < 4; i++) {
+      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+    }
+  }
+}
+
 static FAST_MEM float courseTuning=0;
 static FAST_MEM float fineTuning=0;
 static FAST_MEM int tuningOctaves=0;
@@ -296,7 +311,7 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float v
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  return std::max(0.f,(controlValues[adcIndex] - (adcMins[adcIndex]))) / adcRanges[adcIndex];
+  return std::max(0.f,(controlValues[adcIndex] - (CalibrationSettings::adcMins[adcIndex]))) * CalibrationSettings::adcRangesInv[adcIndex];
 }
 
 
@@ -327,17 +342,18 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
-      if (controlValues[i] < adcMins[i] && controlValues[i] >= 0) {
-        adcMins[i] = controlValues[i];
+      if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
+        CalibrationSettings::adcMins[i] = controlValues[i];
       }
-      if (controlValues[i] > adcMaxs[i] && controlValues[i] < 4096) {
-        adcMaxs[i] = controlValues[i];
+      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
+        CalibrationSettings::adcMaxs[i] = controlValues[i];
       }
-      adcRanges[i] = adcMaxs[i] - adcMins[i];
+      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
     }
     display.setCalibADCValues(adcAccumulator[0], adcAccumulator[1], adcAccumulator[2], adcAccumulator[3]);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
-    display.setCalibADCMinMaxValues(adcMins.data(), adcMaxs.data());
+    display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
   }
   
 
@@ -424,8 +440,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
   if (currMetaMod > 0) {
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    // metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    // metamods = metaOscsList.at(currMetaMod)->update(controlValues);
 
     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
         new_wavelen0 *= (1.f + (metamods[0]));
@@ -1009,9 +1025,7 @@ void setup() {
   // Now turn display on
   digitalWrite(TFT_BL, HIGH);  
 
-  for(size_t i=0; i < 4; i++) {
-    adcRanges[i] = adcMaxs[i] - adcMins[i];
-  }
+  CalibrationSettings::init();
 
   // comms to Myriad B
   Serial1.setRX(13);
