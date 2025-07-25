@@ -5,6 +5,7 @@
 #include <LittleFS.h>
 
 #include <optional>
+#include "calibration.hpp"
 #include "displayPortal.h"
 #include "myriad_pins.h"
 #include "pios/pio_sq.h"
@@ -225,26 +226,6 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
-
-// int __not_in_flash("mydata") oscTypeBank0=0;
-// int __not_in_flash("mydata") oscTypeBank1=0;
-// int __not_in_flash("mydata") oscTypeBank2=0;
-
-#define CALIBMEM __not_in_flash("calib")
-
-namespace CalibrationSettings {
-  static CALIBMEM size_t adcMins[4] = {50,50,50,50};
-  static CALIBMEM size_t adcMaxs[4] = {4080,4080,4080,4080};
-  static CALIBMEM size_t adcRanges[4];
-  static CALIBMEM float adcRangesInv[4];
-
-  void __not_in_flash_func(init)(){
-    for(size_t i=0; i < 4; i++) {
-      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
-      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
-    }
-  }
-}
 
 static FAST_MEM float courseTuning=0;
 static FAST_MEM float fineTuning=0;
@@ -478,12 +459,12 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     // }
   }
 
-  // if (msgCt == 100) {
-  //   // Serial.printf("%f \n", controlValues[0]);
-  //   Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
-  //   msgCt=0;
-  // }
-  // msgCt++;
+  if (msgCt == 100) {
+    // Serial.printf("%f \n", controlValues[0]);
+    Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+    msgCt=0;
+  }
+  msgCt++;
 
   //send crtl vals
   sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
@@ -959,6 +940,7 @@ void calibrate_button_callback() {
       controlMode = CONTROLMODES::CALIBRATEMODE;
       display.setScreen(portal::SCREENMODES::CALIBRATE);
     }else{
+      CalibrationSettings::save();
       switchToOSCMode();
     }
 
@@ -986,12 +968,14 @@ void setup() {
   calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
   //create reference models lists to keep display data
-  for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {
-    oscModelsDisplayRef[i] = oscModelFactories[i]();
-    display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
-  }
+  // for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {
+  //   oscModelsDisplayRef[i] = oscModelFactories[i]();
+  //   display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
+  // }
 
   display.setCalibScreenTitle(MYRIAD_VERSION);
+
+  CalibrationSettings::load();
 
   tft.init();
   // // Keep display OFF while clearing
@@ -1025,7 +1009,6 @@ void setup() {
   // Now turn display on
   digitalWrite(TFT_BL, HIGH);  
 
-  CalibrationSettings::init();
 
   // comms to Myriad B
   Serial1.setRX(13);

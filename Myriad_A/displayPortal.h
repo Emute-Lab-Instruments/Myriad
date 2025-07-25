@@ -196,41 +196,41 @@ public:
 
 private:
 
-  void updateOscVis(size_t oscIdx, size_t oscModelIdx) {
-    uint32_t startAngle = 120*oscIdx;
-    uint32_t endAngle = 120 + (120*oscIdx);
-    tft.drawSmoothArc(120, 120, 120, 0, startAngle, endAngle, ELI_BLUE, ELI_BLUE);
-    uint32_t col1;
-    const uint32_t cols[3] = {TFT_PURPLE, TFT_DARKGREEN, TFT_DARKCYAN};
-    col1 = cols[oscIdx];
-    switch(oscvis.at(oscModelIdx)->mode) {
-      case oscDisplayModes::MODES::SPECTRAL:
-      {
-        const size_t blocksize=5;
-        for(size_t i=0; i < oscvis.at(oscModelIdx)->data.size(); i++) {
-          if (oscvis.at(oscModelIdx)->data.at(i)> 0) {    
-            tft.drawSmoothArc(120, 120, 115-(i*blocksize), 115-((i-1)*blocksize), startAngle, endAngle, col1, col1);
-          }
-        }
-        break;
-      }
-      case oscDisplayModes::MODES::NOISE:
-      {
-        break;
-      }
-      case oscDisplayModes::MODES::SILENCE:
-      {
-        break;
-      }
-    }
-    const int32_t bankTxtX[3] = {120-87, 120,120+87};
-    const int32_t bankTxtY[3] = {120+49,20,120+49};
-    tft.setFreeFont(&FreeMono9pt7b);
-    tft.setTextDatum(CC_DATUM);
-    tft.setTextColor(TFT_WHITE, ELI_BLUE);
-    tft.drawString(String(oscModelIdx), bankTxtX[oscIdx], bankTxtY[oscIdx]);
+  // void updateOscVis(size_t oscIdx, size_t oscModelIdx) {
+  //   uint32_t startAngle = 120*oscIdx;
+  //   uint32_t endAngle = 120 + (120*oscIdx);
+  //   tft.drawSmoothArc(120, 120, 120, 0, startAngle, endAngle, ELI_BLUE, ELI_BLUE);
+  //   uint32_t col1;
+  //   const uint32_t cols[3] = {TFT_PURPLE, TFT_DARKGREEN, TFT_DARKCYAN};
+  //   col1 = cols[oscIdx];
+  //   switch(oscvis.at(oscModelIdx)->mode) {
+  //     case oscDisplayModes::MODES::SPECTRAL:
+  //     {
+  //       const size_t blocksize=5;
+  //       for(size_t i=0; i < oscvis.at(oscModelIdx)->data.size(); i++) {
+  //         if (oscvis.at(oscModelIdx)->data.at(i)> 0) {    
+  //           tft.drawSmoothArc(120, 120, 115-(i*blocksize), 115-((i-1)*blocksize), startAngle, endAngle, col1, col1);
+  //         }
+  //       }
+  //       break;
+  //     }
+  //     case oscDisplayModes::MODES::NOISE:
+  //     {
+  //       break;
+  //     }
+  //     case oscDisplayModes::MODES::SILENCE:
+  //     {
+  //       break;
+  //     }
+  //   }
+  //   const int32_t bankTxtX[3] = {120-87, 120,120+87};
+  //   const int32_t bankTxtY[3] = {120+49,20,120+49};
+  //   tft.setFreeFont(&FreeMono9pt7b);
+  //   tft.setTextDatum(CC_DATUM);
+  //   tft.setTextColor(TFT_WHITE, ELI_BLUE);
+  //   tft.drawString(String(oscModelIdx), bankTxtX[oscIdx], bankTxtY[oscIdx]);
 
-  }
+  // }
 
   std::array<float,N_OSCS> oscVisPhase{};
 
