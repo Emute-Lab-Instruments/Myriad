@@ -4,7 +4,6 @@
 #include <memory>
 #include <array>
 #include <functional>
-#include "oscVisData.hpp"
 #include "oscDisplayModes.hpp"
 #include "clockfreq.h"
 #include <limits>
@@ -19,9 +18,6 @@
 class oscillatorModel {
 public:
   oscillatorModel() {
-    vis.mode = oscDisplayModes::MODES::SILENCE;
-    vis.data.resize(1);
-    vis.data[0] = 0;
     newFreq = false;
     updateBufferInSyncWithDMA = false;
   };
@@ -83,12 +79,6 @@ public:
   squareOscillatorModel() : oscillatorModel(){
     loopLength=2;
     prog=pulse_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 7 ==0 ? 1 : 0;
-    }
-
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
@@ -109,12 +99,6 @@ public:
   squareOscillatorModel2() : oscillatorModel() {
     loopLength=10;
     prog=pin_ctrl_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 5 < 2 ? 1 : 0;
-    }
-
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
@@ -215,11 +199,6 @@ public:
   silentOscillatorModel() : oscillatorModel() {
     loopLength=bufferSize;
     prog=pin_ctrl_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i < 1 ? 1 : 0;
-    }
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -237,11 +216,6 @@ public:
   noiseOscillatorModel() : oscillatorModel(){
     loopLength=16;
     prog=pulse_program;
-    // vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    // vis.data.resize(24);
-    // for(size_t i=0; i < vis.data.size(); i++) {
-    //   vis.data[i] = i % 12 ==0 ? 1 : 0;
-    // }
     randBaseMin = randMin = sampleClock/20000;
     randBaseMax = randMax = sampleClock/20;
     randRange = randMax - randBaseMin;
@@ -278,11 +252,6 @@ public:
   accOscillatorModel() : oscillatorModel(){
     loopLength=8;
     prog=pulse_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = (i % 6)  < 2 ? 1 : 0;
-    }
 
   }
   inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
@@ -322,11 +291,6 @@ public:
   sinOscillatorModel8() : oscillatorModel() {
     loopLength=8;
     prog=pulse_program;
-    vis.mode = oscDisplayModes::MODES::SPECTRAL;
-    vis.data.resize(24);
-    for(size_t i=0; i < vis.data.size(); i++) {
-      vis.data[i] = i % 5 < 2 ? 1 : 0;
-    }
     tempOscTemplate.resize(loopLength,1.0/loopLength);
     oscTemplate.resize(loopLength,1.0/loopLength);
     ctrl(0.0);
@@ -905,11 +869,6 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     noiseOscillatorModel2() : oscillatorModel(){
       loopLength=16;
       prog=pulse_program;
-      // vis.mode = oscDisplayModes::MODES::SPECTRAL;
-      // vis.data.resize(24);
-      // for(size_t i=0; i < vis.data.size(); i++) {
-      //   vis.data[i] = i % 12 ==0 ? 1 : 0;
-      // }
       randBaseMin = randMin = sampleClock/10000;
       randBaseMax = randMax = sampleClock/20;
       randRange = randMax - randBaseMin;

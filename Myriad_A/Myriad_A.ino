@@ -960,47 +960,17 @@ void setup() {
   //USB Serial
   Serial.begin();
   // while(!Serial) {}
-  //get vis data from osc models and store in memory
-  // for(size_t i=0; i < oscModels.size(); i++) {
-  //   display.oscVisDataPtrs.push_back(&oscModels.at(i)->visData);
-  // }
 
   calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
-
-  //create reference models lists to keep display data
-  // for (size_t i=0; i < oscModelsDisplayRef.size(); i++) {
-  //   oscModelsDisplayRef[i] = oscModelFactories[i]();
-  //   display.oscvis.push_back(&oscModelsDisplayRef.at(i)->vis);
-  // }
 
   display.setCalibScreenTitle(MYRIAD_VERSION);
 
   CalibrationSettings::load();
 
-  tft.init();
-  // // Keep display OFF while clearing
-  // tft.writecommand(0x28);  // Display OFF
-  
-  // // Clear memory
-  // tft.writecommand(0x2C);  // Memory Write command
-  // tft.startWrite();
-  
-  // for(int i = 0; i < 240 * 240; i++) {
-  //   tft.pushColor(TFT_BLACK);
-  // }
-  
-  // tft.endWrite();
-  
-  // // Small delay to ensure clear is complete
-  // delay(10);
-  
-  // // Now turn display ON
-  // tft.writecommand(0x29);  // Display ON
-  
+  tft.init();  
   tft.setRotation(3);
 
 
-  // tft.setFreeFont(&FreeSans18pt7b);
   display.setScreen(portal::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);
   display.setModTarget(MODTARGETS::PITCH);

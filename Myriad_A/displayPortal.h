@@ -1,7 +1,6 @@
 #include <cmath>
 #include <TFT_eSPI.h>
 #include "drawing.h"
-#include "oscVisData.hpp"
 #include <array>
 #include "metaOscs.hpp"
 #include "oscDisplayModes.hpp"
@@ -17,8 +16,6 @@ template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
   enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE};
-
-  std::vector<oscVisData*> oscVisDataPtrs;
 
   std::vector<oscDisplayModes*> oscvis;
 
