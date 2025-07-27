@@ -13,13 +13,13 @@ io_rw_32 FAST_MEM nextTimingBuffer##name = (io_rw_32)timing_swapbuffer_##name##_
 
 inline void __not_in_flash_func(updateTimingBuffer)(io_rw_32 &nextBuf,
                                   uint32_t* bufferA, uint32_t* bufferB,
-                                  oscModelPtr& oscModel,
-                                  float oscWavelength) {
+                                  oscModelPtr& oscModel
+                                  ) {
     if (nextBuf == reinterpret_cast<io_rw_32>(bufferA)) {
-        oscModel->fillBuffer(bufferB, oscWavelength);
+        oscModel->fillBuffer(bufferB);
         nextBuf = reinterpret_cast<io_rw_32>(bufferB);
     } else {
-        oscModel->fillBuffer(bufferA, oscWavelength);
+        oscModel->fillBuffer(bufferA);
         nextBuf = reinterpret_cast<io_rw_32>(bufferA);
     }
 }

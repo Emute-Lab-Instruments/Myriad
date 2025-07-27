@@ -7,46 +7,9 @@
 #include "oscDisplayModes.hpp"
 #include "clockfreq.h"
 #include <limits>
+#include "oscmodels/oscillatorModel.hpp"
 
 
-
-//todo: try sliding window across template array
-//todo: try feedback system to generate template values
-//todo: perlin noise
-//todo: time varying buffers
-
-class oscillatorModel {
-public:
-  oscillatorModel() {
-    newFreq = false;
-    updateBufferInSyncWithDMA = false;
-  };
-  
-  pio_program prog;
-  virtual void fillBuffer(uint32_t* bufferA, size_t wavelen)=0;
-  size_t loopLength;
-  virtual ~oscillatorModel() = default;  
-  uint loadProg(PIO pioUnit) {
-    return pio_add_program(pioUnit, &prog);
-  }
-
-  oscDisplayModes vis;
-
-  volatile bool newFreq;
-  bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
-  size_t wavelen=100000;
-
-  virtual void ctrl(const float v) {
-    //receive a control parameter
-  }
-
-  virtual pio_sm_config getBaseConfig(uint offset) {
-    return pin_ctrl_program_get_default_config(offset);
-  }
-
-  virtual void reset() {
-  }
-};
 
 
 class pulse10OscillatorModel : public virtual oscillatorModel {
@@ -57,9 +20,9 @@ public:
     updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 0.5);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 0.5);
     }
   }
   std::vector<float> oscTemplate {0.1,0.9};
@@ -80,9 +43,9 @@ public:
     loopLength=2;
     prog=pulse_program;
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen);
     }
   }
  pio_sm_config getBaseConfig(uint offset) override {
@@ -100,9 +63,10 @@ public:
     loopLength=10;
     prog=pin_ctrl_program;
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
+    const float wlen = this->wavelen * 2.5f;
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 2.5f);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
     }
   }
 
@@ -145,9 +109,10 @@ public:
     prog=pin_ctrl_program;
   }
   
-  inline void fillBuffer(uint32_t* bufferA, size_t wlen) {
+  inline void fillBuffer(uint32_t* bufferA) {
+    const float wlen = this->wavelen * 1.75f * 2.0f;
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 1.75f * 2.0f);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
     }
   }
 
@@ -201,7 +166,7 @@ public:
     prog=pin_ctrl_program;
 
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < bufferSize; ++i) {
         *(bufferA + i) = silentOscillatorModel::halfWaveLen;
     }
@@ -222,7 +187,7 @@ public:
     updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
     // randMax = randBaseMax - wavelen;
     // randRange = randMax - randMin;
     for (size_t i = 0; i < loopLength; ++i) {
@@ -234,15 +199,11 @@ public:
   }
   void ctrl(const float v) override {
     randMax = randBaseMin + (v * randRange);
-    Serial.println(randMax);
   }
 
 
 private:
   long randMin, randMax, randBaseMin, randRange, randBaseMax;
-  // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
-
-
 };
 
 
@@ -254,10 +215,10 @@ public:
     prog=pulse_program;
 
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < loopLength; ++i) {
       if (w <= 0) {
-        acc += wavelen;
+        acc += this->wavelen;
         w = acc >> 5;
       }
       int val;
@@ -296,9 +257,10 @@ public:
     ctrl(0.0);
 
   }
-  inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+  inline void fillBuffer(uint32_t* bufferA) {
+    const float wlen = wavelen * 2.55f;
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 2.55f);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
     }
   }
 
@@ -336,13 +298,13 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
       loopLength=8;
       prog=expdec_program;
     }
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    inline void fillBuffer(uint32_t* bufferA) {
+      const float wlen = this->wavelen * 3.57f;
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 3.57f);
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
       }
     }
     std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
-    // std::vector<float> oscTemplate {0.1,0.5};
   
     void ctrl(const float v) override {
       const float mul = 0.25f;
@@ -372,9 +334,10 @@ class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
         updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
         
     }
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    inline void fillBuffer(uint32_t* bufferA) {
+      const float wlen = this->wavelen * 7.19f * wmult;
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wavelen * 7.19f * wmult);
+          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
       }
       wmult = wmult * wmultmult;
       if (wmult < 0.125f) {
@@ -382,7 +345,6 @@ class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
       }
     }
     std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
-    // std::vector<float> oscTemplate {0.1,0.5};
   
     void ctrl(const float v) override {
       wmultmult = 0.01f + (v*0.5f);
@@ -400,38 +362,6 @@ class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
   
 #define WAVETABLE_SIZE 1024
 
-class DeltaSigmaGenerator {
-private:
-    float accumulator;
-    float error;
-    
-public:
-    DeltaSigmaGenerator() : accumulator(0.0f), error(0.0f) {}
-    
-    // Reset the modulator state (call when starting new waveform)
-    void reset() {
-        accumulator = 0.0f;
-        error = 0.0f;
-    }
-    
-    // Generate a single bit output for given input amplitude (0.0 to 1.0)
-    bool generateBit(float input) {
-        // Add input to accumulator
-        accumulator += input;
-        
-        bool output;
-        if (accumulator >= 0.5f) {
-            output = true;
-            accumulator -= 1.0f;  // Subtract quantization level
-        } else {
-            output = false;
-        }
-        
-        return output;
-    }
-    
-
-  };
 
 size_t debugcount=0;
 
@@ -453,52 +383,15 @@ class sawOscillatorModel : public virtual oscillatorModel {
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-      // float waveleninv = 1.f/wavelen;
-      // // Serial.println(amp);
-      // // Serial.println(index);
-      // for (size_t i = 0; i < loopLength; ++i) {
-      //     float amp = (float) phase * waveleninv;
-      //     // if (amp > 1.0f) {
-      //     //   amp = 1.0f; // clamp to 1.0
-      //     // } 
-      //     size_t index = static_cast<size_t>(amp * (WAVETABLE_SIZE-1));
-      //     if (index >= WAVETABLE_SIZE) {
-      //       index = 0; // wrap around
-      //     }
-      //     // *(bufferA + i) = phase < wavelen/2 ?  4294967295U: 0; //sawtooth_table[index];
-      //     *(bufferA + i) = sawtooth_table[index];
-
-      //     // if (debugcount++ < 10000) {
-      //     //   Serial.print(debugcount);
-      //     //   Serial.print("\t");
-      //     //   Serial.print(i);
-      //     //   Serial.print("\t");
-      //     //   Serial.print(phase);
-      //     //   Serial.print("\t");
-      //     //   Serial.print(index);
-      //     //   Serial.print("\t");
-      //     //   Serial.print(*(bufferA + i));
-      //     //   Serial.print("\t");
-      //     //   Serial.print("\n");
-      //     // }
-
-      //     phase += 32;
-      //     if (phase >= wavelen) {
-      //       phase -= wavelen;
-      //     }        
-      // }
-      // Serial.println(amp);
-      // Serial.println(index);
-
-      
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
           // if (phase>=wavelen) {
           //   phase = 0U;
           // }
-          const size_t phasemask = -(phase < wavelen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
+          const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
           phase &= phasemask;
           phase++;
 
@@ -507,11 +400,11 @@ class sawOscillatorModel : public virtual oscillatorModel {
           // if (amp >= wavelen) {
           //   amp = 0U; // wrap around
           // }
-          const size_t mask = -(amp < wavelen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+          const size_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
           amp &= mask;
 
           const bool y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wavelen : 0) - amp + err0;
+          err0 = (y ? wlen : 0) - amp + err0;
 
           word |= (y << bit);
 
@@ -539,35 +432,8 @@ class sawOscillatorModel : public virtual oscillatorModel {
     bool y=0;
     int err0=0;
     size_t val=0;
-    // size_t sawtooth_table[WAVETABLE_SIZE];
     uint32_t MULTIPLIER_TABLE[1000];
 
-    // DeltaSigmaGenerator deltaSigma;
-
-    // void generateSawtoothTable() {
-    //   double increment = 1.0 / (WAVETABLE_SIZE * 32.0);
-    //   double phase=0;
-    //     for (size_t i = 0; i < WAVETABLE_SIZE; ++i) {
-    //         size_t word = 0U;
-            
-    //         // Generate each bit with slightly different amplitude
-    //         for (int bit = 0; bit < 32; bit++) {
-                
-    //             // if (phase < 0.5) {
-    //             //     word |= (1U << bit);
-    //             // }
-    //             if (deltaSigma.generateBit((float)phase)) {
-    //                 word |= (1U << bit);
-    //             }
-                
-    //             phase += increment;
-    //         }
-    //         sawtooth_table[i] = word;
-    //         // sawtooth_table[i] = phase < 0.5 ?  4294967295U : 0U;
-    //         // Serial.println(phase);
-    //         // Serial.println(sawtooth_table[i]);
-    //     }
-    // }
 
   };
 
@@ -577,6 +443,7 @@ class triOscillatorModel : public virtual oscillatorModel {
     triOscillatorModel() : oscillatorModel(){
       loopLength=64;
       prog=bitbybit_program;
+      setClockMod(2.f);
       for(size_t i = 0; i < 1000; ++i) {
         float v = i/1000.f;
         float gradRising = 2.f + (v * 7.f);
@@ -592,13 +459,13 @@ class triOscillatorModel : public virtual oscillatorModel {
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {      
-
+    inline void fillBuffer(uint32_t* bufferA) {      
+      const size_t wlen = this->wavelen;
       if (ctrlChange) {
         ctrlChange = false;
       }
 
-      const int32_t triPeakPoint = (wavelen * phaseRisingInvMul) >> qfp;
+      const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
       for (size_t i = 0; i < loopLength; ++i) {
         uint32_t word=0U;
@@ -606,7 +473,7 @@ class triOscillatorModel : public virtual oscillatorModel {
           // if (phase>=wavelen) {
           //   phase = 0U;
           // }
-          phase = phase >= wavelen ? 0 : phase; // wrap around
+          phase = phase >= wlen ? 0 : phase; // wrap around
 
           
           // int32_t isRising = phase <= triPeakPoint;
@@ -650,7 +517,7 @@ class triOscillatorModel : public virtual oscillatorModel {
                   : [result] "=&l" (amp), [temp] "=&l" (fallingPhase)
                   : [ph] "l" (phase), [peak] "l" (triPeakPoint),
                     [fallMul] "l" (phaseFallingMul), [shift] "l" (qfp),
-                    [wlen] "l" (wavelen)
+                    [wlen] "l" (wlen)
                   : "cc"
               );
           }
@@ -669,7 +536,7 @@ class triOscillatorModel : public virtual oscillatorModel {
           //delta-sigma modulation
 
           int32_t y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wavelen : 0) - amp + err0;
+          err0 = (y ? wlen : 0) - amp + err0;
 
           // bit operations TODO: - get some aliasing here, but maybe works on faster saw osc.
           if (phase <= triPeakPoint) {
@@ -767,17 +634,19 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const size_t halfwavelen = wlen / 2;
       for (size_t i = 0; i < loopLength; ++i) {
-        if (phase >= wavelen/2) {
+        if (phase >= halfwavelen) {
             val = 4294967295U;
         }else{
           val = 0;
         }
         *(bufferA + i) = val;
         phase+=32;
-        if (phase >= wavelen) {
-          phase  -=wavelen; // wrap around
+        if (phase >= wlen) {
+          phase  -=wlen; // wrap around
         }
       }
     }
@@ -802,26 +671,14 @@ class slideOscillatorModel : public virtual oscillatorModel {
   slideOscillatorModel() : oscillatorModel(){
       loopLength=6;
       prog=pulse_program;
-      vis.mode = oscDisplayModes::MODES::SPECTRAL;
-      vis.data.resize(24);
-      for(size_t i=0; i < vis.data.size(); i++) {
-        vis.data[i] = i % 7 ==0 ? 1 : 0;
-      }
-      // for(size_t i=0; i < oscTemplate.size()-loopLength; i++) {
-      //   float total=0;
-      //   for(size_t j=0; j < loopLength; j++) {
-      //     total += oscTemplate[i+j];
-      //   }
-      //   scales.push_back(1.f/total);
-      // }
       oscInterpTemplate.resize(loopLength);
       ctrl(0);
   
     }
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
         // *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i+offset] * wavelen * scales[offset]);
-        *(bufferA + i) = static_cast<uint32_t>(oscInterpTemplate[i] * wavelen);
+        *(bufferA + i) = static_cast<uint32_t>(oscInterpTemplate[i] * this->wavelen);
       }
     }
 
@@ -874,10 +731,10 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
       randRange = randMax - randBaseMin;
   
     }
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
+    inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
           // bool on = random(0,1000) > 500;
-          *(bufferA + i) = static_cast<uint32_t>(wavelen * 0.01f, random(0,randMult) * wavelen * 0.01f);
+          *(bufferA + i) = static_cast<uint32_t>(this->wavelen * 0.01f, random(0,randMult) * wavelen * 0.01f);
       }
     }
     pio_sm_config getBaseConfig(uint offset) {
@@ -897,90 +754,6 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
   };
   
 
-//this sounds interesting in tonal variation of the mask but also clicks at regular points
-class triErrMaskOscillatorModel : public virtual oscillatorModel {
-  public:
-
-    triErrMaskOscillatorModel() : oscillatorModel(){
-      loopLength=64;
-      prog=bitbybit_program;
-      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-    }
-
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-      const size_t midphase = wavelen >> 1;
-      for (size_t i = 0; i < loopLength; ++i) {
-        size_t word=0U;
-        for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wavelen ? 0 : phase; // wrap around
-
-        
-          size_t amp = phase > midphase ? phase >> 1 : phase << 1; //tri wave
-
-          const bool y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wavelen : 0) - amp + err0;
-          err0 = (err0) & mul;
-
-
-          word |= (y << bit);
-
-          phase++;
-        }
-        *(bufferA + i) = word;
-
-      }
-
-    }
-
-    inline int find_msb(uint32_t x) {
-      if (x == 0) return -1;
-      int msb = 0;
-      if (x >= 1 << 16) { msb += 16; x >>= 16; }
-      if (x >= 1 << 8)  { msb += 8;  x >>= 8;  }
-      if (x >= 1 << 4)  { msb += 4;  x >>= 4;  }
-      if (x >= 1 << 2)  { msb += 2;  x >>= 2;  }
-      if (x >= 1 << 1)  { msb += 1; }
-      return msb;
-    }
-
-    void ctrl(const float v) override {
-      constexpr size_t mask = std::numeric_limits<size_t>::max();
-      // constexpr size_t mask2 = 0b10010010010010010010010010010010; //std::numeric_limits<size_t>::max();
-      int msb = find_msb(wavelen);
-      size_t shift = (32-msb) + static_cast<size_t>((msb-8) * v);
-      if (shift < 14) {
-        shift = 14;
-      }
-      mul = (mask >> shift) ;
-      // mul = mul | wavelen;
-      // aug = static_cast<size_t>(wavelen * v * 0.2f);
-    }
-  
-    pio_sm_config getBaseConfig(uint offset) {
-      return bitbybit_program_get_default_config(offset);
-    }
-
-    void reset() override {
-      oscillatorModel::reset();
-      phase = 0;
-      y = 0;
-      err0 = 0;
-      mul = 1;
-      aug = 1;
-    }
-
-  
-  private:
-    size_t phase=0;
-    bool y=0;
-    int err0=0;
-
-    size_t mul=1;
-    size_t aug=1;
-
-
-  };
-
 
 
 class triSDVar1OscillatorModel : public virtual oscillatorModel {
@@ -992,23 +765,24 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-      const size_t midphase = wavelen >> 1;
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const size_t midphase = wlen >> 1;
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wavelen ? 0 : phase; // wrap around
+          phase = phase >= wlen ? 0 : phase; // wrap around
 
         
           size_t amp = phase < midphase ? 
                 phase << 1 
                 : 
-                wavelen - ((phase-midphase) << 1); //tri wave
+                wlen - ((phase-midphase) << 1); //tri wave
           // size_t amp = phase; // saw
           // size_t amp = phase < midphase  ? 0 : wavelen; // pulse
 
           const bool y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wavelen : 0) - amp + err0;
+          err0 = (y ? wlen : 0) - amp + err0;
           // err0 = (err0) & mul;
           err0 = (err0 * mul) >> qfp;
 
@@ -1063,23 +837,24 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
-    inline void fillBuffer(uint32_t* bufferA, size_t wavelen) {
-      const int midphase = wavelen >> 1;
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const int midphase = wlen >> 1;
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wavelen ? 0 : phase; // wrap around
+          phase = phase >= wlen ? 0 : phase; // wrap around
 
         
           int amp = phase < midphase ? 
                 phase << 1 
                 : 
-                wavelen - ((phase-midphase) << 1); //tri wave
+                wlen - ((phase-midphase) << 1); //tri wave
           // size_t amp = phase; // saw
           // int amp = phase < midphase  ? 0 : wavelen; // pulse
 
           const bool y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wavelen : 0) - amp + err0 -  err1 ;
+          err0 = (y ? wlen   : 0) - amp + err0 -  err1 ;
           // err0 = (err0) & mul;
           // err0 = (err0 * mul) >> qfp;
           err1 = err1 + ((err0 * mul) >> qfp);
@@ -1130,7 +905,7 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 9;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1140,11 +915,12 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   // []() { return std::make_shared<triSDFBVar1OscillatorModel>(); }
   // []() { return std::make_shared<triSDVar1OscillatorModel>(); }
-  // []() { return std::make_shared<triOscillatorModel>(); }
   []() { return std::make_shared<sawOscillatorModel>(); }
   // []() { return std::make_shared<squareBBBOscillatorModel>(); }
   // []() { return std::make_shared<squareOscillatorModel>(); }
   
+  ,
+  []() { return std::make_shared<triOscillatorModel>(); }
   ,
   // []() { return std::make_shared<sawOscillatorModel>(); }
   []() { return std::make_shared<expdecOscillatorModel1>(); }
@@ -1155,7 +931,7 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
   []() { return std::make_shared<squareOscillatorModel14>();}
   ,
-  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //TODO: drop this one
+  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //TODO: drop this one? or is it better now?
   ,
   []() { return std::make_shared<noiseOscillatorModel2>();}
   ,
