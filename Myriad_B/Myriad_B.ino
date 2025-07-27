@@ -163,17 +163,17 @@ void assignOscModels1(size_t modelIdx) {
 void __force_inline calculateOscBuffers0() {
   if ((currOscModels0[0]->updateBufferInSyncWithDMA && bufSent0) || (!currOscModels0[0]->updateBufferInSyncWithDMA && currOscModels0[0]->newFreq)) {
     currOscModels0[0]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0], currOscModels0[0]->wavelen);
+    updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0]);
     bufSent0 = false;
   }
   if ((currOscModels0[1]->updateBufferInSyncWithDMA && bufSent1) || (!currOscModels0[1]->updateBufferInSyncWithDMA && currOscModels0[1]->newFreq)) {
     currOscModels0[1]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], currOscModels0[1]->wavelen);
+    updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1]);
     bufSent1 = false;
   }
   if ((currOscModels0[2]->updateBufferInSyncWithDMA && bufSent2) || (!currOscModels0[2]->updateBufferInSyncWithDMA && currOscModels0[2]->newFreq)) {
     currOscModels0[2]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], currOscModels0[2]->wavelen);
+    updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2]);
     bufSent2 = false;
   }
 }
@@ -181,17 +181,17 @@ void __force_inline calculateOscBuffers0() {
 void __force_inline calculateOscBuffers1() {
   if ((currOscModels1[0]->updateBufferInSyncWithDMA && bufSent3) || (!currOscModels1[0]->updateBufferInSyncWithDMA && currOscModels1[0]->newFreq)) {
     currOscModels1[0]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], currOscModels1[0]->wavelen);
+    updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0]);
     bufSent3 = false;
   }
   if ((currOscModels1[1]->updateBufferInSyncWithDMA && bufSent4) || (!currOscModels1[1]->updateBufferInSyncWithDMA && currOscModels1[1]->newFreq)) {
     currOscModels1[1]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], currOscModels1[1]->wavelen);
+    updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1]);
     bufSent4 = false;
   }
   if ((currOscModels1[2]->updateBufferInSyncWithDMA && bufSent5) || (!currOscModels1[2]->updateBufferInSyncWithDMA && currOscModels1[2]->newFreq)) {
     currOscModels1[2]->newFreq = false;
-    updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], currOscModels1[2]->wavelen);
+    updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2]);
     bufSent5 = false;
   }
 }
@@ -250,49 +250,49 @@ inline void __not_in_flash_func(readUart)() {
               case WAVELEN0:
               {
                 // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0], decodeMsg.value);
-                currOscModels0[0]->wavelen = decodeMsg.value;
+                currOscModels0[0]->setWavelen(decodeMsg.value);
                 currOscModels0[0]->reset();
-                currOscModels0[0]->newFreq = true; //trigger buffer refill
+                // currOscModels0[0]->newFreq = true; //trigger buffer refill
               }
               break;        
               case WAVELEN1:
               {
                 // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
-                currOscModels0[1]->wavelen = decodeMsg.value;
+                currOscModels0[1]->setWavelen(decodeMsg.value);
                 currOscModels0[1]->reset();
-                currOscModels0[1]->newFreq = true; //trigger buffer refill
+                // currOscModels0[1]->newFreq = true; //trigger buffer refill
               }
               break;        
               case WAVELEN2:
               {
                 // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
-                currOscModels0[2]->wavelen = decodeMsg.value;
+                currOscModels0[2]->setWavelen(decodeMsg.value);
                 currOscModels0[2]->reset();
-                currOscModels0[2]->newFreq = true; //trigger buffer refill
+                // currOscModels0[2]->newFreq = true; //trigger buffer refill
               }
               break;        
               case WAVELEN3:
               {
                 // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
-                currOscModels1[0]->wavelen = decodeMsg.value;
+                currOscModels1[0]->setWavelen(decodeMsg.value);
                 currOscModels1[0]->reset();
-                currOscModels1[0]->newFreq = true; //trigger buffer refill
+                // currOscModels1[0]->newFreq = true; //trigger buffer refill
               }
                 break;
               case WAVELEN4:
               {
                 // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
-                currOscModels1[1]->wavelen = decodeMsg.value;
+                currOscModels1[1]->setWavelen(decodeMsg.value);
                 currOscModels1[1]->reset();
-                currOscModels1[1]->newFreq = true; //trigger buffer refill
+                // currOscModels1[1]->newFreq = true; //trigger buffer refill
               }
                 break;
               case WAVELEN5:
               {
                 // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
-                currOscModels1[2]->wavelen = decodeMsg.value;
+                currOscModels1[2]->setWavelen(decodeMsg.value);
                 currOscModels1[2]->reset();
-                currOscModels1[2]->newFreq = true; //trigger buffer refill
+                // currOscModels1[2]->newFreq = true; //trigger buffer refill
                 //freqs sent sequentially, so all oscs should now have a freq
                 oscsReadyToStart = true;
               }
@@ -339,21 +339,21 @@ inline void __not_in_flash_func(readUart)() {
                 // Serial.println("bank0");
                 stopOscBankA();
 
-                auto w1 = currOscModels0[0]->wavelen;
-                auto w2 = currOscModels0[1]->wavelen;
-                auto w3 = currOscModels0[2]->wavelen;
+                auto w1 = currOscModels0[0]->getWavelen();
+                auto w2 = currOscModels0[1]->getWavelen();
+                auto w3 = currOscModels0[2]->getWavelen();
 
                 assignOscModels0(decodeMsg.value);
 
-                currOscModels0[0]->wavelen = w1;
-                currOscModels0[1]->wavelen = w2;
-                currOscModels0[2]->wavelen = w3;
+                currOscModels0[0]->setWavelen(w1);
+                currOscModels0[1]->setWavelen(w2);
+                currOscModels0[2]->setWavelen(w3);
 
                 //refill from new oscillator
                 //trigger buffer refills
-                currOscModels0[0]->newFreq=true;
-                currOscModels0[1]->newFreq=true;
-                currOscModels0[2]->newFreq=true;
+                // currOscModels0[0]->newFreq=true;
+                // currOscModels0[1]->newFreq=true;
+                // currOscModels0[2]->newFreq=true;
 
                 calculateOscBuffers0();
 
@@ -365,20 +365,20 @@ inline void __not_in_flash_func(readUart)() {
                 // Serial.println("bank1");
                 // // Serial.println(decodeMsg.value);
                 stopOscBankB();
-                auto w1 = currOscModels1[0]->wavelen;
-                auto w2 = currOscModels1[1]->wavelen;
-                auto w3 = currOscModels1[2]->wavelen;
+                auto w1 = currOscModels1[0]->getWavelen();
+                auto w2 = currOscModels1[1]->getWavelen();
+                auto w3 = currOscModels1[2]->getWavelen();
                 assignOscModels1(decodeMsg.value);
 
-                currOscModels1[0]->wavelen = w1;
-                currOscModels1[1]->wavelen = w2;
-                currOscModels1[2]->wavelen = w3;
+                currOscModels1[0]->setWavelen(w1);
+                currOscModels1[1]->setWavelen(w2);
+                currOscModels1[2]->setWavelen(w3);
 
                 //refill from new oscillator
                 //trigger buffer refills
-                currOscModels1[0]->newFreq=true;
-                currOscModels1[1]->newFreq=true;
-                currOscModels1[2]->newFreq=true;
+                // currOscModels1[0]->newFreq=true;
+                // currOscModels1[1]->newFreq=true;
+                // currOscModels1[2]->newFreq=true;
 
                 calculateOscBuffers1();
 
@@ -404,7 +404,9 @@ void startOscBankA() {
   uint programOffset = currOscModels0[0]->loadProg(pio0);
   pio_sm_config baseConfig = currOscModels0[0]->getBaseConfig(programOffset);
 
-  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, clockdiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
+  const size_t modelClockDiv = currOscModels0[0]->getClockDiv();
+
+  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, modelClockDiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
   Serial.println("init");
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
@@ -412,11 +414,11 @@ void startOscBankA() {
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, clockdiv, currOscModels0[1]->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, modelClockDiv, currOscModels0[1]->loopLength, DMA_IRQ_0);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, clockdiv, currOscModels0[2]->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, modelClockDiv, currOscModels0[2]->loopLength, DMA_IRQ_0);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
 
@@ -437,16 +439,17 @@ void startOscBankB() {
   uint programOffset = currOscModels1[0]->loadProg(pio1);
   pio_sm_config baseConfig = currOscModels1[0]->getBaseConfig(programOffset);
 
+  const size_t modelClockDiv = currOscModels1[0]->getClockDiv();
 
-  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, clockdiv, currOscModels1[0]->loopLength, DMA_IRQ_1);
+  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, modelClockDiv, currOscModels1[0]->loopLength, DMA_IRQ_1);
   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
   smOsc3.go();
 
-  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, baseConfig, nextTimingBuffer4, dma_irh1, clockdiv, currOscModels1[1]->loopLength, DMA_IRQ_1);
+  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, baseConfig, nextTimingBuffer4, dma_irh1, modelClockDiv, currOscModels1[1]->loopLength, DMA_IRQ_1);
   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, clockdiv, currOscModels1[2]->loopLength, DMA_IRQ_1);
+  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, modelClockDiv, currOscModels1[2]->loopLength, DMA_IRQ_1);
   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
   smOsc5.go();
   oscsRunning1 = true;
