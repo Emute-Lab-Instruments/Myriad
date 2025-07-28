@@ -37,6 +37,8 @@
 
 #include "boids.h"
 
+#include "tuning.hpp"
+
 // #define SINGLEOSCILLATOR
 
 
@@ -229,10 +231,8 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
-static FAST_MEM float courseTuning=0;
-static FAST_MEM float fineTuning=0;
-static FAST_MEM int tuningOctaves=0;
-static FAST_MEM int tuningMillis=0;
+
+
 
 void setup_adcs() {
   adc_init();
@@ -375,7 +375,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   constexpr float wavelen20hz = sampleClock/20.f;
   constexpr float wavelenTesthz = sampleClock/0.01f;
   float pitchCV = adcMap(0);
-  float freq = powf(2.f, (pitchCV * 10.f) + ((courseTuning + fineTuning) * 10.f)); // 10 octaves
+  float freq = powf(2.f, (pitchCV * 10.f) + TuningSettings::adjustment); // 10 octaves
+  // float freq = powf(2.f, (pitchCV * 10.f) + (((TuningSettings::octaves) + TuningSettings::cents) * 10.f)); // 10 octaves
   float new_wavelen0 = 1.0f/freq * wavelen20hz ; 
 
   // float new_wavelen0 = 1.0f/freq * wavelenTesthz ; 
@@ -683,10 +684,9 @@ void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int c
 }
 
 void updateTuning() {
-  courseTuning = tuningOctaves *  0.1;
-  fineTuning = tuningMillis * 0.001 * 0.1;
-  display.setTuning(tuningOctaves, tuningMillis);
-  Serial.printf("%f %f\n", courseTuning, fineTuning);
+  TuningSettings::adjustment = ((TuningSettings::octaves * 0.1f) + (TuningSettings::semitones * 0.1f * 1/12.f) + (TuningSettings::cents * 0.0001f)) * 10.f; // 10 octaves
+  display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
+  // Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
 
 
@@ -727,6 +727,8 @@ void __isr encoder1_callback() {
     }
     case CONTROLMODES::TUNINGMODE:
     {
+      TuningSettings::semitones += change;
+      updateTuning();
       break;
     }
   }
@@ -775,7 +777,7 @@ void __isr encoder2_callback() {
     }
     case CONTROLMODES::TUNINGMODE:
     {
-      tuningOctaves += change;
+      TuningSettings::octaves += change;
       updateTuning();
       break;
     }
@@ -827,7 +829,7 @@ void __isr encoder3_callback() {
     }
     case CONTROLMODES::TUNINGMODE:
     {
-      tuningMillis += change;
+      TuningSettings::cents += change;
       updateTuning();
       break;
     }
@@ -914,7 +916,7 @@ void __isr encoder3_switch_callback() {
       {
         controlMode = CONTROLMODES::TUNINGMODE;
         display.setScreen(portal::SCREENMODES::TUNING);
-        display.setTuning(tuningOctaves, tuningMillis);
+        display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
         break;
       }
       case CONTROLMODES::CALIBRATEMODE:

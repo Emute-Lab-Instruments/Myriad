@@ -35,7 +35,8 @@ public:
   };
 
   struct TuningScreenStates {
-    int coursetune=0;
+    int octtune=0;
+    int semitonetune=0;
     int finetune=0;
   };
 
@@ -186,8 +187,9 @@ public:
     nextState.calibrationScreenState.calibScreenTitle = title;
   } 
 
-  void setTuning(int course, int fine) {
-    nextState.tuningState.coursetune = course;
+  void setTuning(int oct, int semi, int fine) {
+    nextState.tuningState.octtune = oct;
+    nextState.tuningState.semitonetune = semi;
     nextState.tuningState.finetune = fine;
   }
 
@@ -577,22 +579,34 @@ private:
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString("Tuning", 120, 26);
-      tft.drawString("Course", 70, 190);
-      tft.drawString("Fine", 180, 190);
+      tft.setTextDatum(TR_DATUM);
+      tft.drawString("Oct", 70, 70);
+      tft.drawString("Semi", 70, 120);
+      tft.drawString("Fine", 70, 170);
     }
-    if (fullRedraw || currState.coursetune != nextState.coursetune) {
-      tft.fillRect(0,50,100,100, ELI_BLUE);
+    if (fullRedraw || currState.octtune != nextState.octtune) {
+      const int TLY=70;
+      tft.fillRect(90,TLY-20,100,40, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
-      tft.setFreeFont(&FreeSansBold24pt7b);
+      tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
-      tft.drawNumber(nextState.coursetune, 60, 100);
+      tft.drawNumber(nextState.octtune, 120, TLY);
+    }
+    if (fullRedraw || currState.semitonetune != nextState.semitonetune) {
+      const int TLY=120;
+      tft.fillRect(90,TLY-20,100,40, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setFreeFont(&FreeMonoBold18pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawNumber(nextState.semitonetune, 120, TLY);
     }
     if (fullRedraw || currState.finetune != nextState.finetune) {
-      tft.fillRect(110,50,120,120, ELI_BLUE);
+      const int TLY=170;
+      tft.fillRect(90,TLY-20,190,40, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
-      tft.setFreeFont(&FreeSansBold24pt7b);
+      tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
-      tft.drawNumber(nextState.finetune, 180, 100);
+      tft.drawNumber(nextState.finetune, 120, TLY);
     }
   }
 
