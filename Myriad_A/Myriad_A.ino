@@ -684,7 +684,7 @@ void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int c
 }
 
 void updateTuning() {
-  TuningSettings::adjustment = ((TuningSettings::octaves * 0.1f) + (TuningSettings::semitones * 0.1f * 1/12.f) + (TuningSettings::cents * 0.0001f)) * 10.f; // 10 octaves
+  TuningSettings::update();
   display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
   // Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
@@ -925,6 +925,7 @@ void __isr encoder3_switch_callback() {
       }
       case CONTROLMODES::TUNINGMODE:
       {
+        TuningSettings::save();
         controlMode = CONTROLMODES::OSCMODE;
         display.setScreen(portal::SCREENMODES::OSCBANKS);
         break;
@@ -973,6 +974,7 @@ void setup() {
   display.setCalibScreenTitle(MYRIAD_VERSION);
 
   CalibrationSettings::load();
+  TuningSettings::load();
 
   tft.init();  
   tft.setRotation(3);
