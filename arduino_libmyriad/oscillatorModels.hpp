@@ -539,9 +539,9 @@ class triOscillatorModel : public virtual oscillatorModel {
           err0 = (y ? wlen : 0) - amp + err0;
 
           // bit operations TODO: - get some aliasing here, but maybe works on faster saw osc.
-          if (phase <= triPeakPoint) {
-            y = !y;
-          }
+          // if (phase <= triPeakPoint) {
+          //   y = !y;
+          // }
 
           word |= (y << bit);
 
@@ -755,7 +755,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
   
 
 
-
+//error scaling, sounds good with ctrl
 class triSDVar1OscillatorModel : public virtual oscillatorModel {
   public:
 
@@ -828,10 +828,11 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
 };
 
-class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
+//sharktooth
+class rateLimSDOscillatorModel : public virtual oscillatorModel {
   public:
 
-    triSDFBVar1OscillatorModel() : oscillatorModel(){
+    rateLimSDOscillatorModel() : oscillatorModel(){
       loopLength=64;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
@@ -839,25 +840,21 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
 
     inline void fillBuffer(uint32_t* bufferA) {
       const size_t wlen = this->wavelen;
-      const int midphase = wlen >> 1;
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
           phase = phase >= wlen ? 0 : phase; // wrap around
 
-        
-          int amp = phase < midphase ? 
-                phase << 1 
-                : 
-                wlen - ((phase-midphase) << 1); //tri wave
-          // size_t amp = phase; // saw
-          // int amp = phase < midphase  ? 0 : wavelen; // pulse
+          size_t amp = phase << 1;
+          amp =  amp > wlen ? phase : amp; 
 
           const bool y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wlen   : 0) - amp + err0 -  err1 ;
-          // err0 = (err0) & mul;
-          // err0 = (err0 * mul) >> qfp;
-          err1 = err1 + ((err0 * mul) >> qfp);
+          size_t newerr = (y ? wlen : 0) - amp + err0;
+          
+          if ((newerr)> lim) {
+              newerr = lim;
+          }
+          err0=newerr;
 
           word |= (y << bit);
 
@@ -871,8 +868,8 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const float v) override {
-      mul = ((v * 0.9)) * qfpMul;
-      Serial.println(mul);
+      lim = this->wavelen * (0.05f + (v * 0.95f));
+      
     }
       
   
@@ -886,26 +883,28 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
       y = 0;
       err0 = 0;
       mul = 1;
-      err1=0;
+      lim=this->wavelen;
     }
 
   
   private:
-    int phase=0;
+    size_t phase=0;
     bool y=0;
     int err0=0;
-    int err1=0;
-    int mul=1;
 
-    static constexpr int qfp = 15U;
+    size_t mul=1;
+    size_t lim;
+
+    static constexpr size_t qfp = 14U;
     static constexpr float qfpMul = 1U << qfp;
 
 };
 
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 9;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 11;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -913,8 +912,10 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
-  // []() { return std::make_shared<triSDFBVar1OscillatorModel>(); }
-  // []() { return std::make_shared<triSDVar1OscillatorModel>(); }
+  []() { return std::make_shared<rateLimSDOscillatorModel>(); }
+  ,
+  []() { return std::make_shared<triSDVar1OscillatorModel>(); }
+  ,
   []() { return std::make_shared<sawOscillatorModel>(); }
   // []() { return std::make_shared<squareBBBOscillatorModel>(); }
   // []() { return std::make_shared<squareOscillatorModel>(); }

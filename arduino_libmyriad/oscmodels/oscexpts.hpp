@@ -86,4 +86,81 @@ class triErrMaskOscillatorModel : public virtual oscillatorModel {
   };
 
 
+  //this one creates aliasing
+class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
+  public:
+
+    triSDFBVar1OscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      setClockMod(2.f);
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const int midphase = wlen >> 1;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wlen ? 0 : phase; // wrap around
+
+          int amp=phase;
+          // int amp = phase < midphase ? 
+          //       phase << 1 
+          //       : 
+          //       wlen - ((phase-midphase) << 1); //tri wave
+          // size_t amp = phase; // saw
+          // int amp = phase < midphase  ? 0 : wavelen; // pulse
+
+          const bool y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wlen   : 0) - amp + err0 -  err1 ;
+          // err0 = (err0) & mul;
+          // err0 = (err0 * mul) >> qfp;
+          err1 = err1 + ((err0 * mul) >> qfp);
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+
+    void ctrl(const float v) override {
+      mul = ((v * 0.9)) * qfpMul;
+      Serial.println(mul);
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+      err1=0;
+    }
+
+  
+  private:
+    int phase=0;
+    bool y=0;
+    int err0=0;
+    int err1=0;
+    int mul=1;
+
+    static constexpr int qfp = 15U;
+    static constexpr float qfpMul = 1U << qfp;
+
+};
+
+
 #endif // OSCEXPTS_HPP
