@@ -630,7 +630,6 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
     squareBBBOscillatorModel() : oscillatorModel(){
       loopLength=512;
       prog=bitbybit_program;
-      // generate_sawtooth_wavetable();   
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
@@ -670,33 +669,56 @@ class slideOscillatorModel : public virtual oscillatorModel {
   public:
   slideOscillatorModel() : oscillatorModel(){
       loopLength=6;
+      setClockMod(0.125f);
       prog=pulse_program;
-      oscInterpTemplate.resize(loopLength);
+      oscInterpTemplate.resize(loopLength,1.0f/loopLength);
+      smoothTemplate.resize(loopLength,1.0f/loopLength);
+      smoothingThreshold = getWavelenAtFrequency(450.f);
+      smoothingThresholdInv = 1.f / smoothingThreshold;
       ctrl(0);
-  
+      // updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+
     }
     inline void fillBuffer(uint32_t* bufferA) {
-      for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        // *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i+offset] * wavelen * scales[offset]);
-        *(bufferA + i) = static_cast<uint32_t>(oscInterpTemplate[i] * this->wavelen);
+      for (size_t i = 0; i < oscInterpTemplate.size(); ++i) {
+        *(bufferA + i) = static_cast<uint32_t>(smoothTemplate[i] * this->wavelen);
       }
     }
 
     void ctrl(const float v) override {
-      float scaledV = v*9.99;
+      //smooth out v
+      // smoothv = (smoothv * smoothvAlphaInv) + (v * smoothvAlpha);
+
+      float scaledV = v*0.999f * (oscTemplate.size() - loopLength);
       offset = static_cast<size_t>(scaledV);
       size_t offsetNext = offset+1;
       float remainder = scaledV - offset; 
       float remainderInv = 1.f - remainder;
       float total=0.f;
+      //interpolate from an offset
       for(size_t i=0; i < loopLength; i++) {
         float val = (remainderInv * oscTemplate[i+offset]) + (remainder * oscTemplate[i+offsetNext]);
         oscInterpTemplate[i] = val;
         total += val;
       }
+
+
+      //normalise so that the sum of the values is 1
+      if (wavelen < smoothingThreshold) {
+        // smoothTemplateAlpha = 0.05f; // smoothing factor for the control value
+        smoothTemplateAlpha = 0.03f - (0.02f * (1.f - ((float)wavelen*smoothingThresholdInv))); // smoothing factor for the control value
+      } else {
+        smoothTemplateAlpha = 0.1f; // smoothing factor for the control value
+      };
+      smoothTemplateAlphaInv = 1.f - smoothTemplateAlpha;
+      // Serial.printf("smoothTemplateAlpha: %f, smoothTemplateAlphaInv: %f\n", smoothTemplateAlpha, smoothTemplateAlphaInv);
+
       float scale = 1.f/total;
       for(size_t i=0; i < loopLength; i++) {
         oscInterpTemplate[i] *= scale;
+
+        //smooth the template transition
+        smoothTemplate[i] = (smoothTemplate[i] * smoothTemplateAlphaInv) + (oscInterpTemplate[i] * smoothTemplateAlpha);
         // Serial.printf("%f ", oscInterpTemplate[i]);
       }
       // Serial.println();
@@ -708,15 +730,26 @@ class slideOscillatorModel : public virtual oscillatorModel {
       return pulse_program_get_default_config(offset);
     }
   
-    const std::vector<float> oscTemplate {0.1, 0.3, 0.001, 0.2, 0.003,
-      0.0023, 0.00001, 0.04, 0.057, 0.034,
-     0.002, 0.003, 0.001, 0.2, 0.023,
-    0.4}; 
+    const std::vector<float> oscTemplate {0.1, 0.3, 0.01, 0.2, 0.03,
+      0.02, 0.01, 0.04, 0.057, 0.034,
+     0.002, 0.03, 0.001, 0.2, 0.023,
+    0.4,0.36,0.7, 0.072, 0.0808}; 
+
+  
   
   private:
   size_t offset=0;
   std::vector<float> scales;
   std::vector<float> oscInterpTemplate;
+  float smoothvAlpha = 0.5f; // smoothing factor for the control value
+  float smoothvAlphaInv = 1.f - smoothvAlpha;
+  float smoothv = 0.f; // smoothed control value
+
+  float smoothTemplateAlpha = 0.05f; // smoothing factor for the control value
+  float smoothTemplateAlphaInv = 1.f - smoothTemplateAlpha;
+  std::vector<float> smoothTemplate;
+  size_t smoothingThreshold=0;
+  size_t smoothingThresholdInv=1;
 
   };
     
@@ -740,6 +773,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     pio_sm_config getBaseConfig(uint offset) {
       return pulse_program_get_default_config(offset);
     }
+    
     void ctrl(const float v) override {
       randMult = 5 + (v * 500);
     }
@@ -829,11 +863,12 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 };
 
 //sharktooth
+//rate limiting causes some zipper noise
 class rateLimSDOscillatorModel : public virtual oscillatorModel {
   public:
 
     rateLimSDOscillatorModel() : oscillatorModel(){
-      loopLength=64;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -847,6 +882,7 @@ class rateLimSDOscillatorModel : public virtual oscillatorModel {
 
           size_t amp = phase << 1;
           amp =  amp > wlen ? phase : amp; 
+
 
           const bool y = amp >= err0 ? 1 : 0;
           size_t newerr = (y ? wlen : 0) - amp + err0;
@@ -900,11 +936,87 @@ class rateLimSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+//sharktooth
+//smooth threshold
+//great oscillator - quite nonlinear, nice thin sounds
+class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    smoothThreshSDOscillatorModel() : oscillatorModel(){
+      loopLength=32;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockMod(2.f);
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wlen ? 0 : phase; // wrap around
+
+          size_t amp = phase << 1;
+          amp =  amp > wlen ? phase : amp; 
+
+
+          const bool y = amp >= thr ? 1 : 0;
+          size_t err0 = (y ? wlen : 0) - amp + thr;
+
+          thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+    }
+
+    void ctrl(const float v) override {
+      alphaf = (0.02f * v * v) + 0.001f; 
+      alpha = alphaf * qfpMul;
+      alpha_inv = (1.0-alphaf) * qfpMul;
+
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+      lim=this->wavelen;
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    size_t mul=1;
+    size_t lim;
+    size_t thr=0;
+
+    static constexpr size_t qfp = 18U;
+    static constexpr float qfpMul = 1U << qfp;
+    float alphaf = 0.01f; // alpha value for smoothing
+    size_t alpha = alphaf * qfpMul;
+    size_t alpha_inv = (1.0-alphaf) * qfpMul;
+
+};
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 11;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 12;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -912,8 +1024,12 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
-  []() { return std::make_shared<rateLimSDOscillatorModel>(); }
+  []() { return std::make_shared<slideOscillatorModel>(); }
   ,
+  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); }
+  ,
+  // []() { return std::make_shared<rateLimSDOscillatorModel>(); }
+  // ,
   []() { return std::make_shared<triSDVar1OscillatorModel>(); }
   ,
   []() { return std::make_shared<sawOscillatorModel>(); }

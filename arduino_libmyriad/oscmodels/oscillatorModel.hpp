@@ -1,6 +1,8 @@
 #ifndef OSCILLATORMODEL_HPP
 #define OSCILLATORMODEL_HPP
 
+#include "../clockfreq.h"
+
 class oscillatorModel {
 public:
   oscillatorModel() {
@@ -50,6 +52,17 @@ public:
   inline void setWavelen(const size_t wlen) {
     wavelen = wlen * clockmodinv;
     newFreq = true;
+  }
+
+  size_t getWavelenAtFrequency(const float freq) {
+    //calculate wavelen for a given frequency
+    //wavelen = clockdiv / freq;
+    const size_t w = static_cast<size_t>(sampleClock / freq * clockmodinv);
+    return w;
+  }
+
+  size_t getMinWavelen() const {
+    return static_cast<size_t>(sampleClock /20000.f * clockmodinv);
   }
 
 protected:
