@@ -686,8 +686,6 @@ class slideOscillatorModel : public virtual oscillatorModel {
     }
 
     void ctrl(const float v) override {
-      //smooth out v
-      // smoothv = (smoothv * smoothvAlphaInv) + (v * smoothvAlpha);
 
       float scaledV = v*0.999f * (oscTemplate.size() - loopLength);
       offset = static_cast<size_t>(scaledV);
@@ -741,9 +739,6 @@ class slideOscillatorModel : public virtual oscillatorModel {
   size_t offset=0;
   std::vector<float> scales;
   std::vector<float> oscInterpTemplate;
-  float smoothvAlpha = 0.5f; // smoothing factor for the control value
-  float smoothvAlphaInv = 1.f - smoothvAlpha;
-  float smoothv = 0.f; // smoothed control value
 
   float smoothTemplateAlpha = 0.05f; // smoothing factor for the control value
   float smoothTemplateAlphaInv = 1.f - smoothTemplateAlpha;
@@ -1013,10 +1008,55 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class whiteNoiseOscillatorModel : public virtual oscillatorModel {
+  public:
+
+
+    whiteNoiseOscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      setClockMod(2.0f);
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      for (size_t i = 0; i < loopLength; ++i) {
+        if ((rand() % 10000) > alpha)
+          acc += (rand() & 1) ? 1 : -1;
+        if (rand() % 1000 > beta)
+          acc ^= (rand() & 127U);
+        
+        *(bufferA + i) = acc;
+      }
+
+    }
+
+    void ctrl(const float v) override {
+      alpha = (int)(v * 950.f) + 9000;
+      // Serial.printf("alpha: %d\n", alpha);
+      beta = 500 + ( (float)this->wavelen / getWavelenAtFrequency(20.f) * 500.f);
+      // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
+    }
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+  
+  private:
+    bool y=0;
+    int err0=0;
+
+   int integrator = 0, acc=0;  
+   int alpha=255, beta=0;
+};
+
+
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 12;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1024,6 +1064,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
+  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
+  ,
   []() { return std::make_shared<slideOscillatorModel>(); }
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); }
