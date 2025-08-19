@@ -429,21 +429,26 @@ private:
   void drawCalibrationScreen(const CalibrationScreenStates &currState, const CalibrationScreenStates &nextState, const bool fullRedraw) {
     if (fullRedraw) {
       tft.fillScreen(ELI_BLUE);
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setTextColor(ELI_BLUE, ELI_PINK);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString(nextState.calibScreenTitle.c_str(), 120, 26);
+
+      constexpr char compile_date[] = __DATE__;
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.drawString(compile_date, 100, 46);
+
     }
 
     if (fullRedraw || currState.heapSize != nextState.heapSize) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
-      tft.drawString(String(nextState.heapSize).c_str() + String(" bytes"), 100, 49);
+      tft.drawString(String(nextState.heapSize).c_str() + String(" bytes"), 100, 66);
     }
 
 
-    constexpr int textgap = 25;
+    constexpr int textgap = 23;
     constexpr int adcy4 = 155;
     constexpr int adcy3 = adcy4 - textgap;
     constexpr int adcy2 = adcy3 - textgap;
@@ -576,7 +581,7 @@ private:
       if (fullRedraw || currState.encDelta[i] != nextState.encDelta[i]) {
         int tlx = 50 + (j*50);
         int tly = 190;
-        tft.fillRect(tlx, tly, 45,28, ELI_BLUE);
+        tft.fillRect(tlx, tly, 45,22, ELI_BLUE);
         tft.setTextColor(ELI_PINK, ELI_BLUE);
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(TL_DATUM);
@@ -586,7 +591,7 @@ private:
       if (fullRedraw || currState.encSw[i] != nextState.encSw[i]) {
         int tlx = 70 + (j*50);
         int tly = 210;
-        tft.fillRect(tlx, tly, 45,28, ELI_BLUE);
+        tft.fillRect(tlx, tly, 45,22, ELI_BLUE);
         tft.setTextColor(ELI_PINK, ELI_BLUE);
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(TL_DATUM);
