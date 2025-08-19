@@ -1,5 +1,5 @@
-#define MYRIAD_VERSION "1.0.0_test"
-#define FIRMWARE_DATE "250625"
+#define MYRIAD_VERSION "1.0.0"
+// #define FIRMWARE_DATE "250625"
 
 #include <FS.h>
 #include <LittleFS.h>
@@ -946,6 +946,9 @@ void calibrate_button_callback() {
   if (controls::calibrateButton == 1) {
     if (controlMode != CONTROLMODES::CALIBRATEMODE) {
       controlMode = CONTROLMODES::CALIBRATEMODE;
+      //get free memory
+      int freeMem = rp2040.getFreeHeap();  
+      display.setFreeHeap(freeMem);
       display.setScreen(portal::SCREENMODES::CALIBRATE);
     }else{
       CalibrationSettings::save();

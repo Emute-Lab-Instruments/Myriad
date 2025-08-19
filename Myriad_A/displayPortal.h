@@ -48,6 +48,7 @@ public:
     int encDelta[3];
     bool encSw[3];
     std::string calibScreenTitle;
+    int heapSize;
   };
 
   struct displayStates {
@@ -191,6 +192,10 @@ public:
     nextState.tuningState.octtune = oct;
     nextState.tuningState.semitonetune = semi;
     nextState.tuningState.finetune = fine;
+  }
+
+  void setFreeHeap(int freeMem) {
+    nextState.calibrationScreenState.heapSize = freeMem;
   }
 
 private:
@@ -429,128 +434,148 @@ private:
       tft.setTextDatum(CC_DATUM);
       tft.drawString(nextState.calibScreenTitle.c_str(), 120, 26);
     }
+
+    if (fullRedraw || currState.heapSize != nextState.heapSize) {
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString(String(nextState.heapSize).c_str() + String(" bytes"), 100, 49);
+    }
+
+
+    constexpr int textgap = 25;
+    constexpr int adcy4 = 155;
+    constexpr int adcy3 = adcy4 - textgap;
+    constexpr int adcy2 = adcy3 - textgap;
+    constexpr int adcy1 = adcy2 - textgap;
+
     if (fullRedraw || currState.adc0 != nextState.adc0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adc0,4);
-      tft.drawString(str.c_str(), 30, 60);
+      tft.drawString(str.c_str(), 30, adcy1);
     }
     if (fullRedraw || currState.adc1 != nextState.adc1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adc1,4);
-      tft.drawString(str.c_str(), 30, 90);
+      tft.drawString(str.c_str(), 30, adcy2);
     }
     if (fullRedraw || currState.adc2 != nextState.adc2) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adc2,4);
-      tft.drawString(str.c_str(), 30, 120);
+      tft.drawString(str.c_str(), 30, adcy3);
     }
     if (fullRedraw || currState.adc3 != nextState.adc3) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adc3,4);
-      tft.drawString(str.c_str(), 30, 150);
+      tft.drawString(str.c_str(), 30, adcy4);
     }
+    //---------
 
     if (fullRedraw || currState.adcfilt0 != nextState.adcfilt0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcfilt0,4);
-      tft.drawString(str.c_str(), 100, 60);
+      tft.drawString(str.c_str(), 100, adcy1);
     }
     if (fullRedraw || currState.adcfilt1 != nextState.adcfilt1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcfilt1,4);
-      tft.drawString(str.c_str(), 100, 90);
+      tft.drawString(str.c_str(), 100, adcy2);
     }
     if (fullRedraw || currState.adcfilt2 != nextState.adcfilt2) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcfilt2,4);
-      tft.drawString(str.c_str(), 100, 120);
+      tft.drawString(str.c_str(), 100, adcy3);
     }
     if (fullRedraw || currState.adcfilt3 != nextState.adcfilt3) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcfilt3,4);
-      tft.drawString(str.c_str(), 100, 150);
+      tft.drawString(str.c_str(), 100, adcy4);
     }
+    //----------
 
     if (fullRedraw || currState.adcMin0 != nextState.adcMin0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMin0,2);
-      tft.drawString(str.c_str(), 150, 60);
+      tft.drawString(str.c_str(), 150, adcy1);
     }
     if (fullRedraw || currState.adcMin1 != nextState.adcMin1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMin1,2);
-      tft.drawString(str.c_str(), 150, 90);
+      tft.drawString(str.c_str(), 150, adcy2);
     }
     if (fullRedraw || currState.adcMin2 != nextState.adcMin2) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMin2,2);
-      tft.drawString(str.c_str(), 150, 120);
+      tft.drawString(str.c_str(), 150, adcy3);
     }
     if (fullRedraw || currState.adcMin3 != nextState.adcMin3) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMin3,2);
-      tft.drawString(str.c_str(), 150, 150);
+      tft.drawString(str.c_str(), 150, adcy4);
     }
+
+    //-------------
 
     if (fullRedraw || currState.adcMax0 != nextState.adcMax0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMax0,4);
-      tft.drawString(str.c_str(), 180, 60);
+      tft.drawString(str.c_str(), 180, adcy1);
     }
     if (fullRedraw || currState.adcMax1 != nextState.adcMax1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMax1,4);
-      tft.drawString(str.c_str(), 180, 90);
+      tft.drawString(str.c_str(), 180, adcy2);
     }
     if (fullRedraw || currState.adcMax2 != nextState.adcMax2) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMax2,4);
-      tft.drawString(str.c_str(), 180, 120);
+      tft.drawString(str.c_str(), 180, adcy3);
     }
     if (fullRedraw || currState.adcMax3 != nextState.adcMax3) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(TL_DATUM);
       std::string str=padNumberWithZeros(nextState.adcMax3,4);
-      tft.drawString(str.c_str(), 180, 150);
+      tft.drawString(str.c_str(), 180, adcy4);
     }
 
+    //rotary encs
     for (auto &j: {0,1,2}) {
       constexpr size_t indexMap[3] = {1,0,2};
       size_t i = indexMap[j];
       if (fullRedraw || currState.encDelta[i] != nextState.encDelta[i]) {
         int tlx = 50 + (j*50);
-        int tly = 180;
+        int tly = 190;
         tft.fillRect(tlx, tly, 45,28, ELI_BLUE);
         tft.setTextColor(ELI_PINK, ELI_BLUE);
         tft.setFreeFont(&FreeMono9pt7b);
