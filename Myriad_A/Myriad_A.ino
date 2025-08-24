@@ -38,6 +38,7 @@
 #include "boids.h"
 
 #include "tuning.hpp"
+#include "state.hpp"
 
 // #define SINGLEOSCILLATOR
 
@@ -53,10 +54,9 @@ portal FAST_MEM display;
 
 enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE} controlMode = CONTROLMODES::OSCMODE;
 
-
 #define RUN_OSCS
 // oscModelPtr FAST_MEM currOscModelBank0;
-std::array<oscModelPtr, 3> currOscModels;
+std::array<oscModelPtr, 3> FAST_MEM currOscModels;
 
 // oscModelPtr FAST_MEM currOscModelBank0A;
 // oscModelPtr FAST_MEM currOscModelBank0B;
@@ -96,6 +96,9 @@ uint32_t FAST_MEM smOsc2_dma_chan_bit;
 volatile bool FAST_MEM bufSent0 = false;
 volatile bool FAST_MEM bufSent1 = false;
 volatile bool FAST_MEM bufSent2 = false;
+
+
+struct repeating_timer FAST_MEM timerMetaModUpdate;
 
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
@@ -297,8 +300,14 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
   return std::max(0.f,(controlValues[adcIndex] - (CalibrationSettings::adcMins[adcIndex]))) * CalibrationSettings::adcRangesInv[adcIndex];
 }
 
+bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
+  if (currMetaMod > 0) {
+    auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+  }
+  return true;
+}
 
-size_t msgCt=0;
+size_t FAST_MEM msgCt=0;
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
   static size_t __not_in_flash("adcData") adcCount = 0;
@@ -423,9 +432,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
 
   if (currMetaMod > 0) {
-    auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    // metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    // metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    // auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    auto metamods = metaOscsList.at(currMetaMod)->getValues();
 
     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
         new_wavelen0 *= (1.f + (metamods[0]));
@@ -547,7 +555,7 @@ static uint16_t FAST_MEM enc2Store = 0;
 static uint8_t FAST_MEM enc3Code = 0;
 static uint16_t FAST_MEM enc3Store = 0;
 
-void __force_inline calculateOscBuffers() {
+void __force_inline __not_in_flash_func(calculateOscBuffers)() {
   if ((currOscModels[0]->updateBufferInSyncWithDMA && bufSent0) || (!currOscModels[0]->updateBufferInSyncWithDMA && currOscModels[0]->newFreq)) {
     currOscModels[0]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0]);
@@ -566,7 +574,7 @@ void __force_inline calculateOscBuffers() {
 }
 
 void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
-  Serial.printf("assign %d\n", modelIdx);
+  
 
   for(auto &model: currOscModels) {
     model = oscModelFactories[modelIdx](); 
@@ -595,8 +603,10 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
           auto w2 = currOscModels[1]->getWavelen();
           auto w3 = currOscModels[2]->getWavelen();
 
-          assignOscModels(oscBankTypes[2]);
+        
+          MyriadState::setOscBank(2, oscBankTypes[2]);
 
+          assignOscModels(oscBankTypes[2]);
 
           //refill from new oscillator
           //trigger buffer refills
@@ -619,6 +629,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
         } else {
 
           sendToMyriadB(bank == 1 ? messageTypes::BANK1 : messageTypes::BANK0, oscBankTypes[bank]);
+          MyriadState::setOscBank(bank, oscBankTypes[bank]);
         
         }
       }
@@ -627,43 +638,6 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
   }
 
   return true;
-}
-
-
-bool __not_in_flash_func(updateOscBank)(int &currOscBank, int change, std::optional<messageTypes> OSCBANKMSG = std::nullopt) {
-  int newOscTypeBank = currOscBank + change;
-  bool changed=false;
-  //clip
-  newOscTypeBank = max(0, newOscTypeBank);
-  newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
-  if (newOscTypeBank != currOscBank) {
-    //send
-    currOscBank = newOscTypeBank;
-    changed=true;
-    if (OSCBANKMSG.has_value()) {
-      sendToMyriadB(OSCBANKMSG.value(), currOscBank);
-    }else{
-      //assume bank C
-      // Serial.println("bank change");
-      // // Serial.println(decodeMsg.value);
-      stopOscBankA();
-
-      assignOscModels(currOscBank);
-
-      //refill from new oscillator
-      //trigger buffer refills
-      currOscModels[0]->newFreq=true;
-      currOscModels[1]->newFreq=true;
-      currOscModels[2]->newFreq=true;
-
-      calculateOscBuffers();
-
-      startOscBankA();
-
-    }
-    // Serial.println(currOscBank);  
-  } 
-  return changed;
 }
 
 void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int change) {
@@ -676,6 +650,9 @@ void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int c
     //send
     currMetaModMode = newMetaModMode;
     display.setMetaOsc(currMetaModMode, metaOscsList[currMetaModMode]);
+
+    cancel_repeating_timer(&timerMetaModUpdate);
+    add_repeating_timer_ms(metaOscsList[currMetaModMode]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
 
     //assume bank C
     Serial.printf("meta mod mode change %d\n", newMetaModMode);
@@ -960,7 +937,7 @@ void calibrate_button_callback() {
 
 struct repeating_timer timerAdcProcessor;
 struct repeating_timer timerDisplay;
-struct repeating_timer timerFreqReceiver;
+//struct repeating_timer timerFreqReceiver;
 struct repeating_timer timerOscModeChangeMonitor;
 
 
@@ -974,10 +951,13 @@ void setup() {
 
   calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
+
   display.setCalibScreenTitle(MYRIAD_VERSION);
 
   CalibrationSettings::load();
   TuningSettings::load();
+  MyriadState::load();
+
 
   tft.init();  
   tft.setRotation(3);
@@ -1042,23 +1022,51 @@ void setup() {
   add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
   add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
   add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
+
+  //load stored state
+  oscBankTypes[0] = MyriadState::getOscBank(0);
+  oscBankTypes[1] = MyriadState::getOscBank(1);
+  oscBankTypes[2] = MyriadState::getOscBank(2);
+  Serial.println(oscBankTypes[2]);
+  
+  //on this unit
+  assignOscModels(oscBankTypes[2]);
+
+  //on unit B
+  sendToMyriadB(0, oscBankTypes[0]);
+  sendToMyriadB(1, oscBankTypes[1]);
+
+
+  display.setOscBankModel(0, oscBankTypes[0]);
+  display.setOscBankModel(1, oscBankTypes[1]);
+  display.setOscBankModel(2, oscBankTypes[2]);
+
+
 }
 
 
 int count=0;
 
-void loop() {
+size_t FAST_MEM stateTS = 0;
+
+void __not_in_flash_func(loop)() {
   // Serial.println();
   // delay(1);
   // Serial.println("Hello from Myriad A");
 
   // __wfi();
+
+  // size_t elapsed = millis() - stateTS;
+  // if (elapsed > 3000) {
+  //   MyriadState::saveIfChanged();
+  //   stateTS = millis();
+  // }
+
   delay(1);
 }
 
 
 void setup1() {
-  assignOscModels(0);
 
 #ifdef RUN_OSCS
 //wait for the first ADC readings
@@ -1066,6 +1074,7 @@ void setup1() {
     ;
   }
   Serial.println("Start");
+
   delay(10);
   startOscBankA();
   delay(10);
@@ -1075,7 +1084,7 @@ void setup1() {
 }
 
 
-void loop1() {
+void __not_in_flash_func(loop1)() {
   uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
   if (oscsRunning) {
     calculateOscBuffers();

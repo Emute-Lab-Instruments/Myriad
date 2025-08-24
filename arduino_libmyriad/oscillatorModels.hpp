@@ -1064,8 +1064,6 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
-  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
-  ,
   []() { return std::make_shared<slideOscillatorModel>(); }
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); }
@@ -1093,6 +1091,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //TODO: drop this one? or is it better now?
   ,
   []() { return std::make_shared<noiseOscillatorModel2>();}
+  ,
+  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
   ,
   []() { return std::make_shared<silentOscillatorModel>();}
 };

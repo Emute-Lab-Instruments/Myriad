@@ -81,6 +81,11 @@ public:
 
     virtual std::array<float, N>& getValues() =0;
 
+    virtual size_t getTimerMS() {
+      return 20;
+    }
+
+
 protected:
   //add screen bounds
 };
@@ -104,6 +109,7 @@ public:
     std::array<float, N>& getValues() override {
       return vals;
     };
+
 
 
 private:
@@ -253,6 +259,7 @@ public:
       }
       return arrOutput;
     }
+    
 
     
     //draw NN
@@ -376,6 +383,11 @@ public:
 
     String getName() override {return "lorenz";}
 
+    size_t getTimerMS() override {
+      return 5;
+    }
+
+
     virtual void iterate(const std::vector<float>& state, std::vector<float>& deriv) {
         float x = state[0];
         float y = state[1];
@@ -398,7 +410,7 @@ public:
         for (int i = 0; i < 3; ++i) temp[i] = state[i] + dt * k3[i];
 
         iterate(temp, k4);
-        for (int i = 0; i < 3; ++i) state[i] += (dt / 6.0f) * (k1[i] + 2.f * k2[i] + 2.f * k3[i] + k4[i]);
+        for (int i = 0; i < 3; ++i) state[i] += (dt * (1.0/6.0f)) * (k1[i] + 2.f * k2[i] + 2.f * k3[i] + k4[i]);
     }    
 
     virtual void updateCoefficients() {
@@ -414,7 +426,7 @@ public:
       updateCoefficients();
       runge_kutta(state);    
       pastStates.push_back(state);
-      if (pastStates.size() > 45) {
+      if (pastStates.size() > 85) {
         pastStates.pop_front();
       }
       for(size_t i=0; i < 3; i++) {
@@ -568,7 +580,7 @@ public:
       a = 0.2 + (this->modspeed.getValue() * 0.5f);
       b = 0.2 + (this->modspeed.getValue() * -0.1f);
       c = 5.7 + (this->modspeed.getValue() * -2.4f);
-      this->dt = (this->modspeed.getValue()*0.2f) + 0.001f;
+      this->dt = (this->modspeed.getValue()*0.3f) + 0.001f;
     }
 
     point project2D(const std::vector<float>& currstate) override {
