@@ -758,13 +758,24 @@ public:
       return mods;
     };
 
+    inline float constrainf(float val, float minVal, float maxVal) {
+      if (val < minVal) return minVal;
+      if (val > maxVal) return maxVal;
+      return val;
+    }
+
     void draw(TFT_eSPI &tft) override { 
-      constexpr float lineLength = 10.f;
+      constexpr float lineLength = 4.f;
       for(auto &v: boids) {
         tft.drawCircle(v.px, v.py, 3, ELI_BLUE);
-        tft.drawLine(v.px, v.py, v.px + (v.pvx * lineLength), v.py + (v.pvy * lineLength), ELI_BLUE);
+        float tx = constrainf(v.px + (v.pvx * lineLength), sqbound, sqboundBR);
+        float ty = constrainf(v.py + (v.pvy * lineLength), sqbound, sqboundBR);
+        tft.drawLine(v.px, v.py,  tx, ty, ELI_BLUE);
+
         tft.drawCircle(v.x, v.y, 3, TFT_GREENYELLOW);
-        tft.drawLine(v.x, v.y, v.x + (v.vx * lineLength), v.y + (v.vy * lineLength), TFT_YELLOW);
+        tx = constrainf(v.x + (v.vx * lineLength), sqbound, sqboundBR);
+        ty = constrainf(v.y + (v.vy * lineLength), sqbound, sqboundBR);
+        tft.drawLine(v.x, v.y, tx, ty, TFT_YELLOW);
         v.pvx = v.vx;
         v.pvy = v.vy;
         v.px = v.x;
