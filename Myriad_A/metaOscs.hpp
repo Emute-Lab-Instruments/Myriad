@@ -317,7 +317,12 @@ public:
         this->moddepth.setScale(0.0009);
     }
 
-    String getName() override {return "drunken walkers";}
+    String getName() override {return "drunk walkers";}
+
+    size_t getTimerMS() override {
+      return 5;
+    }
+
 
 
     std::array<float, N> update(const float (&adcs)[4]) override {
@@ -597,6 +602,185 @@ private:
     float c=5.7;
 };
 
+struct boid {
+  float px;
+  float py;
+  float pvx;
+  float pvy;
+  float x;
+  float y;
+
+  float vx;
+  float vy;
+};
+
+template<size_t N>
+class metaOscBoids : public metaOsc<N> {
+public:
+    metaOscBoids() {
+      boids = std::vector<boid>(N);
+      for(auto &v: boids) {
+        v.x = random(sqbound,sqboundBR);
+        v.y = random(sqbound,sqboundBR);
+        v.px=v.x;
+        v.py=v.y;
+        v.vx = ((random(1000) / 1000.f) - 0.5f) * 0.8f;
+        v.vy = ((random(1000) / 1000.0f) - 0.5f) * 0.8f;
+        v.pvx=v.vx;
+        v.pvy=v.vy;
+      }
+      centerX = 120;
+      centerY = 120;
+      
+        this->modspeed.setMax(1.f);
+        this->modspeed.setScale(0.01);
+        this->moddepth.setMax(0.1);
+        this->moddepth.setScale(0.0009);
+    }
+
+    String getName() override {return "boids";}
+
+    inline float distBetween(float x1, float y1, float x2, float y2) {
+      float dx = x2-x1;
+      float dy = y2-y1;
+      return sqrtf((dx * dx) + (dy * dy));
+    }
+
+
+    std::array<float, N> update(const float (&adcs)[4]) override {
+      centerX = 0;
+      centerY = 0;
+      for(auto &v: boids) {
+        centerX += v.x;
+        centerY += v.y;
+      }
+      centerX *= avgMul;
+      centerY *= avgMul;
+      
+      constexpr float cohesionRadius = 45.0f;    // Rule 1
+      constexpr float separationRadius = 30.0f;  // Rule 2 (smaller)
+      constexpr float alignmentRadius = 40.0f;   // Rule 3
+
+      size_t idx=0;
+      float modvel = 0.1 + this->modspeed.getValue();
+      for(auto &v: boids) {
+
+        //rule 1 move towards center of mass
+        constexpr float cohesionStrength = 0.005f;
+        float dcxr1 = (centerX - v.x) * cohesionStrength;
+        float dcyr1 = (centerY - v.y) * cohesionStrength;
+
+        
+        //rule 2 keep away from other boids
+        float dcxr2=0;
+        float dcyr2=0;
+        for(auto &otherBoid: boids) {
+          if (&v != &otherBoid) {
+            float dist = distBetween(v.x, v.y, otherBoid.x, otherBoid.y);
+            if (dist < separationRadius && dist > 0) {
+              float force = 1.0f / dist;  // Stronger when closer
+              dcxr2 += (v.x - otherBoid.x) * force;  // Removed minus sign
+              dcyr2 += (v.y - otherBoid.y) * force;  // Removed minus sign
+            }
+          }
+        }
+        dcxr2 *= 0.2f;
+        dcyr2 *= 0.2f;
+
+
+        //rule 3 match velocity with nearby boids
+        float dcxr3=0;
+        float dcyr3=0;
+
+        float avgVx = 0, avgVy = 0;
+        int neighborCount = 0;
+
+        constexpr float alignmentStrength = 0.05f;
+
+        for(auto &otherBoid: boids) {
+            if (&v != &otherBoid) {
+                float dist = distBetween(v.x, v.y, otherBoid.x, otherBoid.y);
+                if (dist < alignmentRadius) {
+                    avgVx += otherBoid.vx;
+                    avgVy += otherBoid.vy;
+                    neighborCount++;
+                }
+            }
+        }
+
+        if (neighborCount > 0) {
+            avgVx /= neighborCount;
+            avgVy /= neighborCount;
+            
+            dcxr3 = (avgVx - v.vx) * alignmentStrength; 
+            dcyr3 = (avgVy - v.vy) * alignmentStrength;
+            
+        }     
+        
+        v.vx += (dcxr1 + dcxr2 + dcxr3);
+        v.vy += (dcyr1 + dcyr2 + dcyr3);
+
+        float speed = sqrtf(v.vx * v.vx + v.vy * v.vy);
+        const float maxSpeed = 2.0f;
+        if (speed > maxSpeed) {
+            v.vx = (v.vx / speed) * maxSpeed;
+            v.vy = (v.vy / speed) * maxSpeed;
+        }        
+
+        v.x += v.vx * modvel;
+        v.y += v.vy * modvel;
+        
+
+        //wrapping
+        if (v.x > sqboundBR) {
+          v.x-=sqwidth;
+          // v.x = -v.x;
+        }else if (v.x < sqbound) {
+          v.x += sqwidth;
+          // v.x = -v.x;
+        }
+
+        if (v.y > sqboundBR) {
+          v.y-=sqwidth;
+          // v.y = -v.y;
+        }else if (v.y < sqbound) {
+          v.y += sqwidth;
+          // v.y = -v.y;
+        }
+
+        mods[idx] = speed * this->moddepth.getValue();
+        idx++;
+     }
+      return mods;
+    }
+
+    std::array<float, N>& getValues() override {
+      return mods;
+    };
+
+    void draw(TFT_eSPI &tft) override { 
+      constexpr float lineLength = 10.f;
+      for(auto &v: boids) {
+        tft.drawCircle(v.px, v.py, 3, ELI_BLUE);
+        tft.drawLine(v.px, v.py, v.px + (v.pvx * lineLength), v.py + (v.pvy * lineLength), ELI_BLUE);
+        tft.drawCircle(v.x, v.y, 3, TFT_GREENYELLOW);
+        tft.drawLine(v.x, v.y, v.x + (v.vx * lineLength), v.y + (v.vy * lineLength), TFT_YELLOW);
+        v.pvx = v.vx;
+        v.pvy = v.vy;
+        v.px = v.x;
+        v.py = v.y;
+      }
+    }
+
+private:
+  std::array<float, N> mods;
+  std::vector<boid> boids;
+  float centerX;
+  float centerY;
+  const float avgMul = 1.f/N;
+  float speedMul = 1.f;
+
+};
 
 template <size_t N>
 using metaOscPtr = std::shared_ptr<metaOsc<N>>;

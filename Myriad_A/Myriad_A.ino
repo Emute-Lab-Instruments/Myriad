@@ -35,7 +35,6 @@
 #include "myriad_messages.h"
 #include "SLIP.h"
 
-#include "boids.h"
 
 #include "tuning.hpp"
 #include "state.hpp"
@@ -74,9 +73,10 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std:
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
+metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaBoids1 = std::make_shared<metaOscBoids<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 7> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaBoids1, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
 size_t currMetaMod = 0;
 
@@ -208,8 +208,6 @@ namespace controls {
   static bool FAST_MEM encoderSwitches[3] = {0,0,0};
   static bool FAST_MEM calibrateButton=0;
 };
-
-boidsSim boids;
 
 // MovingAverageFilter<float> FAST_MEM adcFilters[4];
 // MedianFilter<float> FAST_MEM adcMedians[4];
@@ -713,6 +711,7 @@ void __isr encoder1_callback() {
 }
 
 //left
+size_t FAST_MEM prevChangeTSEnc2 = 0;
 void __isr encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
   switch(controlMode) {
