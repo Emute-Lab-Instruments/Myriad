@@ -711,7 +711,32 @@ void __isr encoder1_callback() {
 }
 
 //left
-size_t FAST_MEM prevChangeTSEnc2 = 0;
+struct encAccelData {
+  size_t prevChangeTS = 0;
+  float acc = 0.f;
+};
+
+encAccelData FAST_MEM enc2Accel;
+
+float __not_in_flash_func(calcAcceleration)(const int change, encAccelData &data) {
+  auto now = millis();
+  if (change != 0) {
+    auto gap = millis() - data.prevChangeTS;
+    data.acc += std::max(50.f-gap, -50.f)*0.012f;
+  }
+  data.acc *= 0.95f;
+  data.prevChangeTS = now;
+  float changeWithAcc = change * (1.f + data.acc);
+  if (change == 1 && changeWithAcc < 0.f) {
+    changeWithAcc = 0.f;
+  }
+  if (change == -1 && changeWithAcc > 0.f) {
+    changeWithAcc = 0.f;
+  }
+  // Serial.printf("change %d acc %f -> %f\n", change, accEnc2, changeWithAcc);
+  return changeWithAcc;
+}
+
 void __isr encoder2_callback() {
   int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
   switch(controlMode) {
@@ -719,7 +744,8 @@ void __isr encoder2_callback() {
     {
       controls::encoderAltValues[1] += change;
       if (currMetaMod > 0) {
-        metaOscsList.at(currMetaMod)->setSpeed(change);
+        const float changeWithAcc = calcAcceleration(change, enc2Accel);
+        metaOscsList.at(currMetaMod)->setSpeed(changeWithAcc);
         display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
       }
       break;
@@ -764,6 +790,8 @@ void __isr encoder2_callback() {
 }
 
 //right
+encAccelData FAST_MEM enc3Accel;
+
 void __isr encoder3_callback() {
   int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
   switch(controlMode) {
@@ -771,7 +799,8 @@ void __isr encoder3_callback() {
     {
       controls::encoderAltValues[2] += change;
       if (currMetaMod > 0) {
-        metaOscsList.at(currMetaMod)->setDepth(change);
+        const float changeWithAcc = calcAcceleration(change, enc2Accel);
+        metaOscsList.at(currMetaMod)->setDepth(changeWithAcc);
         display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
       }
       break;

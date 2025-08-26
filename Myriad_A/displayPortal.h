@@ -200,42 +200,6 @@ public:
 
 private:
 
-  // void updateOscVis(size_t oscIdx, size_t oscModelIdx) {
-  //   uint32_t startAngle = 120*oscIdx;
-  //   uint32_t endAngle = 120 + (120*oscIdx);
-  //   tft.drawSmoothArc(120, 120, 120, 0, startAngle, endAngle, ELI_BLUE, ELI_BLUE);
-  //   uint32_t col1;
-  //   const uint32_t cols[3] = {TFT_PURPLE, TFT_DARKGREEN, TFT_DARKCYAN};
-  //   col1 = cols[oscIdx];
-  //   switch(oscvis.at(oscModelIdx)->mode) {
-  //     case oscDisplayModes::MODES::SPECTRAL:
-  //     {
-  //       const size_t blocksize=5;
-  //       for(size_t i=0; i < oscvis.at(oscModelIdx)->data.size(); i++) {
-  //         if (oscvis.at(oscModelIdx)->data.at(i)> 0) {    
-  //           tft.drawSmoothArc(120, 120, 115-(i*blocksize), 115-((i-1)*blocksize), startAngle, endAngle, col1, col1);
-  //         }
-  //       }
-  //       break;
-  //     }
-  //     case oscDisplayModes::MODES::NOISE:
-  //     {
-  //       break;
-  //     }
-  //     case oscDisplayModes::MODES::SILENCE:
-  //     {
-  //       break;
-  //     }
-  //   }
-  //   const int32_t bankTxtX[3] = {120-87, 120,120+87};
-  //   const int32_t bankTxtY[3] = {120+49,20,120+49};
-  //   tft.setFreeFont(&FreeMono9pt7b);
-  //   tft.setTextDatum(CC_DATUM);
-  //   tft.setTextColor(TFT_WHITE, ELI_BLUE);
-  //   tft.drawString(String(oscModelIdx), bankTxtX[oscIdx], bankTxtY[oscIdx]);
-
-  // }
-
   std::array<float,N_OSCS> oscVisPhase{};
 
   void drawOscBankScreen(const OscBankScreenStates &currState, OscBankScreenStates &nextState, const bool fullRedraw) {
@@ -255,29 +219,18 @@ private:
     // int col;
     auto modVals = nextState.ptr->getValues();
     static constexpr int colBank0 = ELI_PINK;
-    static constexpr int colBank1 = TFT_PINK;
+    static constexpr int colBank1 = ELI_PINK3;
     static constexpr int colBank2 = ELI_PINK2;
     static constexpr int oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
     static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
 
     for(size_t i=0; i < N_OSCS; i++) {
-      // if (i>5) {
-      //   bank=2;
-      //   col = TFT_GREEN;
-      // }
-      // else if (i>2) {
-      //   bank=1;
-      //   col = TFT_YELLOW;
-      // }else{
-      //   col = ELI_PINK;
-      // }
       const float prevpos = oscVisPhase[i] * TWOPI;
       const float prevcospos = sineTable::fast_cos(prevpos);
       const float prevsinpos = sineTable::fast_sin(prevpos);
       const float linelen=18 + ((i+1)*unitR);
       const float halflinelen = linelen * 0.5;
 
-      // tft.drawLine(120,120, 120+ (100 * cos(pos)), 120+ (100 * sin(pos)), ELI_BLUE );
       const size_t cx = 120+ (linelen * prevcospos);
       const size_t cy = 120+ (linelen * prevsinpos);
       tft.drawLine(120,120, cx,cy, ELI_BLUE );
@@ -287,38 +240,36 @@ private:
       float normwavelen = 1.0 - ((nextState.oscWavelengths[i] - fastestWavelen) * rangeWavelenRcp);
       normwavelen= normwavelen * normwavelen * normwavelen;
       normwavelen = std::max(normwavelen,0.f);
-      // normwavelen = std::sqrt(normwavelen);
       const float speed = (rangeOscVisSpeed * normwavelen) + slowestOscVisSpeed;
-      // if (i==0) {
-      //   Serial.println(normwavelen);
-      // }
+
       oscVisPhase[i] += speed;
       if (oscVisPhase[i] >= 1.f) {
-        oscVisPhase[i] = 0.f;
+        oscVisPhase[i] -=1.f;
       }
       const float pos = oscVisPhase[i] * TWOPI;
-      // tft.drawLine(120,120, 120+ (100 * cos(pos)), 120+ (100 * sin(pos)), ELI_PINK );
-      // tft.drawCircle(120+ (((i+1)*10) * cos(pos)), 120+ (((i+1)*10) * sin(pos)), 5, ELI_PINK);
+      
       const float cospos = sineTable::fast_cos(pos);
       const float sinpos = sineTable::fast_sin(pos);
       const size_t cx2 = 120+ (linelen * cospos);
       const size_t cy2 = 120+ (linelen * sinpos);
-      tft.drawLine(120,120, cx2,cy2, ELI_PINK );
+      tft.drawLine(120,120, cx2,cy2, oscColArray[i] );
 
-      float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5);
-      // if (i==0) {
-        // Serial.print(modv);
-        // Serial.print("\t");
-      // }
-      const size_t cx3start = 120+ (halflinelen * cospos);
-      const size_t cy3start = 120+ (halflinelen * sinpos);
-      const size_t cx3 = 120+ ((halflinelen + (modv * halflinelen)) * cospos);
-      const size_t cy3 = 120+ ((halflinelen + (modv * halflinelen)) * sinpos);
-      tft.drawLine(cx3start,cy3start, cx3,cy3, TFT_GREEN );
-      nextState.modLineX[i] = cx3;
-      nextState.modLineY[i] = cy3;
-      nextState.modLineXStart[i] = cx3start;
-      nextState.modLineYStart[i] = cy3start;
+      if (modVals[i] != 0.f) {
+        float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5f);
+        // if (i==0) {
+          // Serial.print(modv);
+          // Serial.print("\t");
+        // }
+        const size_t cx3start = 120+ (halflinelen * cospos);
+        const size_t cy3start = 120+ (halflinelen * sinpos);
+        const size_t cx3 = 120+ ((halflinelen + (modv * halflinelen)) * cospos);
+        const size_t cy3 = 120+ ((halflinelen + (modv * halflinelen)) * sinpos);
+        tft.drawLine(cx3start,cy3start, cx3,cy3, TFT_GREEN );
+        nextState.modLineX[i] = cx3;
+        nextState.modLineY[i] = cy3;
+        nextState.modLineXStart[i] = cx3start;
+        nextState.modLineYStart[i] = cy3start;
+      }
       
 
       tft.drawCircle(cx2, cy2, 5, oscColArray[i]);
@@ -379,7 +330,7 @@ private:
       if (nextState.metaOsc > 0) {
         const float angle2 = 140 - (nextState.modspeed * 80);
         tft.drawSmoothArc(120, 120, 120, 115, angle2-10 , angle2, ELI_PINK, ELI_PINK);
-        Serial.printf("angle: %f %f\n", angle, angle2);
+        // Serial.printf("angle: %f %f\n", angle, angle2);
       }
     }
     if (fullRedraw || currState.modTarget != nextState.modTarget) {

@@ -18,7 +18,7 @@ public:
   BoundedEncoderValue() : scaleVal(T(0.01)), value(T(0)) {setMax(0.9); setMin(0.0);}
 
 
-  void update(const int change) {
+  void update(const float change) {
     value += (change * scaleVal);
     value = std::max(minVal, value);
     value = std::min(maxVal, value);
@@ -65,12 +65,12 @@ public:
 
     virtual std::array<float, N> update(const float (&adcs)[4]) =0;    
 
-    void setDepth(int delta) {
+    void setDepth(float delta) {
         Serial.println("base class set depth");
         moddepth.update(delta);
     }
 
-    void setSpeed(int delta) {
+    void setSpeed(float delta) {
         modspeed.update(delta);
     }
     
@@ -634,8 +634,8 @@ public:
       
         this->modspeed.setMax(1.f);
         this->modspeed.setScale(0.01);
-        this->moddepth.setMax(0.1);
-        this->moddepth.setScale(0.0009);
+        this->moddepth.setMax(0.03f);
+        this->moddepth.setScale(0.0003f);
     }
 
     String getName() override {return "boids";}
@@ -721,7 +721,7 @@ public:
         v.vy += (dcyr1 + dcyr2 + dcyr3);
 
         float speed = sqrtf(v.vx * v.vx + v.vy * v.vy);
-        const float maxSpeed = 2.0f;
+        const float maxSpeed = 2.5f;
         if (speed > maxSpeed) {
             v.vx = (v.vx / speed) * maxSpeed;
             v.vy = (v.vy / speed) * maxSpeed;
