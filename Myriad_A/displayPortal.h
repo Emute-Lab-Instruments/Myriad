@@ -243,21 +243,6 @@ private:
       tft.fillScreen(ELI_BLUE);
     }
     
-    // for(size_t i=0; i < N_OSCS; i++) {
-    //   size_t pos = oscVisPhase[i] * 120;
-    //   tft.drawArc(120, 120, pos, pos-2, (i*40),(i*40) + 40, ELI_BLUE, ELI_BLUE);
-    //   float normwavelen = 1.0 - ((nextState.oscWavelengths[i] - fastestWavelen) * rangeWavelenRcp);
-    //   normwavelen *= normwavelen;
-    //   const float speed = (rangeOscVisSpeed * normwavelen) + slowestOscVisSpeed;
-    //   Serial.println(speed); 
-    //   oscVisPhase[i] += speed;
-    //   if (oscVisPhase[i] >= 1.f) {
-    //     oscVisPhase[i] = 0.f;
-    //   }
-    //   pos = oscVisPhase[i] * 120;
-    //   tft.drawArc(120, 120, pos, pos-, (i*40),(i*40) + 40, ELI_PINK, ELI_PINK);
-    // }  
-
     static constexpr float slowestWavelen = sampleClock/20.f;
     static constexpr float fastestWavelen = sampleClock/20000.f;
     static constexpr float rangeWavelen = slowestWavelen - fastestWavelen;
@@ -269,6 +254,12 @@ private:
     float bank=0;
     // int col;
     auto modVals = nextState.ptr->getValues();
+    static constexpr int colBank0 = ELI_PINK;
+    static constexpr int colBank1 = TFT_PINK;
+    static constexpr int colBank2 = ELI_PINK2;
+    static constexpr int oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
+    static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
+
     for(size_t i=0; i < N_OSCS; i++) {
       // if (i>5) {
       //   bank=2;
@@ -330,7 +321,7 @@ private:
       nextState.modLineYStart[i] = cy3start;
       
 
-      tft.drawCircle(cx2, cy2, 5, ELI_PINK);
+      tft.drawCircle(cx2, cy2, 5, oscColArray[i]);
 
     } 
     // Serial.println();   
@@ -345,7 +336,7 @@ private:
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(CC_DATUM);
         tft.drawRect(bankTxtX[i]-5, bankTxtY[i]-5, 10, 10, ELI_BLUE);
-        tft.setTextColor(TFT_WHITE, ELI_BLUE);
+        tft.setTextColor(bankColArray[i], ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
         tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE,  ELI_BLUE);
         size_t colour = colours.at(nextState.oscModel[i] % colours.size());
