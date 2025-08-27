@@ -165,7 +165,7 @@ public:
 
 private:
     std::array<float, N> phasors;
-    std::array<float, N> sines;
+    std::array<float, N> sines{0};
 
 };
 
@@ -217,7 +217,7 @@ public:
 
 private:
     std::array<float, N> phasors;
-    std::array<float, N> sines;
+    std::array<float, N> sines{0};
 
 };
 
@@ -301,20 +301,23 @@ public:
 
     struct point {float x; float y;};
     std::array<point, N> walkers;
-    std::array<point, N> walkersBefore;
+    std::vector<std::deque<point>> pastStates;
+    std::array<int, N> colours;
+
 
     metaDrunkenWalkers() {
         //init with equally spread phase
         for(size_t i=0; i < N; i++) {
-            walkersBefore[i].x=120;
-            walkersBefore[i].y=120;
             walkers[i].x=120;
             walkers[i].y=120;
+            colours[i] = rgbTo565(i, 100 + (i * 10), i*3);
         }
         this->modspeed.setMax(0.1);
         this->modspeed.setScale(0.001);
         this->moddepth.setMax(0.1);
         this->moddepth.setScale(0.0009);
+
+        pastStates.resize(N);
     }
 
     String getName() override {return "drunk walkers";}
@@ -327,9 +330,7 @@ public:
 
     std::array<float, N> update(const float (&adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
-          walkersBefore[i].x = walkers[i].x;
-          walkersBefore[i].y = walkers[i].y;
-          
+
           //random walk
           walkers[i].x += (random(-2000,2000)/100.0) * this->modspeed.getValue();
           walkers[i].y += (random(-2000,2000)/100.0) * this->modspeed.getValue();
@@ -346,10 +347,13 @@ public:
             walkers[i].y -= sqwidth;
           }
 
+
           //distance from the centre
           const float dx = 120 - walkers[i].x;
           const float dy = 120 - walkers[i].y;
-          mods[i] = std::sqrt((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
+          mods[i] = sqrtf((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
+
+
         }
         return mods;
     }
@@ -357,8 +361,13 @@ public:
     void draw(TFT_eSPI &tft) override { 
 
       for(size_t i=0; i < N; i++) {
-        tft.fillRect(walkersBefore[i].x, walkersBefore[i].y, 2, 2, ELI_BLUE);
-        tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, TFT_GREEN);
+        while(pastStates[i].size() > 30) {
+          tft.fillRect(pastStates[i].front().x, pastStates[i].front().y, 2, 2, ELI_BLUE);
+          pastStates[i].pop_front();
+        }
+        tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, colours[i]);
+        pastStates[i].push_back(walkers[i]);
+
       }
     }
 

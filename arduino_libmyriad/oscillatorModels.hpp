@@ -1056,7 +1056,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 14;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1073,9 +1073,9 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   []() { return std::make_shared<triSDVar1OscillatorModel>(); }
   ,
   []() { return std::make_shared<sawOscillatorModel>(); }
-  // []() { return std::make_shared<squareBBBOscillatorModel>(); }
+  ,
+  []() { return std::make_shared<squareBBBOscillatorModel>(); }
   // []() { return std::make_shared<squareOscillatorModel>(); }
-  
   ,
   []() { return std::make_shared<triOscillatorModel>(); }
   ,

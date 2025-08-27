@@ -276,8 +276,8 @@ private:
 
     } 
     // Serial.println();   
-    constexpr float angleRange = 120/ N_OSCILLATOR_MODELS;
-    constexpr std::array<size_t, 10> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE };
+    constexpr float angleRange = 120.f/ N_OSCILLATOR_MODELS;
+    constexpr std::array<size_t, 15> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE, TFT_SKYBLUE, TFT_VIOLET, TFT_PINK, TFT_LIGHTGREY, TFT_WHITE};
 
     for(size_t i=0; i < 3; i++) {
       if (fullRedraw || currState.oscModel[i] != nextState.oscModel[i]) {
@@ -308,16 +308,17 @@ private:
       tft.setTextDatum(CC_DATUM);
       tft.drawString(nextState.ptr->getName(), 120, 26);
     }
+    constexpr float innerArc = 117;
     if (fullRedraw || currState.moddepth != nextState.moddepth) {
       // const int h = (84+84) * nextState.moddepth;
       // Serial.printf("depth redraw %d\n", h);
       // tft.fillRect(240-sqbound+1, sqbound, sqbound,h, ELI_BLUE);
       // tft.fillRect(240-sqbound+1, sqbound+h, 5, (84+84) -h, TFT_GREEN);
       const float angle = 220 + (currState.moddepth * 80);
-      tft.drawSmoothArc(120, 120, 120, 115, angle , angle+10, ELI_BLUE, ELI_BLUE);
-      if (nextState.metaOsc > 0) {
-        const float angle2 = 220 + (nextState.moddepth * 80);
-        tft.drawSmoothArc(120, 120, 120, 115, angle2 , angle2+10, ELI_PINK, ELI_PINK);
+      tft.drawSmoothArc(120, 120, 120, innerArc, angle , angle+10, ELI_BLUE, ELI_BLUE);
+      if (nextState.metaOsc > 0.f) {
+        const float angle2 = 220.f + (nextState.moddepth * 80.f);
+        tft.drawSmoothArc(120, 120, 120, innerArc, angle2 , angle2+10, ELI_PINK2, ELI_PINK2);
       }
     }
     if (fullRedraw || currState.modspeed != nextState.modspeed) {
@@ -325,11 +326,11 @@ private:
       // // Serial.printf("depth redraw %d\n", h);
       // tft.fillRect(0, sqbound, sqbound-1,h, ELI_BLUE);
       // tft.fillRect(sqbound-5, sqbound + h, 5, (84+84) -h, TFT_VIOLET);
-      const float angle = 140 - (currState.modspeed * 80);
-      tft.drawSmoothArc(120, 120, 120, 115, angle-10 , angle, ELI_BLUE, ELI_BLUE);
+      const float angle = 140.f - (currState.modspeed * 80.f);
+      tft.drawSmoothArc(120, 120, 120, innerArc, angle-10 , angle, ELI_BLUE, ELI_BLUE);
       if (nextState.metaOsc > 0) {
         const float angle2 = 140 - (nextState.modspeed * 80);
-        tft.drawSmoothArc(120, 120, 120, 115, angle2-10 , angle2, ELI_PINK, ELI_PINK);
+        tft.drawSmoothArc(120, 120, 120, innerArc, angle2-10 , angle2, ELI_PINK, ELI_PINK);
         // Serial.printf("angle: %f %f\n", angle, angle2);
       }
     }
@@ -353,7 +354,7 @@ private:
         }
       }
       tft.setFreeFont(&FreeMonoBold9pt7b);
-      tft.setTextColor(TFT_GREEN, TFT_LIGHTGREY);
+      tft.setTextColor(TFT_DARKGREEN, TFT_LIGHTGREY);
       tft.drawString("Z", 170, 210);
 
     }
