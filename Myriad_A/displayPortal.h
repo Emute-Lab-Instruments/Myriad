@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iomanip>
 
-TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
+TFT_eSPI __not_in_flash("display") tft = TFT_eSPI();  // Invoke custom library
 
 
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
@@ -60,7 +60,29 @@ public:
     bool redraw=false; //override and redraw anyway
   };
 
+  // TFT_eSprite iconX = TFT_eSprite(&tft);
+  // TFT_eSprite iconY = TFT_eSprite(&tft);
+  // TFT_eSprite iconZ = TFT_eSprite(&tft);
+  TFT_eSprite icon = TFT_eSprite(&tft);
+
+  
+
+
   displayPortal() {
+    //create icons etc
+    // TFT_eSprite* icons[] = {&iconX, &iconY, &iconZ};
+    // String iconChars[] = {"X","Y","Z"};
+    // for(size_t i=0; i < 3; i++) {
+    //   icons[i]->createSprite(17,14);
+    //   icons[i]->fillRect(0,0,17,14, TFT_RED);
+    //   icons[i]->setFreeFont(&FreeSansBold9pt7b);
+    //   icons[i]->setTextColor(TFT_BLACK, TFT_SILVER);
+    //   icons[i]->drawString(iconChars[i],0,0);
+    //   icons[i]->setPivot(8, 110);
+    // }
+    icon.createSprite(20,20);
+
+    tft.setPivot(120,120);
     nextState.redraw = true;
   }
 
@@ -101,22 +123,8 @@ public:
       }
 
     }
-    // if (nextState.screenMode == SCREENMODES::OSCBANKS) {
-    //   drawOscBankScreen(currState.oscBankScreenState, nextState.oscBankScreenState, redraw);
-    // }else{
-    //   drawMetaModScreen(currState.metaOscVisScreenState, nextState.metaOscVisScreenState, redraw);
-    // }
     currState = nextState;
   }
-
-
-  // void toggleScreen() {
-  //   if (currState.screenMode == SCREENMODES::OSCBANKS) {
-  //     nextState.screenMode = SCREENMODES::METAOSCVIS;
-  //   }else{
-  //     nextState.screenMode = SCREENMODES::OSCBANKS;
-  //   }
-  // }
 
   void setScreen(SCREENMODES newMode) {
     nextState.screenMode = newMode;
@@ -216,7 +224,6 @@ private:
     static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
     static constexpr float unitR=7;
     float bank=0;
-    // int col;
     auto modVals = nextState.ptr->getValues();
     static constexpr int colBank0 = ELI_PINK;
     static constexpr int colBank1 = ELI_PINK3;
@@ -275,20 +282,42 @@ private:
       tft.drawCircle(cx2, cy2, 5, oscColArray[i]);
 
     } 
-    // Serial.println();   
+
     constexpr float angleRange = 120.f/ N_OSCILLATOR_MODELS;
     constexpr std::array<size_t, 15> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE, TFT_SKYBLUE, TFT_VIOLET, TFT_PINK, TFT_LIGHTGREY, TFT_WHITE};
 
+    // icon.deleteSprite();
+    // icon.createSprite(50,50);
+    // tft.setPivot(120,120);
     for(size_t i=0; i < 3; i++) {
       if (fullRedraw || currState.oscModel[i] != nextState.oscModel[i]) {
-    //     updateOscVis(i, nextState.oscModel[i]);
-        static const int32_t bankTxtX[3] = {120-87, 120,120+87};
-        static const int32_t bankTxtY[3] = {120+49,20,120+49};
+      icon.fillSprite(TFT_RED);
+      icon.setTextFont(2);
+      icon.setTextColor(TFT_BLACK);
+      icon.drawString("X",0,0);
+      icon.setPivot(8, 120);
+    // // icon.pushSprite(bankTxtX[i]-20, bankTxtY[i]);
+      // icon.pushRotated(120, TFT_BLACK);
+
+
+        static const int bankTxtX[3] = {120-87, 120,120+87};
+        static const int bankTxtY[3] = {120+49,20,120+49};
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(CC_DATUM);
         tft.drawRect(bankTxtX[i]-5, bankTxtY[i]-5, 10, 10, ELI_BLUE);
         tft.setTextColor(bankColArray[i], ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
+
+
+        icon.fillSprite(TFT_RED);
+        icon.setTextFont(2);
+        icon.setTextColor(TFT_BLACK);
+        icon.drawString("X",0,0);
+        icon.setPivot(8, 120);
+        // icon.pushSprite(bankTxtX[i]-20, bankTxtY[i]);
+        // icon.pushRotated(120, TFT_BLACK);
+        // // icon.deleteSprite();
+
         tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE,  ELI_BLUE);
         size_t colour = colours.at(nextState.oscModel[i] % colours.size());
         tft.drawArc(120,120,120,115,(i*120) + (nextState.oscModel[i] * angleRange), (i* 120) + ((nextState.oscModel[i]+1) * angleRange), colour,  colour);

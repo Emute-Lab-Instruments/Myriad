@@ -54,12 +54,8 @@ portal FAST_MEM display;
 enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE} controlMode = CONTROLMODES::OSCMODE;
 
 #define RUN_OSCS
-// oscModelPtr FAST_MEM currOscModelBank0;
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
 
-// oscModelPtr FAST_MEM currOscModelBank0A;
-// oscModelPtr FAST_MEM currOscModelBank0B;
-// oscModelPtr FAST_MEM currOscModelBank0C;
 volatile bool FAST_MEM oscsReadyToStart=false;
 volatile bool FAST_MEM restartOscsFlag=false;
 
@@ -78,7 +74,7 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaBoids1 = std::make_shared
 
 std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaBoids1, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
 
-size_t currMetaMod = 0;
+size_t FAST_MEM currMetaMod = 0;
 
 DEFINE_TIMING_SWAPBUFFERS(0)
 DEFINE_TIMING_SWAPBUFFERS(1)
@@ -169,7 +165,7 @@ void startOscBankA() {
   oscsRunning = true;
 }
 
-void stopOscBankA() {
+void __not_in_flash_func(stopOscBankA)() {
   uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
   if (oscsRunning) {
     oscsRunning = false;
@@ -186,8 +182,8 @@ void stopOscBankA() {
   delayMicroseconds(100);
 }
 
-#define SCREEN_WIDTH tft.width()    //
-#define SCREEN_HEIGHT tft.height()  // Taille de l'écran
+// #define SCREEN_WIDTH tft.width()    //
+// #define SCREEN_HEIGHT tft.height()  // Taille de l'écran
 
 #define ENCODER1_A_PIN 9
 #define ENCODER1_B_PIN 14
@@ -375,24 +371,14 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     }
   }
 
-  // float acc =  1.f - (adcMap(2) * 0.02f);
-
-  // float new_wavelen0 = freqtable[std::lround(controlValues[0])];
-  // constexpr float wavelen20hz = sampleClock/20.f;
   constexpr float wavelen20hz = sampleClock/20.f;
   constexpr float wavelenTesthz = sampleClock/0.01f;
   float pitchCV = adcMap(0);
   float freq = powf(2.f, (pitchCV * 10.f) + TuningSettings::adjustment); // 10 octaves
-  // float freq = powf(2.f, (pitchCV * 10.f) + (((TuningSettings::octaves) + TuningSettings::cents) * 10.f)); // 10 octaves
   float new_wavelen0 = 1.0f/freq * wavelen20hz ; 
-
-  // float new_wavelen0 = 1.0f/freq * wavelenTesthz ; 
 
   float detune = (adcMap(1) * 0.01f) * new_wavelen0;
   float acc = 1.f - (adcMap(1) * 0.02f);
-  // new_wavelen0 = 200000;
-  // detune=0;
-  // acc=1.f;
 
   float new_wavelen1 = (new_wavelen0 - detune) * acc;
   float new_wavelen2 = (new_wavelen1 - detune) * acc;
@@ -426,9 +412,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   float ctrlVal7 = ctrlVal0;
   float ctrlVal8 = ctrlVal0;
 
-  // sendToMyriadB(messageTypes::CTRL, ctrlVal0);
-
-
   if (currMetaMod > 0) {
     // auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
     auto metamods = metaOscsList.at(currMetaMod)->getValues();
@@ -457,15 +440,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
         ctrlVal8 *= (1.f + (metamods[8] * 5.f));
     }
     
-    // for(int i=0; i < 6; i++) {
-    //   Serial.print(metamods[i]);
-    //   Serial.print("\t");
-    // }
-    // Serial.println();
-
-    // if (msgCt == 80) {
-    //   Serial.println(metamods[0]);
-    // }
   }
 
   if (msgCt == 100) {
@@ -494,16 +468,8 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
-  // currOscModels[0]->wavelen = new_wavelen0;
-  // currOscModels[0]->newFreq = true;
-  currOscModels[0]->setWavelen(new_wavelen0);
-  
-  // currOscModels[1]->wavelen = new_wavelen1;
-  // currOscModels[1]->newFreq = true;
+  currOscModels[0]->setWavelen(new_wavelen0);  
   currOscModels[1]->setWavelen(new_wavelen1);
-
-  // currOscModels[2]->wavelen = new_wavelen2;
-  // currOscModels[2]->newFreq = true;
   currOscModels[2]->setWavelen(new_wavelen2);
 
   oscsReadyToStart = true;
@@ -593,7 +559,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
 
         if (bank ==2) {
 
-          stopOscBankA();
+          stopOscBankA();s
 
           dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
@@ -972,6 +938,11 @@ struct repeating_timer timerOscModeChangeMonitor;
 
 void setup() {
 
+  // This will show if you're in an exception/interrupt
+  exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
+      Serial.println("HARD FAULT in interrupt!");
+      while(1);
+  });
 
   //USB Serial
   Serial.begin();
@@ -1048,7 +1019,7 @@ void setup() {
                     CHANGE);
 
   add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
-  add_repeating_timer_ms(-39, displayUpdate, NULL, &timerDisplay);
+  // add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
   add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 
   //load stored state
@@ -1076,6 +1047,7 @@ void setup() {
 int count=0;
 
 size_t FAST_MEM stateTS = 0;
+size_t FAST_MEM displayTS = 0;
 
 void __not_in_flash_func(loop)() {
   // Serial.println();
@@ -1089,7 +1061,12 @@ void __not_in_flash_func(loop)() {
   //   MyriadState::saveIfChanged();
   //   stateTS = millis();
   // }
-
+  auto now = millis();
+  if (now - displayTS >= 39) {
+    display.update();
+    displayTS = now;
+  }
+ 
   delay(1);
 }
 
