@@ -302,10 +302,14 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
 }
 
 size_t FAST_MEM msgCt=0;
+volatile bool FAST_MEM adcReadyFlag = false;
+
+static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
+static size_t __not_in_flash("adcData") adcCount = 0;
+static size_t __not_in_flash("adcData") adcAccumulator[4] = {0,0,0,0};
+
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-  static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
-  static size_t __not_in_flash("adcData") adcCount = 0;
-  static size_t __not_in_flash("adcData") adcAccumulator[4] = {0,0,0,0};
+// bool __not_in_flash_func(adcProcessor)() {
   adcAccumulator[0] += capture_buf[0];
   adcAccumulator[1] += capture_buf[1];
   adcAccumulator[2] += capture_buf[2];
@@ -317,14 +321,19 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     adcAccumulator[1] = adcAccumulator[1] >> 8U;
     adcAccumulator[2] = adcAccumulator[2] >> 8U;
     adcAccumulator[3] = adcAccumulator[3] >> 8U;
-  }else{
-    return true;
+    controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
+    controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
+    controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
+    controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+    adcReadyFlag = true;
   }
+  // else{
+  //   return true;
+  // }
+  return true;
+}
 
-  controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
-  controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
-  controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
-  controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+void __not_in_flash_func(processAdc)() {
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
@@ -480,7 +489,6 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
                                   new_wavelen6,new_wavelen7,new_wavelen8 });
   }
 
-  return true;
 }
 
 
@@ -549,7 +557,8 @@ void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
 size_t FAST_MEM oscModeBankChangeTS[3] = {0,0,0};
 // size_t FAST_MEM oscModeBankChange[3] = {0,0,0};
 
-inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_timer *t) {
+// inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_timer *t) {
+inline bool __not_in_flash_func(oscModeChangeMonitor)() {
   for(size_t bank=0; bank < 3; bank++) {
     if (oscModeBankChangeTS[bank] > 0) {
       size_t elapsed = millis() - oscModeBankChangeTS[bank];
@@ -559,7 +568,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_
 
         if (bank ==2) {
 
-          stopOscBankA();s
+          stopOscBankA();
 
           dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
@@ -930,9 +939,9 @@ void calibrate_button_callback() {
 }
 
 struct repeating_timer timerAdcProcessor;
-struct repeating_timer timerDisplay;
+// struct repeating_timer timerDisplay;
 //struct repeating_timer timerFreqReceiver;
-struct repeating_timer timerOscModeChangeMonitor;
+// struct repeating_timer timerOscModeChangeMonitor;
 
 
 
@@ -1020,7 +1029,7 @@ void setup() {
 
   add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
   // add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
-  add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
+  // add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 
   //load stored state
   oscBankTypes[0] = MyriadState::getOscBank(0);
@@ -1044,30 +1053,37 @@ void setup() {
 }
 
 
-int count=0;
 
-size_t FAST_MEM stateTS = 0;
 size_t FAST_MEM displayTS = 0;
+size_t FAST_MEM ocmTS = 0;
+size_t FAST_MEM adcTS = 0;
+
 
 void __not_in_flash_func(loop)() {
-  // Serial.println();
-  // delay(1);
-  // Serial.println("Hello from Myriad A");
 
-  // __wfi();
-
-  // size_t elapsed = millis() - stateTS;
-  // if (elapsed > 3000) {
-  //   MyriadState::saveIfChanged();
-  //   stateTS = millis();
-  // }
   auto now = millis();
+
+  // if (now - adcTS >= 20) {
+  //   adcProcessor();
+  //   adcTS = now;
+  //   Serial.println(".");
+  // }
+  if (adcReadyFlag) {
+    processAdc();
+    adcReadyFlag = false;
+  }
+  
   if (now - displayTS >= 39) {
     display.update();
     displayTS = now;
   }
- 
-  delay(1);
+
+  if (now - ocmTS >= 31) {
+    oscModeChangeMonitor();
+    ocmTS = now;
+  }
+
+  delayMicroseconds(100);
 }
 
 
