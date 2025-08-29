@@ -1064,35 +1064,45 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
-  []() { return std::make_shared<slideOscillatorModel>(); }
+  //saw / sharktooth
+  []() { return std::make_shared<sawOscillatorModel>(); } //yes, go first
   ,
-  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); }
+  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
-  // []() { return std::make_shared<rateLimSDOscillatorModel>(); }
-  // ,
-  []() { return std::make_shared<triSDVar1OscillatorModel>(); }
-  ,
-  []() { return std::make_shared<sawOscillatorModel>(); }
-  ,
-  []() { return std::make_shared<squareBBBOscillatorModel>(); }
+
+  //squares
+  []() { return std::make_shared<squareBBBOscillatorModel>(); } //fix HF
   // []() { return std::make_shared<squareOscillatorModel>(); }
   ,
-  []() { return std::make_shared<triOscillatorModel>(); }
+  []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
   ,
-  // []() { return std::make_shared<sawOscillatorModel>(); }
-  []() { return std::make_shared<expdecOscillatorModel1>(); }
+  []() { return std::make_shared<squareOscillatorModel14>();}  // as above, slightly different tone
   ,
-  []() { return std::make_shared<pulse10OscillatorModel>(); }
+
+  //tris
+  []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
   ,
-  []() { return std::make_shared<squareOscillatorModel2>();}
+  []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
   ,
-  []() { return std::make_shared<squareOscillatorModel14>();}
+
+  //slide
+  []() { return std::make_shared<slideOscillatorModel>(); }  //10
   ,
-  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //TODO: drop this one? or is it better now?
+
+  // experimental
+  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
   ,
-  []() { return std::make_shared<noiseOscillatorModel2>();}
+  []() { return std::make_shared<expdecOscillatorModel1>(); } //sounds great, doesn't tune linearly
+  ,
+  []() { return std::make_shared<pulse10OscillatorModel>(); } //sounds great, doesn't tune linearly
+  ,
+
+  //noise
+  []() { return std::make_shared<noiseOscillatorModel2>();} //yes
   ,
   []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
   ,
+
+  //silent
   []() { return std::make_shared<silentOscillatorModel>();}
 };
