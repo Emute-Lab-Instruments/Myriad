@@ -1020,8 +1020,6 @@ void setup() {
   displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
 
-  display.setCalibScreenTitle(MYRIAD_VERSION);
-
   CalibrationSettings::load();
   TuningSettings::load();
   MyriadState::load();
@@ -1030,6 +1028,13 @@ void setup() {
   tft.init();  
   tft.setRotation(3);
 
+  //collect IDs from the oscillator models
+  std::vector<String> oscModelIDs;
+  for(size_t i=0; i < N_OSCILLATOR_MODELS; i++) {
+    oscModelIDs.push_back(oscModelFactories[i]()->getIdentifier());
+  }
+  display.init(oscModelIDs);
+  display.setCalibScreenTitle(MYRIAD_VERSION);
 
   display.setScreen(portal::SCREENMODES::OSCBANKS);
   display.setMetaOsc(0, metaOscsList[0]);

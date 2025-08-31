@@ -22,7 +22,7 @@ public:
   }
   inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 0.5);
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 0.5f);
     }
   }
   std::vector<float> oscTemplate {0.1,0.9};
@@ -33,6 +33,10 @@ public:
     const float v2 = 1.0 - v;
     oscTemplate [0] = v1;
     oscTemplate [1] = v2;
+  }
+
+  String getIdentifier() override {
+    return "p100";
   }
 
 };
@@ -54,6 +58,9 @@ public:
 
   const std::vector<float> oscTemplate {0.5,0.5}; 
 
+  String getIdentifier() override {
+    return "sq";
+  }
 
 };
 
@@ -99,6 +106,11 @@ public:
 
   //ratios 9:1,8:2,7:3,6:4,5:5
   std::vector<float> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
+
+  String getIdentifier() override {
+    return "sq2";
+  }
+
 };
 
 
@@ -151,9 +163,13 @@ public:
 
   }
 
-  //ratios 9:1,8:2,7:3,6:4,5:5
   std::vector<float> oscTemplate {oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,
   oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14};
+
+  String getIdentifier() override {
+    return "sq14";
+  }
+  
 private:
   static constexpr float oneOver14 = 1.f/14.f;
   static constexpr float oneOver7 = 1.f/7.f;
@@ -171,6 +187,11 @@ public:
         *(bufferA + i) = silentOscillatorModel::halfWaveLen;
     }
   }
+
+  String getIdentifier() override {
+    return "sil";
+  }
+
 private:
   const size_t bufferSize=16;
   static constexpr uint32_t halfWaveLen = sampleClock / 100000;
@@ -200,6 +221,11 @@ public:
   void ctrl(const float v) override {
     randMax = randBaseMin + (v * randRange);
   }
+
+  String getIdentifier() override {
+    return "n1";
+  }
+
 
 
 private:
@@ -237,6 +263,9 @@ public:
   void ctrl(const float v) override {
   }
 
+  String getIdentifier() override {
+    return "acc";
+  }
 
 private:
   float phase=0;
@@ -290,6 +319,10 @@ public:
     return pulse_program_get_default_config(offset);
   }
 
+  String getIdentifier() override {
+    return "sin8";
+  }
+
 };
 
 class expdecOscillatorModel1 : public virtual oscillatorModel {
@@ -321,6 +354,10 @@ class expdecOscillatorModel1 : public virtual oscillatorModel {
     pio_sm_config getBaseConfig(uint offset) {
       return expdec_program_get_default_config(offset);
     }
+
+    String getIdentifier() override {
+      return "exp1";
+    }
   
   private:
   
@@ -335,7 +372,7 @@ class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
         
     }
     inline void fillBuffer(uint32_t* bufferA) {
-      const float wlen = this->wavelen * 7.19f * wmult;
+      const float wlen = this->wavelen * 7.19f * wmult ;
       for (size_t i = 0; i < oscTemplate.size(); ++i) {
           *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
       }
@@ -352,6 +389,10 @@ class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
 
     pio_sm_config getBaseConfig(uint offset) {
       return expdec_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "expb";
     }
   
   private:
@@ -423,6 +464,10 @@ class sawOscillatorModel : public virtual oscillatorModel {
   
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "saw";
     }
 
   
@@ -591,6 +636,9 @@ class triOscillatorModel : public virtual oscillatorModel {
       return bitbybit_program_get_default_config(offset);
     }
 
+    String getIdentifier() override {
+      return "tri";
+    }
   
   private:
     int32_t phase=0;
@@ -657,6 +705,9 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
     }
 
   
+    String getIdentifier() override {
+      return "sqbbb";
+    }
   private:
     size_t phase=0;
     bool y=0;
@@ -733,7 +784,9 @@ class slideOscillatorModel : public virtual oscillatorModel {
      0.002, 0.03, 0.001, 0.2, 0.023,
     0.4,0.36,0.7, 0.072, 0.0808}; 
 
-  
+    String getIdentifier() override {
+      return "slide";
+    }
   
   private:
   size_t offset=0;
@@ -761,7 +814,6 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     }
     inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
-          // bool on = random(0,1000) > 500;
           *(bufferA + i) = static_cast<uint32_t>(this->wavelen * 0.01f, random(0,randMult) * wavelen * 0.01f);
       }
     }
@@ -773,6 +825,9 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
       randMult = 5 + (v * 500);
     }
   
+    String getIdentifier() override {
+      return "n2";
+    }
   
   private:
     long randMin, randMax, randBaseMin, randRange, randBaseMax;
@@ -842,6 +897,10 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
       y = 0;
       err0 = 0;
       mul = 1;
+    }
+
+    String getIdentifier() override {
+      return "trv10";
     }
 
   
@@ -917,6 +976,10 @@ class rateLimSDOscillatorModel : public virtual oscillatorModel {
       lim=this->wavelen;
     }
 
+    String getIdentifier() override {
+      return "sdr10";
+    }
+
   
   private:
     size_t phase=0;
@@ -990,6 +1053,10 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
       lim=this->wavelen;
     }
 
+    String getIdentifier() override {
+      return "sdt10";
+    }
+
   
   private:
     size_t phase=0;
@@ -1042,6 +1109,9 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
       return bitbybit_program_get_default_config(offset);
     }
 
+    String getIdentifier() override {
+      return "wn";
+    }
   
   private:
     bool y=0;
@@ -1056,7 +1126,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 14;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1071,8 +1141,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
 
   //squares
-  []() { return std::make_shared<squareBBBOscillatorModel>(); } //fix HF
-  // []() { return std::make_shared<squareOscillatorModel>(); }
+  // []() { return std::make_shared<squareBBBOscillatorModel>(); } //fix HF
+  []() { return std::make_shared<squareOscillatorModel>(); }
   ,
   []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
   ,
@@ -1090,8 +1160,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
 
   // experimental
-  []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
-  ,
+  // []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
+  // ,
   []() { return std::make_shared<expdecOscillatorModel1>(); } //sounds great, doesn't tune linearly
   ,
   []() { return std::make_shared<pulse10OscillatorModel>(); } //sounds great, doesn't tune linearly

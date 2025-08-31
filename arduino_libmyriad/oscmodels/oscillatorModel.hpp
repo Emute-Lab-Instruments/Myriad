@@ -18,7 +18,7 @@ public:
     return pio_add_program(pioUnit, &prog);
   }
 
-  oscDisplayModes vis;
+  // oscDisplayModes vis;
 
   volatile bool newFreq;
   bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
@@ -63,6 +63,10 @@ public:
 
   size_t getMinWavelen() const {
     return static_cast<size_t>(sampleClock /20000.f * clockmodinv);
+  }
+
+  virtual String getIdentifier() {
+    return "Base";
   }
 
 protected:
