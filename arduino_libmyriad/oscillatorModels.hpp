@@ -66,7 +66,15 @@ public:
     return pulse_program_get_default_config(offset);
   }
 
-  const std::vector<float> oscTemplate {0.5,0.5}; 
+  std::vector<float> oscTemplate {0.5,0.5}; 
+  void ctrl(const float v) override {
+    //receive a control parameter
+    const float v1 = std::max((1.f-v) * 0.5f, 0.01f);
+    const float v2 = 1.0 - v;
+    oscTemplate [0] = v1;
+    oscTemplate [1] = v2;
+  }
+
 
   String getIdentifier() override {
     return "sq";
@@ -683,6 +691,7 @@ class triOscillatorModel : public virtual oscillatorModel {
 
 //bit by bit square wave oscillator
 //better latency at lower frequencies than the timing buffer model
+//but hf gets load of aliasing - need special case if wavelen high
 class squareBBBOscillatorModel : public virtual oscillatorModel {
   public:
     squareBBBOscillatorModel() : oscillatorModel(){
@@ -1132,6 +1141,72 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 };
 
 
+class pulseSDOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    pulseSDOscillatorModel() : oscillatorModel(){
+      loopLength=64;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wlen ? 0 : phase; // wrap around
+
+          // size_t amp = phase;
+          size_t amp =  phase > pulselen ? 0 : wlen; 
+
+
+          int32_t y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wlen : 0) - amp + err0;
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+
+    void ctrl(const float v) override {
+      pw= std::max((1.f-v) * 0.5f, 0.01f);
+      pulselen = this->wavelen * pw;
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      ctrl(0.5f);
+    }
+
+    String getIdentifier() override {
+      return "pulsesd";
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    float pw=0.5f;
+    size_t pulselen=100;
+
+};
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
@@ -1152,7 +1227,9 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
 
   //squares
   // []() { return std::make_shared<squareBBBOscillatorModel>(); } //fix HF
-  []() { return std::make_shared<squareOscillatorModel>(); }
+  // []() { return std::make_shared<squareOscillatorModel>(); }
+  []() { return std::make_shared<pulseSDOscillatorModel>(); }
+  
   ,
   []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
   ,

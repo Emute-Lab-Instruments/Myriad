@@ -122,7 +122,7 @@ public:
         sprite->drawLine(pw,iconh-1,iconw-1,iconh-1, col);
     };
 
-    iconDrawFunctions["sq"] = [drawPulse](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["pulsesd"] = [drawPulse](eSpritePtr& sprite, int col) {
       drawPulse(sprite, col, 0, iconw>>1);
     };
 
