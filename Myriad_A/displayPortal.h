@@ -17,7 +17,7 @@ class displayPortal {
 public:
   enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE};
 
-  std::vector<oscDisplayModes*> oscvis;
+  // std::vector<oscDisplayModes*> oscvis;
 
   struct OscBankScreenStates {
     size_t oscModel[3];
@@ -65,7 +65,18 @@ public:
   // TFT_eSprite iconZ = TFT_eSprite(&tft);
   TFT_eSprite icon = TFT_eSprite(&tft);
 
+  using eSpritePtr = std::shared_ptr<TFT_eSprite>;
+  using oscModelSprites = std::array<eSpritePtr, N_OSCILLATOR_MODELS>;
+  std::array<oscModelSprites, N_OSC_BANKS> oscModelIcons;
+
   
+  constexpr static int iconw = 17;
+  constexpr static int iconh = 15;
+  static constexpr int colBank0 = ELI_PINK;
+  static constexpr int colBank1 = ELI_PINK3;
+  static constexpr int colBank2 = ELI_PINK2;
+
+  static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
 
 
   displayPortal() {
@@ -80,6 +91,17 @@ public:
     //   icons[i]->drawString(iconChars[i],0,0);
     //   icons[i]->setPivot(8, 110);
     // }
+    for(size_t bank=0; bank < N_OSC_BANKS; bank++) {
+      for(size_t model=0; model < N_OSCILLATOR_MODELS; model++) {
+        oscModelIcons[bank][model] = std::make_shared<TFT_eSprite>(&tft);
+        oscModelIcons[bank][model]->createSprite(iconw, iconh);
+        oscModelIcons[bank][model]->fillRect(0,0,iconw, iconh, bankColArray[bank]);
+        oscModelIcons[bank][model]->setFreeFont(&FreeSansBold9pt7b);
+        // oscModelIcons[bank][model]->setTextColor(TFT_BLACK, TFT_SILVER);
+        // String idxstr = String(model);
+        // oscModelIcons[bank][model]->drawString(idxstr.c_str(),0,0);
+      }
+    }
     icon.createSprite(20,20);
 
     tft.setPivot(120,120);
@@ -227,11 +249,7 @@ private:
     static constexpr float unitR=7;
     float bank=0;
     auto modVals = nextState.ptr->getValues();
-    static constexpr int colBank0 = ELI_PINK;
-    static constexpr int colBank1 = ELI_PINK3;
-    static constexpr int colBank2 = ELI_PINK2;
     static constexpr int oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
-    static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
 
     for(size_t i=0; i < N_OSCS; i++) {
       const float prevpos = oscVisPhase[i] * TWOPI;
@@ -306,16 +324,18 @@ private:
         static const int bankTxtY[3] = {120+49,20,120+49};
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(CC_DATUM);
-        tft.drawRect(bankTxtX[i]-5, bankTxtY[i]-5, 10, 10, ELI_BLUE);
+        const int textWidth00 = tft.textWidth("00");
+        tft.fillRect(bankTxtX[i]-(textWidth00>>1), bankTxtY[i]-(tft.fontHeight()>>1), textWidth00, tft.fontHeight(), ELI_BLUE);
         tft.setTextColor(bankColArray[i], ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
-
-
-        icon.fillSprite(TFT_RED);
-        icon.setTextFont(2);
-        icon.setTextColor(TFT_BLACK);
-        icon.drawString("X",0,0);
-        icon.setPivot(8, 120);
+        static const int iconX[3] = {120-77, 130,120+67};
+        static const int iconY[3] = {120+59,10,120+59};
+        oscModelIcons[i][nextState.oscModel[i]]->pushSprite(iconX[i], iconY[i]);
+        // icon.fillSprite(TFT_RED);
+        // icon.setTextFont(2);
+        // icon.setTextColor(TFT_BLACK);
+        // icon.drawString("X",0,0);
+        // icon.setPivot(8, 120);
         // icon.pushSprite(bankTxtX[i]-20, bankTxtY[i]);
         // icon.pushRotated(120, TFT_BLACK);
         // // icon.deleteSprite();
