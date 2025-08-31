@@ -433,12 +433,12 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }  
 
     sawOscillatorModel() : oscillatorModel(){
-      loopLength=128;
+      loopLength=16;
       prog=bitbybit_program;
       // generateSawtoothTable();
-      for(size_t i = 0; i < 1000; ++i) {
-        MULTIPLIER_TABLE[i] = generate_multiplier(i);
-      }
+      // for(size_t i = 0; i < 1000; ++i) {
+      //   MULTIPLIER_TABLE[i] = generate_multiplier(i);
+      // }
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
@@ -476,8 +476,10 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }
 
     void ctrl(const float v) override {
-      const size_t index = v < 0.05 ? 1 : static_cast<size_t>((0.2f +(v * 0.8f)) * 950.f);
-      phaseMul = MULTIPLIER_TABLE[index];
+      // const size_t index = v < 0.05 ? 1 : static_cast<size_t>((0.2f +(v * 0.8f)) * 950.f);
+      // const size_t index = static_cast<size_t>((0.0f +(v * 1.0f)) * 950.f);
+      phaseMul = static_cast<size_t>((2.f+(v * 50.f))* 32768.f);
+      // phaseMul = MULTIPLIER_TABLE[index];
     }
   
     pio_sm_config getBaseConfig(uint offset) {
@@ -495,10 +497,9 @@ class sawOscillatorModel : public virtual oscillatorModel {
     bool y=0;
     int err0=0;
     size_t val=0;
-    uint32_t MULTIPLIER_TABLE[1000];
+    // uint32_t MULTIPLIER_TABLE[1000];
 
-
-  };
+};
 
 class triOscillatorModel : public virtual oscillatorModel {
   public:
