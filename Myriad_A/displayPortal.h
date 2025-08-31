@@ -16,7 +16,7 @@ TFT_eSPI __not_in_flash("display") tft = TFT_eSPI();  // Invoke custom library
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY};
 
   // std::vector<oscDisplayModes*> oscvis;
 
@@ -41,6 +41,10 @@ public:
     int finetune=0;
   };
 
+  struct UtilScreenStates {
+    int dummy=0;
+  };
+
   struct CalibrationScreenStates {
     size_t adc0,adc1,adc2,adc3;
     size_t adcMin0,adcMin1,adcMin2,adcMin3;
@@ -58,6 +62,7 @@ public:
     MetaOscVisScreenStates metaOscVisScreenState;
     CalibrationScreenStates calibrationScreenState;
     TuningScreenStates tuningState;
+    UtilScreenStates utilityState;
     bool redraw=false; //override and redraw anyway
   };
 
@@ -270,6 +275,11 @@ public:
       case SCREENMODES::CALIBRATE:
       {
         drawCalibrationScreen(currState.calibrationScreenState, nextState.calibrationScreenState, redraw);
+        break;
+      }
+      case SCREENMODES::UTILITY:
+      {
+        drawUtilityScreen(currState.utilityState, nextState.utilityState, redraw);
         break;
       }
 
@@ -761,6 +771,13 @@ private:
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawNumber(nextState.finetune, 120, TLY);
+    }
+  }
+
+  void drawUtilityScreen(const UtilScreenStates &currState, const UtilScreenStates &nextState, const bool fullRedraw) {
+    Serial.println("draw util");
+    if (fullRedraw) {
+      tft.fillRect(0,0,240,240,TFT_PURPLE);
     }
   }
 

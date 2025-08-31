@@ -51,7 +51,7 @@ using portal = displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>;
 
 portal FAST_MEM display;
 
-enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE} controlMode = CONTROLMODES::OSCMODE;
+enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE, UTILITYMODE} controlMode = CONTROLMODES::OSCMODE;
 
 #define RUN_OSCS
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
@@ -593,7 +593,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
           auto w3 = currOscModels[2]->getWavelen();
 
         
-          MyriadState::setOscBank(2, oscBankTypes[2]);
+          // MyriadState::setOscBank(2, oscBankTypes[2]);
 
           assignOscModels(oscBankTypes[2]);
 
@@ -621,7 +621,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
         } else {
 
           sendToMyriadB(bank == 1 ? messageTypes::BANK1 : messageTypes::BANK0, oscBankTypes[bank]);
-          MyriadState::setOscBank(bank, oscBankTypes[bank]);
+          // MyriadState::setOscBank(bank, oscBankTypes[bank]);
         
         }
       }
@@ -928,7 +928,24 @@ void __isr encoder1_switch_callback() {
 void __isr encoder2_switch_callback() {
   bool switchDownEvent = processSwitchEvent(1, enc2Debouncer, ENCODER2_SWITCH);
   if (switchDownEvent) {
-
+    switch(controlMode) {
+      case CONTROLMODES::OSCMODE:
+      {
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+        controlMode = CONTROLMODES::UTILITYMODE;
+        display.setScreen(portal::SCREENMODES::UTILITY);
+        spin_unlock(displaySpinlock, save);
+        break;
+      }
+      case CONTROLMODES::UTILITYMODE:
+      {
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+        controlMode = CONTROLMODES::OSCMODE;
+        switchToOSCMode();
+        spin_unlock(displaySpinlock, save);
+        break;
+      }
+    }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
   {
@@ -985,6 +1002,20 @@ void __isr encoder3_switch_callback() {
         display.setScreen(portal::SCREENMODES::OSCBANKS);
         break;
       }
+      case CONTROLMODES::UTILITYMODE:
+      {
+        Serial.println("save");
+        for(size_t i=0; i < 3; i++) {
+          MyriadState::setOscBank(i, oscBankTypes[i]);
+        }
+        MyriadState::save();
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+        controlMode = CONTROLMODES::OSCMODE;
+        switchToOSCMode();
+        spin_unlock(displaySpinlock, save);
+        break;
+      }
+
     }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)

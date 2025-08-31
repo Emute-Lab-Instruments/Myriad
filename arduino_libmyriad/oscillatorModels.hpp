@@ -478,7 +478,7 @@ class sawOscillatorModel : public virtual oscillatorModel {
     void ctrl(const float v) override {
       // const size_t index = v < 0.05 ? 1 : static_cast<size_t>((0.2f +(v * 0.8f)) * 950.f);
       // const size_t index = static_cast<size_t>((0.0f +(v * 1.0f)) * 950.f);
-      phaseMul = static_cast<size_t>((2.f+(v * 50.f))* 32768.f);
+      phaseMul = static_cast<size_t>((2.f+(v * 40.f))* 32768.f);
       // phaseMul = MULTIPLIER_TABLE[index];
     }
   
