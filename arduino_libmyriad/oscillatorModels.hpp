@@ -17,7 +17,7 @@ public:
   pulse10OscillatorModel() : oscillatorModel(){
     loopLength=4;
     prog=pin_ctrl_program;
-    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    // updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
   }
   inline void fillBuffer(uint32_t* bufferA) {
@@ -25,7 +25,7 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 0.5f);
     }
   }
-  std::vector<float> oscTemplate {0.1,0.9};
+  std::vector<float> oscTemplate {0.1,0.9,0.1,0.9};
 
   void ctrl(const float v) override {
     //receive a control parameter
@@ -33,8 +33,18 @@ public:
     const float v2 = 1.0 - v;
     oscTemplate [0] = v1;
     oscTemplate [1] = v2;
+    oscTemplate [2] = v1;
+    oscTemplate [3] = v2;
   }
 
+  pio_sm_config getBaseConfig(uint offset) override {
+    return pin_ctrl_program_get_default_config(offset);
+  }
+
+  void reset() override {
+    oscillatorModel::reset();
+    // Clear any internal state if needed
+  }
   String getIdentifier() override {
     return "p100";
   }
@@ -52,7 +62,7 @@ public:
         *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen);
     }
   }
- pio_sm_config getBaseConfig(uint offset) override {
+  pio_sm_config getBaseConfig(uint offset) override {
     return pulse_program_get_default_config(offset);
   }
 
@@ -814,7 +824,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     }
     inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(this->wavelen * 0.01f, random(0,randMult) * wavelen * 0.01f);
+          *(bufferA + i) = static_cast<uint32_t>(random(0,randMult) * wavelen * 0.01f);
       }
     }
     pio_sm_config getBaseConfig(uint offset) {

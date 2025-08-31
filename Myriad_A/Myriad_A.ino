@@ -167,20 +167,20 @@ void startOscBankA() {
 }
 
 void __not_in_flash_func(stopOscBankA)() {
-  uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
-  if (oscsRunning) {
-    oscsRunning = false;
-    smOsc0.stop();
-#ifndef SINGLEOSCILLATOR
-    smOsc1.stop();
-    smOsc2.stop();
-#endif
-  }
-  bufSent0 = false;
-  bufSent1 = false;
-  bufSent2 = false;  
-  spin_unlock(calcOscsSpinlock, save);
-  delayMicroseconds(100);
+//   uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
+//   if (oscsRunning) {
+//     oscsRunning = false;
+//     smOsc0.stop();
+// #ifndef SINGLEOSCILLATOR
+//     smOsc1.stop();
+//     smOsc2.stop();
+// #endif
+//   }
+//   bufSent0 = false;
+//   bufSent1 = false;
+//   bufSent2 = false;  
+//   spin_unlock(calcOscsSpinlock, save);
+//   delayMicroseconds(100);
 }
 
 // #define SCREEN_WIDTH tft.width()    //
@@ -571,7 +571,20 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
 
         if (bank ==2) {
 
-          stopOscBankA();
+          uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
+          if (oscsRunning) {
+            oscsRunning = false;
+            smOsc0.stop();
+        #ifndef SINGLEOSCILLATOR
+            smOsc1.stop();
+            smOsc2.stop();
+        #endif
+          }
+          bufSent0 = false;
+          bufSent1 = false;
+          bufSent2 = false;  
+        // delayMicroseconds(100);
+          // stopOscBankA();
 
           dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
@@ -601,6 +614,9 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
           calculateOscBuffers();
 
           startOscBankA();
+
+          spin_unlock(calcOscsSpinlock, save);
+
 
         } else {
 
