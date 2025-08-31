@@ -127,6 +127,7 @@ smBitStreamOsc FAST_MEM smOsc2;
 
 volatile bool FAST_MEM oscsRunning = false;
 static spin_lock_t FAST_MEM *calcOscsSpinlock;
+static spin_lock_t FAST_MEM *displaySpinlock;
 
 void startOscBankA() {
 
@@ -202,6 +203,7 @@ namespace controls {
   static int FAST_MEM encoderValues[3] = {0,0,0};
   static int FAST_MEM encoderAltValues[3] = {0,0,0};
   static bool FAST_MEM encoderSwitches[3] = {0,0,0};
+  static unsigned long FAST_MEM encoderSwitchUPTS[3] = {0,0,0};
   static bool FAST_MEM calibrateButton=0;
 };
 
@@ -453,7 +455,8 @@ void __not_in_flash_func(processAdc)() {
 
   if (msgCt == 100) {
     // Serial.printf("%f \n", controlValues[0]);
-    Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+    // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+    Serial.print(".");
     msgCt=0;
   }
   msgCt++;
@@ -639,50 +642,53 @@ void updateTuning() {
   // Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
 
-
+constexpr size_t postSwitchUpPause = 200; //ms
 
 void __isr encoder1_callback() {
-  int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
-  switch(controlMode) {
-    case CONTROLMODES::METAOSCMODE:
-    {
-      controls::encoderAltValues[0] += change;
-      updateMetaOscMode(currMetaMod, change);
-      break;
-    }
-    case CONTROLMODES::OSCMODE:
-    {
-      controls::encoderValues[0] += change;
-      int newOscTypeBank = oscBankTypes[1] + change;
-      //clip
-      newOscTypeBank = max(0, newOscTypeBank);
-      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
-      //prepare for osc mode change
-      if (newOscTypeBank != oscBankTypes[1]) {
-        oscModeBankChangeTS[1] = millis();
-        oscBankTypes[1] = newOscTypeBank;
-        display.setOscBankModel(1, oscBankTypes[1]);
+  auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[0];
+  if (!controls::encoderSwitches[0] && timeSinceSwitchUp > postSwitchUpPause)
+  { 
+    int change = read_rotary(enc1Code, enc1Store, ENCODER1_A_PIN, ENCODER1_B_PIN);
+    switch(controlMode) {
+      case CONTROLMODES::METAOSCMODE:
+      {
+        controls::encoderAltValues[0] += change;
+        updateMetaOscMode(currMetaMod, change);
+        break;
       }
-      // bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
-      // if (changed) {
-      //   display.setOscBankModel(1, oscTypeBank1);
-      //   Serial.printf("model %d\n", oscTypeBank1);
-      // }
-      break;
-    }
-    case CONTROLMODES::CALIBRATEMODE:
-    {
-      display.setCalibEncoderDelta(0,change);      
-      break;
-    }
-    case CONTROLMODES::TUNINGMODE:
-    {
-      TuningSettings::semitones += change;
-      updateTuning();
-      break;
+      case CONTROLMODES::OSCMODE:
+      {
+        controls::encoderValues[0] += change;
+        int newOscTypeBank = oscBankTypes[1] + change;
+        //clip
+        newOscTypeBank = max(0, newOscTypeBank);
+        newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+        //prepare for osc mode change
+        if (newOscTypeBank != oscBankTypes[1]) {
+          oscModeBankChangeTS[1] = millis();
+          oscBankTypes[1] = newOscTypeBank;
+          display.setOscBankModel(1, oscBankTypes[1]);
+        }
+        // bool changed = updateOscBank(oscTypeBank1, change, messageTypes::BANK1);
+        // if (changed) {
+        //   display.setOscBankModel(1, oscTypeBank1);
+        //   Serial.printf("model %d\n", oscTypeBank1);
+        // }
+        break;
+      }
+      case CONTROLMODES::CALIBRATEMODE:
+      {
+        display.setCalibEncoderDelta(0,change);      
+        break;
+      }
+      case CONTROLMODES::TUNINGMODE:
+      {
+        TuningSettings::semitones += change;
+        updateTuning();
+        break;
+      }
     }
   }
-
 }
 
 //left
@@ -713,108 +719,114 @@ float __not_in_flash_func(calcAcceleration)(const int change, encAccelData &data
 }
 
 void __isr encoder2_callback() {
-  int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
-  switch(controlMode) {
-    case CONTROLMODES::METAOSCMODE:
-    {
-      controls::encoderAltValues[1] += change;
-      if (currMetaMod > 0) {
-        const float changeWithAcc = calcAcceleration(change, enc2Accel);
-        metaOscsList.at(currMetaMod)->setSpeed(changeWithAcc);
-        display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
+    auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[1];
+    if (!controls::encoderSwitches[1] && timeSinceSwitchUp > postSwitchUpPause) {
+  
+    // if (!controls::encoderSwitches[1]) {  
+      int change = read_rotary(enc2Code, enc2Store, ENCODER2_A_PIN, ENCODER2_B_PIN);
+      switch(controlMode) {
+        case CONTROLMODES::METAOSCMODE:
+        {
+          controls::encoderAltValues[1] += change;
+          if (currMetaMod > 0) {
+            const float changeWithAcc = calcAcceleration(change, enc2Accel);
+            metaOscsList.at(currMetaMod)->setSpeed(changeWithAcc);
+            display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
+          }
+          break;
+        }
+        case CONTROLMODES::OSCMODE:
+        {
+          controls::encoderValues[1] += change;
+          int newOscTypeBank = oscBankTypes[0] + change;
+          //clip
+          newOscTypeBank = max(0, newOscTypeBank);
+          newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+          //prepare for osc mode change
+          if (newOscTypeBank != oscBankTypes[0]) {
+            oscModeBankChangeTS[0] = millis();
+            // oscModeBankChange[2] = newOscTypeBank;
+            oscBankTypes[0] = newOscTypeBank;
+            display.setOscBankModel(0, oscBankTypes[0]);
+          }
+          // bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
+          // if (changed) {
+          //   display.setOscBankModel(0, oscTypeBank0);
+          //   Serial.printf("enc 2 model %d\n", oscTypeBank0);
+
+          // }  
+          break;
+        }
+        case CONTROLMODES::CALIBRATEMODE:
+        {
+          display.setCalibEncoderDelta(1,change);      
+          break;
+        }
+        case CONTROLMODES::TUNINGMODE:
+        {
+          TuningSettings::octaves += change;
+          updateTuning();
+          break;
+        }
       }
-      break;
     }
-    case CONTROLMODES::OSCMODE:
-    {
-      controls::encoderValues[1] += change;
-      int newOscTypeBank = oscBankTypes[0] + change;
-      //clip
-      newOscTypeBank = max(0, newOscTypeBank);
-      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
-      //prepare for osc mode change
-      if (newOscTypeBank != oscBankTypes[0]) {
-        oscModeBankChangeTS[0] = millis();
-        // oscModeBankChange[2] = newOscTypeBank;
-        oscBankTypes[0] = newOscTypeBank;
-        display.setOscBankModel(0, oscBankTypes[0]);
-      }
-      // bool changed = updateOscBank(oscTypeBank0, change, messageTypes::BANK0);
-      // if (changed) {
-      //   display.setOscBankModel(0, oscTypeBank0);
-      //   Serial.printf("enc 2 model %d\n", oscTypeBank0);
-
-      // }  
-      break;
-    }
-    case CONTROLMODES::CALIBRATEMODE:
-    {
-      display.setCalibEncoderDelta(1,change);      
-      break;
-    }
-    case CONTROLMODES::TUNINGMODE:
-    {
-      TuningSettings::octaves += change;
-      updateTuning();
-      break;
-    }
-  }
-
-
-
 }
 
 //right
 encAccelData FAST_MEM enc3Accel;
 
 void __isr encoder3_callback() {
-  int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
-  switch(controlMode) {
-    case CONTROLMODES::METAOSCMODE:
-    {
-      controls::encoderAltValues[2] += change;
-      if (currMetaMod > 0) {
-        const float changeWithAcc = calcAcceleration(change, enc2Accel);
-        metaOscsList.at(currMetaMod)->setDepth(changeWithAcc);
-        display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
+  auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[2];
+  Serial.printf("enc3 tsu %d\n", timeSinceSwitchUp);
+  if (!controls::encoderSwitches[2] && timeSinceSwitchUp > postSwitchUpPause)
+  {  
+    int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
+    switch(controlMode) {
+      case CONTROLMODES::METAOSCMODE:
+      {
+        controls::encoderAltValues[2] += change;
+        if (currMetaMod > 0) {
+          const float changeWithAcc = calcAcceleration(change, enc2Accel);
+          metaOscsList.at(currMetaMod)->setDepth(changeWithAcc);
+          display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
+        }
+        break;
       }
-      break;
-    }
-    case CONTROLMODES::OSCMODE:
-    {
-      controls::encoderValues[2] += change;
-      int newOscTypeBank = oscBankTypes[2] + change;
-      //clip
-      newOscTypeBank = max(0, newOscTypeBank);
-      newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
-      //prepare for osc mode change
-      if (newOscTypeBank != oscBankTypes[2]) {
-        oscModeBankChangeTS[2] = millis();
-        // oscModeBankChange[2] = newOscTypeBank;
-        oscBankTypes[2] = newOscTypeBank;
-        display.setOscBankModel(2, oscBankTypes[2]);
+      case CONTROLMODES::OSCMODE:
+      {
+        controls::encoderValues[2] += change;
+        int newOscTypeBank = oscBankTypes[2] + change;
+        //clip
+        newOscTypeBank = max(0, newOscTypeBank);
+        newOscTypeBank = min(N_OSCILLATOR_MODELS-1, newOscTypeBank);
+        //prepare for osc mode change
+        if (newOscTypeBank != oscBankTypes[2]) {
+          oscModeBankChangeTS[2] = millis();
+          // oscModeBankChange[2] = newOscTypeBank;
+          oscBankTypes[2] = newOscTypeBank;
+          display.setOscBankModel(2, oscBankTypes[2]);
+        }
+
+        // bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
+        // if (changed) {
+        //   display.setOscBankModel(2, oscTypeBank2);
+
+        // }
+        break;
       }
-
-      // bool changed = updateOscBank(oscTypeBank2, change, std::nullopt);
-      // if (changed) {
-      //   display.setOscBankModel(2, oscTypeBank2);
-
-      // }
-      break;
-    }
-    case CONTROLMODES::CALIBRATEMODE:
-    {
-      display.setCalibEncoderDelta(2, change);      
-      break;
-    }
-    case CONTROLMODES::TUNINGMODE:
-    {
-      TuningSettings::cents += change;
-      updateTuning();
-      break;
+      case CONTROLMODES::CALIBRATEMODE:
+      {
+        display.setCalibEncoderDelta(2, change);      
+        break;
+      }
+      case CONTROLMODES::TUNINGMODE:
+      {
+        TuningSettings::cents += change;
+        updateTuning();
+        break;
+      }
     }
   }
-
 
 }
 
@@ -828,22 +840,59 @@ void switchToOSCMode() {
   display.setScreen(portal::SCREENMODES::OSCBANKS);  
 }
 
+bool __not_in_flash_func(processSwitchEvent)(size_t encoderIdx, debouncer &encDebouncer, size_t pin) {
+  auto currentState = controls::encoderSwitches[encoderIdx];
+  //gpio pull-up, so the value is inverted
+  auto newState = 1 - encDebouncer.debounce(pin);  
+  bool switchDownEvent = false;
+  if (newState != currentState) {
+    controls::encoderSwitches[encoderIdx] = newState;
+    if (newState == 1) {
+      switchDownEvent = true;
+    }else{
+      controls::encoderSwitchUPTS[encoderIdx] = millis();
+      Serial.printf("enc %d switch up ts %d\n", encoderIdx, controls::encoderSwitchUPTS[encoderIdx]);
+    }
+  }
+  return switchDownEvent;
+}
+
 //central
 void __isr encoder1_switch_callback() {
-  //gpio pull-up, so the value is inverted
-  controls::encoderSwitches[0] = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
-  // Serial.printf("enc %d\n", controls::encoderSwitches[0]);
-  if (controls::encoderSwitches[0]) {
+
+  // auto currentState = controls::encoderSwitches[0];
+  // auto newState = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
+  // bool switchDownEvent = false;
+  // if (newState != currentState) {
+  //   controls::encoderSwitches[0] = newState;
+  //   if (newState == 1) {
+  //     switchDownEvent = true;
+  //   }else{
+  //     controls::encoderSwitchUPTS[0] = millis();
+  //   }
+  // }
+
+  bool switchDownEvent = processSwitchEvent(0, enc1Debouncer, ENCODER1_SWITCH);
+  if (switchDownEvent) {
     switch(controlMode) {
       case CONTROLMODES::METAOSCMODE:
       {
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+
         switchToOSCMode();
+  
+        spin_unlock(displaySpinlock, save);
+
         break;
       }
       case CONTROLMODES::OSCMODE:
       {
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+
         controlMode = CONTROLMODES::METAOSCMODE;
         display.setScreen(portal::SCREENMODES::METAOSCVIS);
+  
+        spin_unlock(displaySpinlock, save);
         break;
       }
       case CONTROLMODES::TUNINGMODE:
@@ -861,7 +910,10 @@ void __isr encoder1_switch_callback() {
 
 //left
 void __isr encoder2_switch_callback() {
-  controls::encoderSwitches[1] = 1 - enc2Debouncer.debounce(ENCODER2_SWITCH);  
+  bool switchDownEvent = processSwitchEvent(1, enc2Debouncer, ENCODER2_SWITCH);
+  if (switchDownEvent) {
+
+  }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
   {
     display.setCalibEncoderSwitch(1, controls::encoderSwitches[1]);
@@ -870,8 +922,10 @@ void __isr encoder2_switch_callback() {
 
 //right
 void __isr encoder3_switch_callback() {
-  controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH); 
-  if (controls::encoderSwitches[2]) {
+  bool switchDownEvent = processSwitchEvent(2, enc3Debouncer, ENCODER3_SWITCH);
+  if (switchDownEvent) {
+  // controls::encoderSwitches[2] = 1 - enc3Debouncer.debounce(ENCODER3_SWITCH); 
+  // if (controls::encoderSwitches[2]) {
     switch(controlMode) {
       case CONTROLMODES::METAOSCMODE:
       {
@@ -894,9 +948,14 @@ void __isr encoder3_switch_callback() {
       }
       case CONTROLMODES::OSCMODE:
       {
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+
         controlMode = CONTROLMODES::TUNINGMODE;
         display.setScreen(portal::SCREENMODES::TUNING);
         display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
+  
+        spin_unlock(displaySpinlock, save);
+
         break;
       }
       case CONTROLMODES::CALIBRATEMODE:
@@ -958,6 +1017,7 @@ void setup() {
   // while(!Serial) {}
 
   calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
+  displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
 
   display.setCalibScreenTitle(MYRIAD_VERSION);
@@ -1074,8 +1134,13 @@ void __not_in_flash_func(loop)() {
   }
   
   if (now - displayTS >= 39) {
+    uint32_t save = spin_lock_blocking(displaySpinlock);  
+
     display.update();
     displayTS = now;
+  
+    spin_unlock(displaySpinlock, save);
+
   }
 
   if (now - ocmTS >= 31) {

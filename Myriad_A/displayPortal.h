@@ -93,13 +93,13 @@ public:
   void update() {
     // Serial.println("update");
     bool redraw = nextState.redraw;
-    if (!redraw) {
-      if(nextState.screenMode != currState.screenMode) {
-        redraw = true;
-      }
-    }else{
-      nextState.redraw = false;
-    }
+    // if (!redraw) {
+    //   if(nextState.screenMode != currState.screenMode) {
+    //     redraw = true;
+    //   }
+    // }else{
+    //   nextState.redraw = false;
+    // }
     switch(nextState.screenMode) {
       case SCREENMODES::OSCBANKS:
       {
@@ -124,10 +124,12 @@ public:
 
     }
     currState = nextState;
+    nextState.redraw = false;
   }
 
   void setScreen(SCREENMODES newMode) {
     nextState.screenMode = newMode;
+    nextState.redraw = true;
   }
 
   void setModTarget(MODTARGETS target) {

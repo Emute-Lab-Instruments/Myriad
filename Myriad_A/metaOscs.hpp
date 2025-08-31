@@ -443,10 +443,10 @@ public:
       if (pastStates.size() > 85) {
         pastStates.pop_front();
       }
-      for(size_t i=0; i < 3; i++) {
-        Serial.printf("%f, ", state[i]);
-      }  
-      Serial.println();
+      // for(size_t i=0; i < 3; i++) {
+      //   Serial.printf("%f, ", state[i]);
+      // }  
+      // Serial.println();
       //position
       mods[0] = state[0] * 0.1 * this->moddepth.getValue();
       mods[1] = state[1] * 0.1 * this->moddepth.getValue();
@@ -479,7 +479,7 @@ public:
       point p;
       p.x = 120.f + (state[1] * 4.f);
       p.y = 20.f + (state[2] * 3.5f);
-      Serial.printf("projected point: %f, %f\n", p.x, p.y);
+      // Serial.printf("projected point: %f, %f\n", p.x, p.y);
       return p;
     }
 
