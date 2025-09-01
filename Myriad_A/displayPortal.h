@@ -66,9 +66,12 @@ public:
     bool redraw=false; //override and redraw anyway
   };
 
-  // TFT_eSprite iconX = TFT_eSprite(&tft);
-  // TFT_eSprite iconY = TFT_eSprite(&tft);
-  // TFT_eSprite iconZ = TFT_eSprite(&tft);
+  TFT_eSprite iconXPush = TFT_eSprite(&tft);
+  TFT_eSprite iconYPush = TFT_eSprite(&tft);
+  TFT_eSprite iconZPush = TFT_eSprite(&tft);
+  TFT_eSprite iconXTurn = TFT_eSprite(&tft);
+  TFT_eSprite iconYTurn = TFT_eSprite(&tft);
+  TFT_eSprite iconZTurn = TFT_eSprite(&tft);
   TFT_eSprite icon = TFT_eSprite(&tft);
 
   using eSpritePtr = std::shared_ptr<TFT_eSprite>;
@@ -89,16 +92,18 @@ public:
 
   displayPortal() {
     //create icons etc
-    // TFT_eSprite* icons[] = {&iconX, &iconY, &iconZ};
-    // String iconChars[] = {"X","Y","Z"};
-    // for(size_t i=0; i < 3; i++) {
-    //   icons[i]->createSprite(17,14);
-    //   icons[i]->fillRect(0,0,17,14, TFT_RED);
-    //   icons[i]->setFreeFont(&FreeSansBold9pt7b);
-    //   icons[i]->setTextColor(TFT_BLACK, TFT_SILVER);
-    //   icons[i]->drawString(iconChars[i],0,0);
-    //   icons[i]->setPivot(8, 110);
-    // }
+    TFT_eSprite* icons[] = {&iconXPush, &iconYPush, &iconZPush};
+    String iconChars[] = {"X","Y","Z"};
+    for(size_t i=0; i < 3; i++) {
+      icons[i]->createSprite(13,9);
+      icons[i]->fillSprite(ELI_BLUE);
+      icons[i]->setTextFont(1);
+      icons[i]->setTextDatum(CC_DATUM);
+      icons[i]->setTextColor(TFT_SILVER, ELI_BLUE);
+      icons[i]->drawString(iconChars[i],9,4);
+      icons[i]->drawLine(3,0,3,8, TFT_SILVER);
+      icons[i]->drawLine(0,8,5,8, TFT_SILVER);
+    }
     // icon.createSprite(20,20);
 
     // tft.setPivot(120,120);
@@ -106,6 +111,9 @@ public:
   }
 
   void init(std::vector<String> &oscModelIDs) {
+
+      
+
 
     iconDrawFunctions["saw"] = [](eSpritePtr& sprite, int col) {
         // sprite->fillSprite(TFT_RED);
@@ -775,9 +783,18 @@ private:
   }
 
   void drawUtilityScreen(const UtilScreenStates &currState, const UtilScreenStates &nextState, const bool fullRedraw) {
-    Serial.println("draw util");
     if (fullRedraw) {
-      tft.fillRect(0,0,240,240,TFT_PURPLE);
+      tft.fillRect(0,0,240,240,ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString("Utility", 120,20);
+      tft.drawString("Save State", 120,100);
+      tft.drawString("Exit", 120,140);
+
+      iconZPush.pushSprite(114,82);
+      iconXPush.pushSprite(114,122);
+
+
     }
   }
 
