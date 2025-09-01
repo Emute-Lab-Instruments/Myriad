@@ -93,16 +93,27 @@ public:
   displayPortal() {
     //create icons etc
     TFT_eSprite* icons[] = {&iconXPush, &iconYPush, &iconZPush};
+    TFT_eSprite* iconsturn[] = {&iconXTurn, &iconYTurn, &iconZTurn};
     String iconChars[] = {"X","Y","Z"};
     for(size_t i=0; i < 3; i++) {
-      icons[i]->createSprite(13,9);
+      icons[i]->createSprite(11,9);
       icons[i]->fillSprite(ELI_BLUE);
       icons[i]->setTextFont(1);
       icons[i]->setTextDatum(CC_DATUM);
       icons[i]->setTextColor(TFT_SILVER, ELI_BLUE);
-      icons[i]->drawString(iconChars[i],9,4);
-      icons[i]->drawLine(3,0,3,8, TFT_SILVER);
-      icons[i]->drawLine(0,8,5,8, TFT_SILVER);
+      icons[i]->drawString(iconChars[i],6,4);
+      // icons[i]->drawLine(3,0,3,8, TFT_SILVER);
+      icons[i]->drawLine(0,8,10,8, TFT_SILVER);
+      icons[i]->drawLine(0,8,0,6, TFT_SILVER);
+      icons[i]->drawLine(10,8,10,6, TFT_SILVER);
+
+      iconsturn[i]->createSprite(15,15);
+      iconsturn[i]->fillSprite(ELI_BLUE);
+      iconsturn[i]->setTextFont(1);
+      iconsturn[i]->setTextDatum(CC_DATUM);
+      iconsturn[i]->setTextColor(TFT_SILVER, ELI_BLUE);
+      iconsturn[i]->drawString(iconChars[i],8,8);
+      iconsturn[i]->drawCircle(7,7, 7, TFT_SILVER);
     }
     // icon.createSprite(20,20);
 
@@ -458,11 +469,11 @@ private:
     // tft.setPivot(120,120);
     for(size_t i=0; i < 3; i++) {
       if (fullRedraw || currState.oscModel[i] != nextState.oscModel[i]) {
-      icon.fillSprite(TFT_RED);
-      icon.setTextFont(2);
-      icon.setTextColor(TFT_BLACK);
-      icon.drawString("X",0,0);
-      icon.setPivot(8, 120);
+        icon.fillSprite(TFT_RED);
+        icon.setTextFont(2);
+        icon.setTextColor(TFT_BLACK);
+        icon.drawString("X",0,0);
+        icon.setPivot(8, 120);
     // // icon.pushSprite(bankTxtX[i]-20, bankTxtY[i]);
       // icon.pushRotated(120, TFT_BLACK);
 
@@ -488,9 +499,33 @@ private:
         // icon.pushRotated(120, TFT_BLACK);
         // // icon.deleteSprite();
 
-        tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE,  ELI_BLUE);
+        iconYPush.pushSprite(105,218);
+        tft.setTextFont(1);
+        tft.setTextColor(TFT_SILVER);
+        tft.drawString("mod",130,224);
+
+        iconXTurn.pushSprite(120-101,120+21);
+        iconYTurn.pushSprite(92,18);
+        iconZTurn.pushSprite(120+95, 120+21);
+
+        tft.drawArc(120,120,120,115,(i*120), (i+1) * 120, ELI_BLUE, ELI_BLUE);
+        // tft.drawArc(120,120,120,119,(i*120), (i+1) * 120, bankColArray[i],  bankColArray[i]);
         size_t colour = colours.at(nextState.oscModel[i] % colours.size());
         tft.drawArc(120,120,120,115,(i*120) + (nextState.oscModel[i] * angleRange), (i* 120) + ((nextState.oscModel[i]+1) * angleRange), colour,  colour);
+
+        // tft.drawArc(120,120,120,110, (i*120)-1,(i*120)+1, ELI_PINK, ELI_PINK);
+        // float pos = (i*120) - 30.f;
+        // if (pos < 0.f) pos += 360.f;
+        // pos = pos / 360.f * TWOPI;
+        // const float cospos = sineTable::fast_cos(pos);
+        // const float sinpos = sineTable::fast_sin(pos);
+        // // Serial.printf("%f %f %f", pos, cospos, sinpos);
+        // const size_t cx = 120+ (120.f * cospos);
+        // const size_t cy = 120+ (120.f * sinpos);
+        // const size_t cx2 = 120+ (110.f * cospos);
+        // const size_t cy2 = 120+ (110.f * sinpos);
+        // tft.drawLine(cx, cy, cx2, cy2, ELI_PINK);
+
       }
     }
 }
@@ -506,6 +541,10 @@ private:
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString(nextState.ptr->getName(), 120, 26);
+        // iconXTurn.pushSprite(120-20,120-110);
+        // iconYTurn.pushSprite(120,116);
+        // iconZTurn.pushSprite(120+20, 120-110);
+
     }
     constexpr float innerArc = 117;
     if (fullRedraw || currState.moddepth != nextState.moddepth) {
@@ -552,9 +591,10 @@ private:
           break;
         }
       }
-      tft.setFreeFont(&FreeMonoBold9pt7b);
-      tft.setTextColor(TFT_DARKGREEN, TFT_LIGHTGREY);
-      tft.drawString("Z", 170, 210);
+      // tft.setFreeFont(&FreeMonoBold9pt7b);
+      // tft.setTextColor(TFT_DARKGREEN, TFT_LIGHTGREY);
+      // tft.drawString("Z", 170, 210);
+      iconZPush.pushSprite(170,210);
 
     }
 
