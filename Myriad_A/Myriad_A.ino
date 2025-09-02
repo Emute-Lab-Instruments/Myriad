@@ -127,6 +127,7 @@ smBitStreamOsc FAST_MEM smOsc2;
 volatile bool FAST_MEM oscsRunning = false;
 static spin_lock_t FAST_MEM *calcOscsSpinlock;
 static spin_lock_t FAST_MEM *displaySpinlock;
+static spin_lock_t FAST_MEM *adcSpinlock;
 
 void startOscBankA() {
 
@@ -292,12 +293,17 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float v
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  return std::max(0.f,(controlValues[adcIndex] - (CalibrationSettings::adcMins[adcIndex]))) * CalibrationSettings::adcRangesInv[adcIndex];
+  uint32_t save = spin_lock_blocking(adcSpinlock);  
+  auto val = std::max(0.f,(controlValues[adcIndex] - (CalibrationSettings::adcMins[adcIndex]))) * CalibrationSettings::adcRangesInv[adcIndex];
+  spin_unlock(adcSpinlock, save);
+  return val;
 }
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   if (currMetaMod > 0) {
+    uint32_t save = spin_lock_blocking(adcSpinlock);  
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    spin_unlock(adcSpinlock, save);
   }
   return true;
 }
@@ -330,11 +336,13 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
     // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
     // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
     // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+    uint32_t save = spin_lock_blocking(adcSpinlock);  
     controlValues[0] = adcAccumulator0;
     controlValues[1] = adcAccumulator1;
     controlValues[2] = adcAccumulator2;
     controlValues[3] = adcAccumulator3;
     adcReadyFlag = true;
+    spin_unlock(adcSpinlock, save);
   }
   // else{
   //   return true;
@@ -347,7 +355,9 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 void __not_in_flash_func(processAdc)() {
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
+
     for(size_t i=0; i < 4; i++) {
+      uint32_t save = spin_lock_blocking(adcSpinlock);  
       if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
         CalibrationSettings::adcMins[i] = controlValues[i]+1;
       }
@@ -356,6 +366,7 @@ void __not_in_flash_func(processAdc)() {
       }
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+      spin_unlock(adcSpinlock, save);
     }
     display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
@@ -364,7 +375,10 @@ void __not_in_flash_func(processAdc)() {
   
 
   // size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
+  uint32_t save = spin_lock_blocking(adcSpinlock);  
   size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
+  spin_unlock(adcSpinlock, save);
+
   if (octaveIdx != lastOctaveIdx) {
     lastOctaveIdx = octaveIdx;
     switch(octaveIdx) {
@@ -1092,6 +1106,7 @@ void setup() {
 
   calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
   displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
+  adcSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
 
   CalibrationSettings::load();

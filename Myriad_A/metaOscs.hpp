@@ -63,7 +63,7 @@ public:
     BoundedEncoderValue<float> moddepth;
     BoundedEncoderValue<float> modspeed;
 
-    virtual std::array<float, N> update(const float (&adcs)[4]) =0;    
+    virtual std::array<float, N> update(const float (adcs)[4]) =0;    
 
     void setDepth(float delta) {
         Serial.println("base class set depth");
@@ -102,7 +102,7 @@ public:
     String getName() override {return "no modulation";}
 
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
         return vals;
     }
 
@@ -135,7 +135,7 @@ public:
     String getName() override {return "sines";}
 
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
             sines[i] = sinf(phasors[i]) * this->moddepth.getValue();
             phasors[i] += this->modspeed.getValue();
@@ -187,7 +187,7 @@ public:
     String getName() override {return "speedy sines";}
 
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
             sines[i] = sinf(phasors[i] * (i+1)) * this->moddepth.getValue();
             phasors[i] += this->modspeed.getValue();
@@ -235,7 +235,7 @@ public:
 
     String getName() override {return "neural net";}
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
       // Serial.printf("nn ph %f %d\n",phasor, clockCount);
       if (clockCount == 0) {
         std::vector<float> netInput {sin(phasor),adcs[0] * adcMul,adcs[1] * adcMul,adcs[2] * adcMul,adcs[3] * adcMul,1.f};
@@ -328,7 +328,7 @@ public:
 
 
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float adcs[4]) override {
         for(size_t i=0; i < N; i++) {
 
           //random walk
@@ -433,7 +433,7 @@ public:
       dt = (this->modspeed.getValue()*0.07f) + 0.001f;
     }
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
       // sigma = 10.0 + (this->modspeed.getValue()*50.f);
       // rho = 27 + (this->modspeed.getValue()*10.f);
       // dt = (this->modspeed.getValue()*0.2) + 0.001;
@@ -656,7 +656,7 @@ public:
     }
 
 
-    std::array<float, N> update(const float (&adcs)[4]) override {
+    std::array<float, N> update(const float (adcs)[4]) override {
       centerX = 0;
       centerY = 0;
       for(auto &v: boids) {
