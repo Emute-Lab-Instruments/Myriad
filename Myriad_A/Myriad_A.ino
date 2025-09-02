@@ -382,25 +382,25 @@ void __not_in_flash_func(processAdc)() {
   if (octaveIdx != lastOctaveIdx) {
     lastOctaveIdx = octaveIdx;
     switch(octaveIdx) {
-      case 0:   {octaves = {1, 1,  1,    1,  1,  1,    1,  1,  1}; break;}
-      case 1:   {octaves = {0.5, 1,  1,    0.5,  1,  1,    0.5,  1,  1}; break;}
-      case 2:   {octaves = {0.5, 0.5,  1,    0.5,  0.5,  1,    0.5,  0.5,  1}; break;}
-      case 3:   {octaves = {0.25, 0.5,  1,    0.25,  0.5,  1,    0.25,  0.5,  1}; break;}
+      case 0:   {octaves = {1.0f, 1.0f,  1.0f,    1.0f,  1.0f,  1.0f,    1.0f,  1.0f,  1.0f}; break;}
+      case 1:   {octaves = {0.5f, 1.0f,  1.0f,    0.5f,  1.0f,  1.0f,    0.5f,  1.0f,  1.0f}; break;}
+      case 2:   {octaves = {0.5f, 0.5f,  1.0f,    0.5f,  0.5f,  1.0f,    0.5f,  0.5f,  1.0f}; break;}
+      case 3:   {octaves = {0.25f, 0.5f,  1.0f,    0.25f,  0.5f,  1.0f,    0.25f,  0.5f,  1.0f}; break;}
 
-      case 4:   {octaves = {0.25, 0.5,  2,    0.25,  0.5,  2,    0.25,  0.5,  2}; break;}
-      case 5:   {octaves = {0.25, 0.5,  4,    0.25,  0.5,  4,    0.25,  0.5,  4}; break;}
-      case 6:   {octaves = {0.25, 0.25,  4,    0.25,  0.25,  4,    0.25,  0.25,  4}; break;}
-      case 7:   {octaves = {0.5, 0.25,  4,    0.5,  0.25,  4,    0.5,  0.25,  4}; break;}
+      case 4:   {octaves = {0.25f, 0.5f,  2.0f,    0.25f,  0.5f,  2.0f,    0.25f,  0.5f,  2.0f}; break;}
+      case 5:   {octaves = {0.25f, 0.5f,  4.0f,    0.25f,  0.5f,  4.0f,    0.25f,  0.5f,  4.0f}; break;}
+      case 6:   {octaves = {0.25f, 0.25f,  4.0f,    0.25f,  0.25f,  4.0f,    0.25f,  0.25f,  4.0f}; break;}
+      case 7:   {octaves = {0.5f, 0.25f,  4.0f,    0.5f,  0.25f,  4.0f,    0.5f,  0.25f,  4.0f}; break;}
 
-      case 8:   {octaves = {0.25, 2,  4,    0.25,  2,  4,    0.25,  2,  4}; break;}
-      case 9:   {octaves = {0.25, 4,  4,    0.25,  4,  4,    0.25,  4,  4}; break;}
-      case 10:  {octaves = {0.5, 4,  4,    0.5,  4,  4,    0.25,  4,  4}; break;}
-      case 11:  {octaves = {1, 4,  4,    1,  4,  4,    1,  4,  4}; break;}
+      case 8:   {octaves = {0.25f, 2.0f,  4.0f,    0.25f,  2.0f,  4.0f,    0.25f,  2.0f,  4.0f}; break;}
+      case 9:   {octaves = {0.25f, 4.0f,  4.0f,    0.25f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
+      case 10:  {octaves = {0.5f, 4.0f,  4.0f,    0.5f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
+      case 11:  {octaves = {1.0f, 4.0f,  4.0f,    1.0f,  4.0f,  4.0f,    1.0f,  4.0f,  4.0f}; break;}
 
-      case 12:  {octaves = {2, 4,  4,    2,  4,  4,    2,  4,  4}; break;}
-      case 13:  {octaves = {2, 2,  4,    2,  2,  4,    2,  2,  4}; break;}
-      case 14:  {octaves = {1, 2,  4,    1,  2,  4,    1,  2,  4}; break;}
-      case 15:  {octaves = {1, 2,  2,    1,  2,  2,    1,  2,  2}; break;}
+      case 12:  {octaves = {2.0f, 4.0f,  4.0f,    2.0f,  4.0f,  4.0f,    2.0f,  4.0f,  4.0f}; break;}
+      case 13:  {octaves = {2.0f, 2.0f,  4.0f,    2.0f,  2.0f,  4.0f,    2.0f,  2.0f,  4.0f}; break;}
+      case 14:  {octaves = {1.0f, 2.0f,  4.0f,    1.0f,  2.0f,  4.0f,    1.0f,  2.0f,  4.0f}; break;}
+      case 15:  {octaves = {1.0f, 2.0f,  2.0f,    1.0f,  2.0f,  2.0f,    1.0f,  2.0f,  2.0f}; break;}
       default:;
     }
   }
@@ -421,6 +421,7 @@ void __not_in_flash_func(processAdc)() {
   
   //calc wavelenth
   float new_wavelen0 = 1.0f/freq * TuningSettings::baseWavelen; 
+  new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
 
   // static int printts = 0;
   // auto now = millis();
@@ -431,7 +432,7 @@ void __not_in_flash_func(processAdc)() {
 
   float detune = (adcMap(1) * 0.01f) * new_wavelen0;
   float acc = 1.f - (adcMap(1) * 0.02f);
-
+  
   float new_wavelen1 = (new_wavelen0 - detune) * acc;
   float new_wavelen2 = (new_wavelen1 - detune) * acc;
   float new_wavelen3 = (new_wavelen2 - detune) * acc;
@@ -443,6 +444,8 @@ void __not_in_flash_func(processAdc)() {
   float new_wavelen7 = (new_wavelen6 - detune) * acc;
   float new_wavelen8 = (new_wavelen7 - detune) * acc;
 
+  // float maxOctaveMul = floorf(TuningSettings::wavelenC1 / new_wavelen0);
+  //   Serial.println(maxOctaveMul);
 
   new_wavelen0 = new_wavelen0 * octaves[0];
   new_wavelen1 = new_wavelen1 * octaves[1];

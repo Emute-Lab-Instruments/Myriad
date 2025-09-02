@@ -11,6 +11,7 @@ namespace TuningSettings {
     constexpr float freqC0 = 8.1759375f;
     constexpr float freqC1 = freqC0*2.f;
     constexpr float wavelenC1 = sampleClock/freqC1; //start from C1
+    constexpr float wavelenC1Inv = 1.f/freqC1; //start from C1
 
     static TUNING_MEM int octaves=0;
     static TUNING_MEM int semitones=0;
@@ -20,6 +21,7 @@ namespace TuningSettings {
     //base frequency
     float TUNING_MEM baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
     float TUNING_MEM baseWavelen = sampleClock /baseFrequency;
+    float TUNING_MEM baseWavelenInv = 1.f/baseWavelen;
 
 
 
@@ -34,6 +36,8 @@ namespace TuningSettings {
         TuningSettings::adjustment = ((TuningSettings::octaves) + (TuningSettings::semitones * 1.f/12.f) + (TuningSettings::cents * 1.f/1200.f)); // 10 octaves
         baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
         baseWavelen = sampleClock  / baseFrequency;
+        baseWavelenInv = 1.f/baseWavelen;
+
     }
 
     static bool load() {
