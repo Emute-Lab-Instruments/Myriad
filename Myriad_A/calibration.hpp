@@ -4,8 +4,8 @@
 #define CALIBMEM __not_in_flash("calib")
 
 namespace CalibrationSettings {
-  static CALIBMEM size_t adcMins[4] = {50,50,50,50};
-  static CALIBMEM size_t adcMaxs[4] = {4080,4080,4080,4080};
+  static CALIBMEM size_t adcMins[4] = {99,99,99,99};
+  static CALIBMEM size_t adcMaxs[4] = {4050,4050,4050,4050};
   static CALIBMEM size_t adcRanges[4];
   static CALIBMEM float adcRangesInv[4];
 

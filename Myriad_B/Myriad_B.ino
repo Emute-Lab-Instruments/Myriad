@@ -26,6 +26,10 @@ bool core1_separate_stack = true;
 std::array<oscModelPtr, 3> currOscModels0;
 std::array<oscModelPtr, 3> currOscModels1;
 
+static spin_lock_t FAST_MEM *calcOscsSpinlock0;
+static spin_lock_t FAST_MEM *calcOscsSpinlock1;
+
+
 
 bool oscillatorsAreRunning = false;
 volatile bool FAST_MEM oscsReadyToStart=false;
@@ -337,13 +341,21 @@ inline void __not_in_flash_func(readUart)() {
               case BANK0:
               {
                 // Serial.println("bank0");
+                uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+
                 stopOscBankA();
+
+                dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
                 auto w1 = currOscModels0[0]->getWavelen();
                 auto w2 = currOscModels0[1]->getWavelen();
                 auto w3 = currOscModels0[2]->getWavelen();
 
                 assignOscModels0(decodeMsg.value);
+
+                currOscModels0[0]->reset();
+                currOscModels0[1]->reset();
+                currOscModels0[2]->reset();
 
                 currOscModels0[0]->setWavelen(w1);
                 currOscModels0[1]->setWavelen(w2);
@@ -358,17 +370,28 @@ inline void __not_in_flash_func(readUart)() {
                 calculateOscBuffers0();
 
                 startOscBankA();
+                spin_unlock(calcOscsSpinlock0, save);
+
               }
               break;
               case BANK1:
               {
-                // Serial.println("bank1");
+                // Serial.println("bank1");   
                 // // Serial.println(decodeMsg.value);
+                uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+
                 stopOscBankB();
+
+                dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
+
                 auto w1 = currOscModels1[0]->getWavelen();
                 auto w2 = currOscModels1[1]->getWavelen();
                 auto w3 = currOscModels1[2]->getWavelen();
                 assignOscModels1(decodeMsg.value);
+
+                currOscModels1[0]->reset();
+                currOscModels1[1]->reset();
+                currOscModels1[2]->reset();
 
                 currOscModels1[0]->setWavelen(w1);
                 currOscModels1[1]->setWavelen(w2);
@@ -383,6 +406,8 @@ inline void __not_in_flash_func(readUart)() {
                 calculateOscBuffers1();
 
                 startOscBankB();
+                spin_unlock(calcOscsSpinlock1, save);
+
               }
               break;
               default:
@@ -405,6 +430,7 @@ void startOscBankA() {
   pio_sm_config baseConfig = currOscModels0[0]->getBaseConfig(programOffset);
 
   const size_t modelClockDiv = currOscModels0[0]->getClockDiv();
+  Serial.printf("clockdiv: %d", modelClockDiv);
 
   smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, modelClockDiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
   Serial.println("init");
@@ -430,6 +456,10 @@ void stopOscBankA() {
   smOsc0.stop();
   smOsc1.stop();
   smOsc2.stop();
+
+  bufSent0 = false;
+  bufSent1 = false;
+  bufSent2 = false;
 }
 
 void startOscBankB() {
@@ -462,6 +492,11 @@ void stopOscBankB() {
   smOsc3.stop();
   smOsc4.stop();
   smOsc5.stop();
+
+  bufSent3 = false;
+  bufSent4 = false;
+  bufSent5 = false;
+
 }
 
 const size_t oscStartDelay = 200;
@@ -470,6 +505,9 @@ void setup() {
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, 0);
+
+  calcOscsSpinlock0 = spin_lock_init(spin_lock_claim_unused(true));
+
   // currOscModelBank0 = oscModel2;
   assignOscModels0(0);
 
@@ -497,19 +535,29 @@ void setup() {
 }
 
 
+size_t serialts=0;
 /* Fonction loop() */
 void __not_in_flash_func(loop)() {
   readUart();
   if (oscsRunning0) {
+    uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
     calculateOscBuffers0();
+    spin_unlock(calcOscsSpinlock0, save);
   }
 
+  auto now = millis();
+  if (now - serialts > 100) {
+    Serial.print(".");
+    serialts=now;
+  }
   // delay(1);
   // __wfi();
 }
 
 
 void setup1() {
+  calcOscsSpinlock1 = spin_lock_init(spin_lock_claim_unused(true));
+
 //  currOscModelBank1 = oscModel2;
   assignOscModels1(0);
 
@@ -526,6 +574,9 @@ void setup1() {
 
 void loop1() {
   if (oscsRunning1) {
+    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
     calculateOscBuffers1();
+    spin_unlock(calcOscsSpinlock1, save);
+
   }
 }

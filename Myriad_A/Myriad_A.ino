@@ -1,5 +1,4 @@
 #define MYRIAD_VERSION "1.0.0"
-// #define FIRMWARE_DATE "250625"
 
 #include <FS.h>
 #include <LittleFS.h>
@@ -39,7 +38,7 @@
 #include "tuning.hpp"
 #include "state.hpp"
 
-// #define SINGLEOSCILLATOR
+#define SINGLEOSCILLATOR
 
 
 bool core1_separate_stack = true;
@@ -214,7 +213,7 @@ ResponsiveFilter FAST_MEM adcRsFilters[4];
 static float __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
-static uint16_t __not_in_flash("mydata") capture_buf[16] __attribute__((aligned(2048)));
+static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
 
 static float __not_in_flash("mydata") octave0=1;
 static float __not_in_flash("mydata") octave1=1;
@@ -308,7 +307,7 @@ volatile bool FAST_MEM adcReadyFlag = false;
 
 static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
 static size_t __not_in_flash("adcData") adcCount = 0;
-static size_t __not_in_flash("adcData") adcAccumulator[4] = {0,0,0,0};
+static size_t __scratch_x("adc") adcAccumulator[4] = {0,0,0,0};
 
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 // bool __not_in_flash_func(adcProcessor)() {
@@ -317,16 +316,20 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   adcAccumulator[2] += capture_buf[2];
   adcAccumulator[3] += capture_buf[3];
   adcCount++;
-  if (adcCount == 256U) {
+  if (adcCount == 512U) {
     adcCount=0;
-    adcAccumulator[0] = adcAccumulator[0] >> 8U;
-    adcAccumulator[1] = adcAccumulator[1] >> 8U;
-    adcAccumulator[2] = adcAccumulator[2] >> 8U;
-    adcAccumulator[3] = adcAccumulator[3] >> 8U;
-    controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
-    controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
-    controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
-    controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+    adcAccumulator[0] = adcAccumulator[0] >> 9U;
+    adcAccumulator[1] = adcAccumulator[1] >> 9U;
+    adcAccumulator[2] = adcAccumulator[2] >> 9U;
+    adcAccumulator[3] = adcAccumulator[3] >> 9U;
+    // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
+    // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
+    // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
+    // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+    controlValues[0] = adcAccumulator[0];
+    controlValues[1] = adcAccumulator[1];
+    controlValues[2] = adcAccumulator[2];
+    controlValues[3] = adcAccumulator[3];
     adcReadyFlag = true;
   }
   // else{
@@ -335,15 +338,17 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
   return true;
 }
 
+
+
 void __not_in_flash_func(processAdc)() {
 
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
     for(size_t i=0; i < 4; i++) {
       if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
-        CalibrationSettings::adcMins[i] = controlValues[i];
+        CalibrationSettings::adcMins[i] = controlValues[i]+1;
       }
       if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
-        CalibrationSettings::adcMaxs[i] = controlValues[i];
+        CalibrationSettings::adcMaxs[i] = controlValues[i]-1;
       }
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
@@ -382,12 +387,29 @@ void __not_in_flash_func(processAdc)() {
     }
   }
 
-  constexpr float wavelen20hz = sampleClock/20.f;
-  constexpr float wavelenTesthz = sampleClock/0.01f;
+  
   float pitchCV = adcMap(0);
-  float freq = powf(2.f, (pitchCV * 10.f) + TuningSettings::adjustment); // 10 octaves
-  float new_wavelen0 = 1.0f/freq * wavelen20hz ; 
 
+  //quantise?
+  // constexpr float step = 0.1f / 5.f;
+  // constexpr float stepinv = 1.f/step;
+
+  // pitchCV = std::round(pitchCV * stepinv) * step;
+
+  
+  //exponential conversion
+  float freq = powf(2.f, (pitchCV * 10.f) ); 
+  
+  
+  //calc wavelenth
+  float new_wavelen0 = 1.0f/freq * TuningSettings::baseWavelen; 
+
+  static int printts = 0;
+  auto now = millis();
+  if (now - printts > 100) {
+    Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
+    printts = now;
+  }
   float detune = (adcMap(1) * 0.01f) * new_wavelen0;
   float acc = 1.f - (adcMap(1) * 0.02f);
 
@@ -793,7 +815,7 @@ encAccelData FAST_MEM enc3Accel;
 
 void __isr encoder3_callback() {
   auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[2];
-  Serial.printf("enc3 tsu %d\n", timeSinceSwitchUp);
+  // Serial.printf("enc3 tsu %d\n", timeSinceSwitchUp);
   if (!controls::encoderSwitches[2] && timeSinceSwitchUp > postSwitchUpPause)
   {  
     int change = read_rotary(enc3Code, enc3Store, ENCODER3_A_PIN, ENCODER3_B_PIN);
@@ -1068,6 +1090,7 @@ void setup() {
 
 
   CalibrationSettings::load();
+  // CalibrationSettings::init();
   TuningSettings::load();
   MyriadState::load();
 

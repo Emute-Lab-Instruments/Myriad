@@ -911,13 +911,13 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
       return bitbybit_program_get_default_config(offset);
     }
 
-    void reset() override {
-      oscillatorModel::reset();
-      phase = 0;
-      y = 0;
-      err0 = 0;
-      mul = 1;
-    }
+    // void reset() override {
+    //   oscillatorModel::reset();
+    //   phase = 0;
+    //   y = 0;
+    //   err0 = 0;
+    //   mul = 1;
+    // }
 
     String getIdentifier() override {
       return "trv10";
@@ -1064,14 +1064,14 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
       return bitbybit_program_get_default_config(offset);
     }
 
-    void reset() override {
-      oscillatorModel::reset();
-      phase = 0;
-      y = 0;
-      err0 = 0;
-      mul = 1;
-      lim=this->wavelen;
-    }
+    // void reset() override {
+    //   oscillatorModel::reset();
+    //   phase = 0;
+    //   y = 0;
+    //   err0 = 0;
+    //   mul = 1;
+    //   lim=this->wavelen;
+    // }
 
     String getIdentifier() override {
       return "sdt10";
@@ -1146,7 +1146,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
   public:
 
     pulseSDOscillatorModel() : oscillatorModel(){
-      loopLength=64;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -1172,6 +1172,35 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
         *(bufferA + i) = word;
 
       }
+      // const size_t wlen = this->wavelen;
+      // for (size_t i = 0; i < loopLength; ++i) {
+      //   size_t word=0U;
+      //   for(size_t bit=0U; bit < 32U; bit++) {
+      //     // if (phase>=wavelen) {
+      //     //   phase = 0U;
+      //     // }
+      //     const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
+      //     phase &= phasemask;
+      //     phase++;
+
+      //     size_t amp = phase;
+      //     // size_t amp = (phase * phaseMul) >> 15U;
+      //     // if (amp >= wavelen) {
+      //     //   amp = 0U; // wrap around
+      //     // }
+      //     const size_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+      //     amp &= mask;
+
+      //     const bool y = amp >= err0 ? 1 : 0;
+      //     err0 = (y ? wlen : 0) - amp + err0;
+
+      //     word |= (y << bit);
+
+      //   }
+      //   // word = word << 1U;
+      //   *(bufferA + i) = word;
+
+      // }
 
     }
 
@@ -1186,13 +1215,13 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
       return bitbybit_program_get_default_config(offset);
     }
 
-    void reset() override {
-      oscillatorModel::reset();
-      phase = 0;
-      y = 0;
-      err0 = 0;
-      ctrl(0.5f);
-    }
+    // void reset() override {
+    //   oscillatorModel::reset();
+    //   phase = 0;
+    //   y = 0;
+    //   err0 = 0;
+    //   ctrl(0.5f);
+    // }
 
     String getIdentifier() override {
       return "pulsesd";
@@ -1205,7 +1234,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
     int err0=0;
 
     float pw=0.5f;
-    size_t pulselen=100;
+    size_t pulselen=10000;
 
 };
 

@@ -1,13 +1,28 @@
 #ifndef MYRIAD_A_TUNING_HPP
 #define MYRIAD_A_TUNING_HPP
 
-#define TUNING_MEM __not_in_flash("tuningdata")
+#define TUNING_MEM __scratch_x("tuningdata")
+
+#include "clockfreq.h"
+
 
 namespace TuningSettings {
+    constexpr float wavelen20hz = sampleClock/20.f;
+    constexpr float freqC0 = 8.1759375f;
+    constexpr float freqC1 = freqC0*2.f;
+    constexpr float wavelenC1 = sampleClock/freqC1; //start from C1
+
     static TUNING_MEM int octaves=0;
     static TUNING_MEM int semitones=0;
     static TUNING_MEM int cents=0;
     static TUNING_MEM float adjustment = 0.0f;
+
+    //base frequency
+    float TUNING_MEM baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
+    float TUNING_MEM baseWavelen = sampleClock /baseFrequency;
+
+
+
     
     const char* TUNING_FILE = "/tuning.json";
 
@@ -16,7 +31,9 @@ namespace TuningSettings {
      * This method recalculates the adjustment value based on octaves, semitones, and cents.
      */
     void update() {
-      TuningSettings::adjustment = ((TuningSettings::octaves * 0.1f) + (TuningSettings::semitones * 0.1f * 1/12.f) + (TuningSettings::cents * 0.0001f)) * 10.f; // 10 octaves
+        TuningSettings::adjustment = ((TuningSettings::octaves) + (TuningSettings::semitones * 1.f/12.f) + (TuningSettings::cents * 1.f/1200.f)); // 10 octaves
+        baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
+        baseWavelen = sampleClock  / baseFrequency;
     }
 
     static bool load() {
