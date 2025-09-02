@@ -210,7 +210,7 @@ namespace controls {
 // MedianFilter<float> FAST_MEM adcMedians[4];
 ResponsiveFilter FAST_MEM adcRsFilters[4];
 
-static float __not_in_flash("mydata") controlValues[4] = {0,0,0,0};
+static float __scratch_x("adc") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
@@ -306,30 +306,34 @@ size_t FAST_MEM msgCt=0;
 volatile bool FAST_MEM adcReadyFlag = false;
 
 static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
-static size_t __not_in_flash("adcData") adcCount = 0;
-static size_t __scratch_x("adc") adcAccumulator[4] = {0,0,0,0};
+static size_t __scratch_x("adc") adcCount = 0;
+// static size_t __scratch_x("adc") adcAccumulator[4] = {0,0,0,0};
+static size_t __scratch_x("adc") adcAccumulator0=0;
+static size_t __scratch_x("adc") adcAccumulator1=0;
+static size_t __scratch_x("adc") adcAccumulator2=0;
+static size_t __scratch_x("adc") adcAccumulator3=0;
 
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 // bool __not_in_flash_func(adcProcessor)() {
-  adcAccumulator[0] += capture_buf[0];
-  adcAccumulator[1] += capture_buf[1];
-  adcAccumulator[2] += capture_buf[2];
-  adcAccumulator[3] += capture_buf[3];
+  adcAccumulator0 += capture_buf[0];
+  adcAccumulator1 += capture_buf[1];
+  adcAccumulator2 += capture_buf[2];
+  adcAccumulator3 += capture_buf[3];
   adcCount++;
   if (adcCount == 512U) {
     adcCount=0;
-    adcAccumulator[0] = adcAccumulator[0] >> 9U;
-    adcAccumulator[1] = adcAccumulator[1] >> 9U;
-    adcAccumulator[2] = adcAccumulator[2] >> 9U;
-    adcAccumulator[3] = adcAccumulator[3] >> 9U;
+    adcAccumulator0 = adcAccumulator0 >> 9U;
+    adcAccumulator1 = adcAccumulator1 >> 9U;
+    adcAccumulator2 = adcAccumulator2 >> 9U;
+    adcAccumulator3 = adcAccumulator3 >> 9U;
     // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
     // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
     // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
     // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
-    controlValues[0] = adcAccumulator[0];
-    controlValues[1] = adcAccumulator[1];
-    controlValues[2] = adcAccumulator[2];
-    controlValues[3] = adcAccumulator[3];
+    controlValues[0] = adcAccumulator0;
+    controlValues[1] = adcAccumulator1;
+    controlValues[2] = adcAccumulator2;
+    controlValues[3] = adcAccumulator3;
     adcReadyFlag = true;
   }
   // else{
@@ -353,7 +357,7 @@ void __not_in_flash_func(processAdc)() {
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
     }
-    display.setCalibADCValues(adcAccumulator[0], adcAccumulator[1], adcAccumulator[2], adcAccumulator[3]);
+    display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
     display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
   }
@@ -404,12 +408,13 @@ void __not_in_flash_func(processAdc)() {
   //calc wavelenth
   float new_wavelen0 = 1.0f/freq * TuningSettings::baseWavelen; 
 
-  static int printts = 0;
-  auto now = millis();
-  if (now - printts > 100) {
-    Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
-    printts = now;
-  }
+  // static int printts = 0;
+  // auto now = millis();
+  // if (now - printts > 100) {
+  //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
+  //   printts = now;
+  // }
+
   float detune = (adcMap(1) * 0.01f) * new_wavelen0;
   float acc = 1.f - (adcMap(1) * 0.02f);
 
