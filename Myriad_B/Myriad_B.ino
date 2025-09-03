@@ -43,15 +43,17 @@ DEFINE_TIMING_SWAPBUFFERS(3)
 DEFINE_TIMING_SWAPBUFFERS(4)
 DEFINE_TIMING_SWAPBUFFERS(5)
 
+#define CORE0_FAST_MEM __scratch_x("myriad")
+#define CORE1_FAST_MEM __scratch_y("myriad")
 
-uint32_t FAST_MEM smOsc0_dma_chan;
-uint32_t FAST_MEM smOsc0_dma_chan_bit;
+uint32_t CORE0_FAST_MEM smOsc0_dma_chan;
+uint32_t CORE0_FAST_MEM smOsc0_dma_chan_bit;
 
-uint32_t FAST_MEM smOsc1_dma_chan;
-uint32_t FAST_MEM smOsc1_dma_chan_bit;
+uint32_t CORE0_FAST_MEM smOsc1_dma_chan;
+uint32_t CORE0_FAST_MEM smOsc1_dma_chan_bit;
 
-uint32_t FAST_MEM smOsc2_dma_chan;
-uint32_t FAST_MEM smOsc2_dma_chan_bit;
+uint32_t CORE0_FAST_MEM smOsc2_dma_chan;
+uint32_t CORE0_FAST_MEM smOsc2_dma_chan_bit;
 
 volatile bool FAST_MEM bufSent0 = false;
 volatile bool FAST_MEM bufSent1 = false;
@@ -90,14 +92,12 @@ smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
 
 
-uint32_t volatile FAST_MEM smOsc3_dma_chan;
-uint32_t volatile FAST_MEM smOsc3_dma_chan_bit;
-
-uint32_t volatile FAST_MEM smOsc4_dma_chan;
-uint32_t volatile FAST_MEM smOsc4_dma_chan_bit;
-
-uint32_t volatile FAST_MEM smOsc5_dma_chan;
-uint32_t volatile FAST_MEM smOsc5_dma_chan_bit;
+uint32_t CORE1_FAST_MEM smOsc3_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc3_dma_chan_bit;
+uint32_t CORE1_FAST_MEM smOsc4_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc4_dma_chan_bit;
+uint32_t CORE1_FAST_MEM smOsc5_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc5_dma_chan_bit;
 
 volatile bool FAST_MEM oscsRunning0 = false;
 volatile bool FAST_MEM oscsRunning1 = false;

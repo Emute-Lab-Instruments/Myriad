@@ -38,7 +38,7 @@
 #include "tuning.hpp"
 #include "state.hpp"
 
-#define SINGLEOSCILLATOR
+// #define SINGLEOSCILLATOR
 
 
 bool core1_separate_stack = true;
@@ -79,14 +79,16 @@ DEFINE_TIMING_SWAPBUFFERS(0)
 DEFINE_TIMING_SWAPBUFFERS(1)
 DEFINE_TIMING_SWAPBUFFERS(2)
 
-uint32_t FAST_MEM smOsc0_dma_chan;
-uint32_t FAST_MEM smOsc0_dma_chan_bit;
+#define CORE1_FAST_MEM __scratch_y("myriad")
 
-uint32_t FAST_MEM smOsc1_dma_chan;
-uint32_t FAST_MEM smOsc1_dma_chan_bit;
+uint32_t CORE1_FAST_MEM smOsc0_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc0_dma_chan_bit;
 
-uint32_t FAST_MEM smOsc2_dma_chan;
-uint32_t FAST_MEM smOsc2_dma_chan_bit;
+uint32_t CORE1_FAST_MEM smOsc1_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc1_dma_chan_bit;
+
+uint32_t CORE1_FAST_MEM smOsc2_dma_chan;
+uint32_t CORE1_FAST_MEM smOsc2_dma_chan_bit;
 
 volatile bool FAST_MEM bufSent0 = false;
 volatile bool FAST_MEM bufSent1 = false;
