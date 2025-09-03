@@ -16,7 +16,7 @@ TFT_eSPI __not_in_flash("display") tft = TFT_eSPI();  // Invoke custom library
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY, QUANTISE};
 
   // std::vector<oscDisplayModes*> oscvis;
 
@@ -41,6 +41,11 @@ public:
     int finetune=0;
   };
 
+  struct QuantiseScreenStates {
+    size_t pull=0;
+    size_t notesperoct=0;
+  };
+
   struct UtilScreenStates {
     int dummy=0;
   };
@@ -63,6 +68,7 @@ public:
     CalibrationScreenStates calibrationScreenState;
     TuningScreenStates tuningState;
     UtilScreenStates utilityState;
+    QuantiseScreenStates quantiseState;
     bool redraw=false; //override and redraw anyway
   };
 
@@ -291,6 +297,11 @@ public:
         drawTuningScreen(currState.tuningState, nextState.tuningState, redraw);
         break;
       }
+      case SCREENMODES::QUANTISE:
+      {
+        drawQuantiseScreen(currState.quantiseState, nextState.quantiseState, redraw);
+        break;
+      }
       case SCREENMODES::CALIBRATE:
       {
         drawCalibrationScreen(currState.calibrationScreenState, nextState.calibrationScreenState, redraw);
@@ -382,6 +393,11 @@ public:
     nextState.tuningState.octtune = oct;
     nextState.tuningState.semitonetune = semi;
     nextState.tuningState.finetune = fine;
+  }
+
+  void setQuant(size_t pull, size_t notes) {
+    nextState.quantiseState.pull = pull;
+    nextState.quantiseState.notesperoct = notes;
   }
 
   void setFreeHeap(int freeMem) {
@@ -792,13 +808,24 @@ private:
       tft.setTextDatum(CC_DATUM);
       tft.drawString("Tuning", 120, 26);
       tft.setTextDatum(TR_DATUM);
+      iconXTurn.pushSprite(170,65);
       tft.drawString("Oct", 70, 70);
+      iconYTurn.pushSprite(170,115);
       tft.drawString("Semi", 70, 120);
+      iconZTurn.pushSprite(170,165);
       tft.drawString("Fine", 70, 170);
+
+      tft.setTextFont(1);
+      tft.setTextColor(TFT_SILVER, ELI_BLUE);
+      tft.setTextDatum(CC_DATUM);
+      iconYPush.pushSprite(75,205);
+      tft.drawString("Quantise", 120,210);
+      iconZPush.pushSprite(85,220);
+      tft.drawString("Exit", 120,225);
     }
     if (fullRedraw || currState.octtune != nextState.octtune) {
       const int TLY=70;
-      tft.fillRect(90,TLY-20,100,40, ELI_BLUE);
+      tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
@@ -806,7 +833,7 @@ private:
     }
     if (fullRedraw || currState.semitonetune != nextState.semitonetune) {
       const int TLY=120;
-      tft.fillRect(90,TLY-20,100,40, ELI_BLUE);
+      tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
@@ -814,12 +841,61 @@ private:
     }
     if (fullRedraw || currState.finetune != nextState.finetune) {
       const int TLY=170;
-      tft.fillRect(90,TLY-20,190,40, ELI_BLUE);
+      tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
       tft.setTextColor(TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawNumber(nextState.finetune, 120, TLY);
     }
+  }
+
+  void drawQuantiseScreen(const QuantiseScreenStates &currState, const QuantiseScreenStates &nextState, const bool fullRedraw) {
+    if (fullRedraw) {
+      tft.fillScreen(ELI_BLUE);
+      tft.setTextColor(ELI_PINK, ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString("Quantise", 120, 26);
+      tft.setTextDatum(TR_DATUM);
+      iconXTurn.pushSprite(170,65);
+      tft.drawString("Pull", 70, 70);
+      iconYTurn.pushSprite(170,115);
+      tft.drawString("Notes", 70, 120);
+      // iconZTurn.pushSprite(170,165);
+      // tft.drawString("Fine", 70, 170);
+
+      tft.setTextFont(1);
+      tft.setTextColor(TFT_SILVER, ELI_BLUE);
+      tft.setTextDatum(CC_DATUM);
+      iconXPush.pushSprite(75,205);
+      tft.drawString("Tuning", 120,210);
+      iconZPush.pushSprite(85,220);
+      tft.drawString("Exit", 120,225);
+    }
+    if (fullRedraw || currState.pull != nextState.pull) {
+      const int TLY=70;
+      tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setFreeFont(&FreeMonoBold18pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawNumber(nextState.pull, 120, TLY);
+    }
+    if (fullRedraw || currState.notesperoct != nextState.notesperoct) {
+      const int TLY=120;
+      tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
+      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setFreeFont(&FreeMonoBold18pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawNumber(nextState.notesperoct, 120, TLY);
+    }
+    // if (fullRedraw || currState.finetune != nextState.finetune) {
+    //   const int TLY=170;
+    //   tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
+    //   tft.setTextColor(TFT_WHITE, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMonoBold18pt7b);
+    //   tft.setTextDatum(CC_DATUM);
+    //   tft.drawNumber(nextState.finetune, 120, TLY);
+    // }
   }
 
   void drawUtilityScreen(const UtilScreenStates &currState, const UtilScreenStates &nextState, const bool fullRedraw) {

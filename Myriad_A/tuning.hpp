@@ -23,6 +23,8 @@ namespace TuningSettings {
     float TUNING_MEM baseWavelen = sampleClock /baseFrequency;
     float TUNING_MEM baseWavelenInv = 1.f/baseWavelen;
 
+    float TUNING_MEM quantNotesPerOct = 12.f;
+    float TUNING_MEM quantPull = 0.f;
 
 
     

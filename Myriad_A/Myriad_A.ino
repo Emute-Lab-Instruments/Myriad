@@ -50,7 +50,7 @@ using portal = displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>;
 
 portal FAST_MEM display;
 
-enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE, UTILITYMODE} controlMode = CONTROLMODES::OSCMODE;
+enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE, UTILITYMODE, QUANTISESETTINGSMODE} controlMode = CONTROLMODES::OSCMODE;
 
 #define RUN_OSCS
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
@@ -413,10 +413,15 @@ void __not_in_flash_func(processAdc)() {
   //quantise?
   // constexpr float step = 0.1f / 5.f;
   // constexpr float stepinv = 1.f/step;
+  if (TuningSettings::quantPull > 0) {
+    float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
+    float quantStepInv = 1.f/quantStep;
+    float quantCV = std::round(pitchCV * quantStepInv) * quantStep;
+    float quantAlpha = TuningSettings::quantPull * 0.01f;
+    float diff = quantCV - pitchCV;
+    pitchCV = pitchCV + (diff * quantAlpha);
+  }
 
-  // pitchCV = std::round(pitchCV * stepinv) * step;
-
-  
   //exponential conversion
   float freq = powf(2.f, (pitchCV * 10.f) ); 
   
@@ -749,6 +754,20 @@ void __isr encoder1_callback() {
         updateTuning();
         break;
       }
+      case CONTROLMODES::QUANTISESETTINGSMODE:
+      {
+        auto newVal = TuningSettings::quantNotesPerOct + change;
+        if (newVal < 1) {
+          newVal = 1;
+        }
+        if (newVal > 39) {
+          newVal = 39;
+        }
+        TuningSettings::quantNotesPerOct = newVal;
+        display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
+
+        break;
+      }
     }
   }
 }
@@ -830,6 +849,21 @@ void __isr encoder2_callback() {
           updateTuning();
           break;
         }
+        case CONTROLMODES::QUANTISESETTINGSMODE:
+        {
+          int newVal = TuningSettings::quantPull + change;
+          if (newVal < 0) {
+            newVal = 0;
+          }
+          if (newVal > 100) {
+            newVal = 100;
+          }
+          TuningSettings::quantPull = static_cast<size_t>(newVal);
+          display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
+
+          break;
+        }
+
       }
     }
 }
@@ -919,20 +953,18 @@ bool __not_in_flash_func(processSwitchEvent)(size_t encoderIdx, debouncer &encDe
   return switchDownEvent;
 }
 
+void switchToTuningMode() {
+  uint32_t save = spin_lock_blocking(displaySpinlock);  
+
+  controlMode = CONTROLMODES::TUNINGMODE;
+  display.setScreen(portal::SCREENMODES::TUNING);
+  display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
+
+  spin_unlock(displaySpinlock, save);
+}
+
 //central
 void __isr encoder1_switch_callback() {
-
-  // auto currentState = controls::encoderSwitches[0];
-  // auto newState = 1 - enc1Debouncer.debounce(ENCODER1_SWITCH);  
-  // bool switchDownEvent = false;
-  // if (newState != currentState) {
-  //   controls::encoderSwitches[0] = newState;
-  //   if (newState == 1) {
-  //     switchDownEvent = true;
-  //   }else{
-  //     controls::encoderSwitchUPTS[0] = millis();
-  //   }
-  // }
 
   bool switchDownEvent = processSwitchEvent(0, enc1Debouncer, ENCODER1_SWITCH);
   if (switchDownEvent) {
@@ -959,6 +991,12 @@ void __isr encoder1_switch_callback() {
       }
       case CONTROLMODES::TUNINGMODE:
       {
+        TuningSettings::save();
+        uint32_t save = spin_lock_blocking(displaySpinlock);  
+        controlMode = CONTROLMODES::QUANTISESETTINGSMODE;
+        display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
+        display.setScreen(portal::SCREENMODES::QUANTISE);
+        spin_unlock(displaySpinlock, save);
         break;
       }
     }
@@ -989,6 +1027,11 @@ void __isr encoder2_switch_callback() {
         controlMode = CONTROLMODES::OSCMODE;
         switchToOSCMode();
         spin_unlock(displaySpinlock, save);
+        break;
+      }
+      case CONTROLMODES::QUANTISESETTINGSMODE:
+      {
+        switchToTuningMode();
         break;
       }
     }
@@ -1027,14 +1070,7 @@ void __isr encoder3_switch_callback() {
       }
       case CONTROLMODES::OSCMODE:
       {
-        uint32_t save = spin_lock_blocking(displaySpinlock);  
-
-        controlMode = CONTROLMODES::TUNINGMODE;
-        display.setScreen(portal::SCREENMODES::TUNING);
-        display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
-  
-        spin_unlock(displaySpinlock, save);
-
+        switchToTuningMode();
         break;
       }
       case CONTROLMODES::CALIBRATEMODE:
@@ -1044,6 +1080,12 @@ void __isr encoder3_switch_callback() {
       case CONTROLMODES::TUNINGMODE:
       {
         TuningSettings::save();
+        controlMode = CONTROLMODES::OSCMODE;
+        display.setScreen(portal::SCREENMODES::OSCBANKS);
+        break;
+      }
+      case CONTROLMODES::QUANTISESETTINGSMODE:
+      {
         controlMode = CONTROLMODES::OSCMODE;
         display.setScreen(portal::SCREENMODES::OSCBANKS);
         break;
