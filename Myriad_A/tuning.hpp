@@ -26,6 +26,11 @@ namespace TuningSettings {
     float TUNING_MEM quantNotesPerOct = 12.f;
     float TUNING_MEM quantPull = 0.f;
 
+    float TUNING_MEM quantStep = 0.1f / quantNotesPerOct;    
+    float TUNING_MEM quantStepInv = 1.f/quantStep;
+    float TUNING_MEM quantAlpha = quantPull * 0.01f;
+
+    bool TUNING_MEM bypass = false;
 
     
     const char* TUNING_FILE = "/tuning.json";
@@ -42,6 +47,12 @@ namespace TuningSettings {
 
     }
 
+    void updateQuant() {
+        quantStep = 0.1f / quantNotesPerOct;    
+        quantStepInv = 1.f/quantStep;
+        quantAlpha = quantPull * 0.01f;
+    }
+    
     static bool load() {
         if (!LittleFS.begin()) {
             Serial.println("Failed to mount LittleFS");
@@ -77,9 +88,13 @@ namespace TuningSettings {
         octaves = doc["octaves"] | octaves;
         semitones = doc["semitones"] | semitones;
         cents = doc["cents"] | cents;
+        quantNotesPerOct = doc["quantNotesPerOct"] | quantNotesPerOct;
+        quantPull = doc["quantPull"] | quantPull;
+        bypass = doc["bypass"] | bypass;
 
         Serial.println("Tuning loaded successfully");
         update();
+        updateQuant();
         return true;
     }
 
@@ -96,6 +111,9 @@ namespace TuningSettings {
         doc["octaves"] = octaves;
         doc["semitones"] = semitones;
         doc["cents"] = cents;
+        doc["quantNotesPerOct"] = quantNotesPerOct;
+        doc["quantPull"] = quantPull;
+        doc["bypass"] = bypass;
 
         // Open file for writing
         File file = LittleFS.open(TUNING_FILE, "w");

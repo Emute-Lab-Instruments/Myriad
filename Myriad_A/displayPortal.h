@@ -39,6 +39,7 @@ public:
     int octtune=0;
     int semitonetune=0;
     int finetune=0;
+    bool bypass=false;
   };
 
   struct QuantiseScreenStates {
@@ -393,6 +394,10 @@ public:
     nextState.tuningState.octtune = oct;
     nextState.tuningState.semitonetune = semi;
     nextState.tuningState.finetune = fine;
+  }
+
+  void setTuningBypass(bool val) {
+    nextState.tuningState.bypass = val;
   }
 
   void setQuant(size_t pull, size_t notes) {
@@ -801,48 +806,56 @@ private:
   }
 
   void drawTuningScreen(const TuningScreenStates &currState, const TuningScreenStates &nextState, const bool fullRedraw) {
-    if (fullRedraw) {
+    const bool bypassRedraw = currState.bypass != nextState.bypass;
+    if (fullRedraw || bypassRedraw) {
       tft.fillScreen(ELI_BLUE);
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
+
+      tft.setTextColor(nextState.bypass ? GREYED_OUT_COL : ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawString("Tuning", 120, 26);
       tft.setTextDatum(TR_DATUM);
       iconXTurn.pushSprite(170,65);
       tft.drawString("Oct", 70, 70);
-      iconYTurn.pushSprite(170,115);
-      tft.drawString("Semi", 70, 120);
-      iconZTurn.pushSprite(170,165);
-      tft.drawString("Fine", 70, 170);
+
+      iconYTurn.pushSprite(170,105);
+      tft.drawString("Semi", 70, 110);
+      
+      iconZTurn.pushSprite(170,145);
+      tft.drawString("Fine", 70, 150);
 
       tft.setTextFont(1);
       tft.setTextColor(TFT_SILVER, ELI_BLUE);
       tft.setTextDatum(CC_DATUM);
+
+      iconXPush.pushSprite(75,190);
+      tft.drawString("Bypass", 120,195);
+
       iconYPush.pushSprite(75,205);
       tft.drawString("Quantise", 120,210);
       iconZPush.pushSprite(85,220);
       tft.drawString("Exit", 120,225);
     }
-    if (fullRedraw || currState.octtune != nextState.octtune) {
+    if (fullRedraw || currState.octtune != nextState.octtune || bypassRedraw) {
       const int TLY=70;
       tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
-      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setTextColor(nextState.bypass ? GREYED_OUT_COL : TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawNumber(nextState.octtune, 120, TLY);
     }
-    if (fullRedraw || currState.semitonetune != nextState.semitonetune) {
-      const int TLY=120;
+    if (fullRedraw || currState.semitonetune != nextState.semitonetune || bypassRedraw) {
+      const int TLY=110;
       tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
-      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setTextColor(nextState.bypass ? GREYED_OUT_COL : TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawNumber(nextState.semitonetune, 120, TLY);
     }
-    if (fullRedraw || currState.finetune != nextState.finetune) {
-      const int TLY=170;
+    if (fullRedraw || currState.finetune != nextState.finetune || bypassRedraw) {
+      const int TLY=150;
       tft.fillRect(90,TLY-20,60,40, ELI_BLUE);
-      tft.setTextColor(TFT_WHITE, ELI_BLUE);
+      tft.setTextColor(nextState.bypass ? GREYED_OUT_COL : TFT_WHITE, ELI_BLUE);
       tft.setFreeFont(&FreeMonoBold18pt7b);
       tft.setTextDatum(CC_DATUM);
       tft.drawNumber(nextState.finetune, 120, TLY);

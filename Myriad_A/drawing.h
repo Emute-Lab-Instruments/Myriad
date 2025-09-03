@@ -9,6 +9,7 @@ constexpr uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b) {
 #define ELI_PINK 0xFC9F
 constexpr uint16_t ELI_PINK2 = rgbTo565(216, 180, 250);
 constexpr uint16_t ELI_PINK3 = rgbTo565(167, 122, 222);
+constexpr uint16_t GREYED_OUT_COL = rgbTo565(64,64,64);
 
 
 constexpr size_t sqhalfwidth=80;

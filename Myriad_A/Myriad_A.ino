@@ -413,13 +413,13 @@ void __not_in_flash_func(processAdc)() {
   //quantise?
   // constexpr float step = 0.1f / 5.f;
   // constexpr float stepinv = 1.f/step;
-  if (TuningSettings::quantPull > 0) {
-    float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
-    float quantStepInv = 1.f/quantStep;
-    float quantCV = std::round(pitchCV * quantStepInv) * quantStep;
-    float quantAlpha = TuningSettings::quantPull * 0.01f;
+  if (!TuningSettings::bypass && TuningSettings::quantPull > 0) {
+    // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
+    // float quantStepInv = 1.f/quantStep;
+    float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
+    // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
     float diff = quantCV - pitchCV;
-    pitchCV = pitchCV + (diff * quantAlpha);
+    pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
   }
 
   //exponential conversion
@@ -427,7 +427,8 @@ void __not_in_flash_func(processAdc)() {
   
   
   //calc wavelenth
-  float new_wavelen0 = 1.0f/freq * TuningSettings::baseWavelen; 
+  const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
+  float new_wavelen0 = 1.0f/freq * wvlen; 
   new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
 
   // static int printts = 0;
@@ -436,9 +437,11 @@ void __not_in_flash_func(processAdc)() {
   //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
   //   printts = now;
   // }
+  float detuneControl = adcMap(1);
+  detuneControl *= detuneControl; //exponential mapping
 
-  float detune = (adcMap(1) * 0.01f) * new_wavelen0;
-  float acc = 1.f - (adcMap(1) * 0.02f);
+  float detune = (detuneControl * 0.01f) * new_wavelen0;
+  float acc = 1.f - (detuneControl * 0.02f);
   
   float new_wavelen1 = (new_wavelen0 - detune) * acc;
   float new_wavelen2 = (new_wavelen1 - detune) * acc;
@@ -706,6 +709,7 @@ void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int c
 void updateTuning() {
   TuningSettings::update();
   display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
+  display.setTuningBypass(TuningSettings::bypass);
   // Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
 
@@ -764,6 +768,7 @@ void __isr encoder1_callback() {
           newVal = 39;
         }
         TuningSettings::quantNotesPerOct = newVal;
+        TuningSettings::updateQuant();
         display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
 
         break;
@@ -859,6 +864,7 @@ void __isr encoder2_callback() {
             newVal = 100;
           }
           TuningSettings::quantPull = static_cast<size_t>(newVal);
+          TuningSettings::updateQuant();
           display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
 
           break;
@@ -959,6 +965,7 @@ void switchToTuningMode() {
   controlMode = CONTROLMODES::TUNINGMODE;
   display.setScreen(portal::SCREENMODES::TUNING);
   display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
+  display.setTuningBypass(TuningSettings::bypass);
 
   spin_unlock(displaySpinlock, save);
 }
@@ -1031,7 +1038,14 @@ void __isr encoder2_switch_callback() {
       }
       case CONTROLMODES::QUANTISESETTINGSMODE:
       {
+        TuningSettings::save();
         switchToTuningMode();
+        break;
+      }
+      case CONTROLMODES::TUNINGMODE:
+      {
+        TuningSettings::bypass = !TuningSettings::bypass;
+        display.setTuningBypass(TuningSettings::bypass);
         break;
       }
     }
@@ -1086,6 +1100,7 @@ void __isr encoder3_switch_callback() {
       }
       case CONTROLMODES::QUANTISESETTINGSMODE:
       {
+        TuningSettings::save();
         controlMode = CONTROLMODES::OSCMODE;
         display.setScreen(portal::SCREENMODES::OSCBANKS);
         break;
