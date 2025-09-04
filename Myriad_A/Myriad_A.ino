@@ -370,7 +370,8 @@ void __not_in_flash_func(processAdc)() {
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
       spin_unlock(adcSpinlock, save);
     }
-    display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
+    // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
+    display.setCalibADCValues(0,0,0,0);
     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
     display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
   }
@@ -508,7 +509,7 @@ void __not_in_flash_func(processAdc)() {
   }
 
   if (msgCt == 100) {
-    // Serial.printf("%f \n", controlValues[0]);
+    Serial.printf("%f \n", ctrlVal0);
     // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
     Serial.print(".");
     msgCt=0;
@@ -1129,21 +1130,38 @@ void __isr encoder3_switch_callback() {
  
 }
 
+std::shared_ptr<metaOscMLP<N_OSCILLATORS>> isCurrentMetaOscMLP() {
+    if (currMetaMod >= metaOscsList.size()) {
+        return nullptr;
+    }
+    
+    auto ptr = metaOscsList.at(currMetaMod);
+    if (ptr->getType() == MetaOscType::MLP) {
+        return std::static_pointer_cast<metaOscMLP<N_OSCILLATORS>>(ptr);
+    }
+    return nullptr;    
+}
+
 void calibrate_button_callback() {
   controls::calibrateButton = 1 - calibrateButtonDebouncer.debounce(CALIBRATE_BUTTON); 
 
   if (controls::calibrateButton == 1) {
-    if (controlMode != CONTROLMODES::CALIBRATEMODE) {
-      controlMode = CONTROLMODES::CALIBRATEMODE;
-      //get free memory
-      int freeMem = rp2040.getFreeHeap();  
-      display.setFreeHeap(freeMem);
-      display.setScreen(portal::SCREENMODES::CALIBRATE);
+    auto mlpPtr = isCurrentMetaOscMLP();
+    if (mlpPtr != nullptr) {
+      mlpPtr->randomise();
+      Serial.println("Randomise");
     }else{
-      CalibrationSettings::save();
-      switchToOSCMode();
+      if (controlMode != CONTROLMODES::CALIBRATEMODE) {
+        controlMode = CONTROLMODES::CALIBRATEMODE;
+        //get free memory
+        int freeMem = rp2040.getFreeHeap();  
+        display.setFreeHeap(freeMem);
+        display.setScreen(portal::SCREENMODES::CALIBRATE);
+      }else{
+        CalibrationSettings::save();
+        switchToOSCMode();
+      }
     }
-
   }
 }
 

@@ -10,6 +10,17 @@
 
 enum MODTARGETS {PITCH, EPSILON, PITCH_AND_EPSILON} modTarget = MODTARGETS::PITCH;
 
+enum class MetaOscType {
+    NONE,
+    MLP, 
+    SINES,
+    SINES_F_MULTIPLE,
+    DRUNKEN_WALKERS,
+    LORENZ,
+    ROSSLER,
+    BOIDS,
+    AIZAWA
+};
 
 template <typename T>
 class BoundedEncoderValue {
@@ -63,10 +74,11 @@ public:
     BoundedEncoderValue<float> moddepth;
     BoundedEncoderValue<float> modspeed;
 
+    virtual MetaOscType getType() const = 0;
+
     virtual std::array<float, N> update(const float (adcs)[4]) =0;    
 
     void setDepth(float delta) {
-        Serial.println("base class set depth");
         moddepth.update(delta);
     }
 
@@ -101,6 +113,8 @@ public:
 
     String getName() override {return "no modulation";}
 
+    MetaOscType getType() const override { return MetaOscType::NONE; }
+
 
     std::array<float, N> update(const float (adcs)[4]) override {
         return vals;
@@ -134,6 +148,7 @@ public:
 
     String getName() override {return "sines";}
 
+    MetaOscType getType() const override { return MetaOscType::SINES; }
 
     std::array<float, N> update(const float (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
@@ -186,6 +201,7 @@ public:
 
     String getName() override {return "speedy sines";}
 
+    MetaOscType getType() const override { return MetaOscType::SINES_F_MULTIPLE; }
 
     std::array<float, N> update(const float (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
@@ -233,12 +249,19 @@ public:
       this->modspeed.setScale(0.001);
     }
 
+    MetaOscType getType() const override { return MetaOscType::MLP; }
+
+    void randomise() {
+      net->DrawWeights();
+    }
+
     String getName() override {return "neural net";}
 
     std::array<float, N> update(const float (adcs)[4]) override {
       // Serial.printf("nn ph %f %d\n",phasor, clockCount);
       if (clockCount == 0) {
-        std::vector<float> netInput {sin(phasor),adcs[0] * adcMul,adcs[1] * adcMul,adcs[2] * adcMul,adcs[3] * adcMul,1.f};
+        //send controls and phasor into the neural network
+        std::vector<float> netInput {sinf(phasor*3.f),adcs[0] * adcMul,adcs[1] * adcMul,adcs[2] * adcMul,adcs[3] * adcMul,1.f};
         for(size_t i=0; i < netInput.size(); i++) {
           netInput[i] *= this->moddepth.getValue();
         }
@@ -246,12 +269,13 @@ public:
         net->GetOutput(netInput, &output);
         phasor += this->modspeed.getValue();
         if (phasor > TWOPI) phasor -= TWOPI;
-        // Serial.println(netInput[0]);
-        // Serial.println(output[1]);
         std::copy(output.begin(), output.begin() + output.size(), arrOutput.begin());
-        // for(size_t i=0; i < N; i++) {
-        //   arrOutput[i] *= this->moddepth.getValue();
-        // }
+        for(size_t i=0; i < N; i++) {
+          arrOutput[i] -= 0.5f;
+          arrOutput[i] *= 0.1f;
+          // Serial.printf("%f\t",arrOutput[i]);
+        }
+        // Serial.println();
       }
       clockCount++;
       if (clockCount == clockDiv) {
@@ -274,7 +298,10 @@ public:
         const float barwidth=step * 0.5f;
         const float stepoffset = (step-barwidth) * 0.5f;
         for(size_t i=0; i < layerOutputs.size(); i++) {
-          const int32_t col = 32767 + (20000 * layerOutputs[i]);
+          // const int32_t col = 32767 + (20000 * layerOutputs[i]);
+          size_t colourIdx = static_cast<size_t>(layerOutputs[i] * 64.f);
+          colourIdx = std::min(colourIdx,63U);
+          const int16_t col = gradient_colors[colourIdx];
           const float left = sqbound + (step*i) + stepoffset;
           tft.fillRect(left,sqbound + (steph * i_layer) + barOffset,barwidth, barh, col);
         }
@@ -321,7 +348,7 @@ public:
     }
 
     String getName() override {return "drunk walkers";}
-
+    MetaOscType getType() const override { return MetaOscType::DRUNKEN_WALKERS; }
     size_t getTimerMS() override {
       return 5;
     }
@@ -396,6 +423,8 @@ public:
     }
 
     String getName() override {return "lorenz";}
+
+  MetaOscType getType() const override { return MetaOscType::LORENZ; }    
 
     size_t getTimerMS() override {
       return 5;
@@ -536,6 +565,8 @@ public:
 
     String getName() override {return "aizawa";}
 
+    MetaOscType getType() const override { return MetaOscType::AIZAWA; }    
+
     void iterate(const std::vector<float>& currstate, std::vector<float>& deriv) override {
         float x = currstate[0];
         float y = currstate[1];
@@ -580,6 +611,8 @@ public:
     }
 
     String getName() override {return "rossler";}
+
+    MetaOscType getType() const override { return MetaOscType::ROSSLER; }    
 
     void iterate(const std::vector<float>& currstate, std::vector<float>& deriv) override {
         float x = currstate[0];
@@ -648,6 +681,8 @@ public:
     }
 
     String getName() override {return "boids";}
+
+    MetaOscType getType() const override { return MetaOscType::BOIDS; }    
 
     inline float distBetween(float x1, float y1, float x2, float y2) {
       float dx = x2-x1;

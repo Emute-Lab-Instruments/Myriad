@@ -615,7 +615,7 @@ private:
       // tft.setFreeFont(&FreeMonoBold9pt7b);
       // tft.setTextColor(TFT_DARKGREEN, TFT_LIGHTGREY);
       // tft.drawString("Z", 170, 210);
-      iconZPush.pushSprite(170,210);
+      iconZPush.pushSprite(172,205);
 
     }
 
