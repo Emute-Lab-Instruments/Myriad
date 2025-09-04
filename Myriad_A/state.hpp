@@ -3,6 +3,8 @@
 
 #define STATE_MEM __not_in_flash("state")
 
+#include "metaOscs.hpp"
+
 class MyriadState {
 public:
     // State snapshot for batch operations
@@ -11,6 +13,7 @@ public:
         size_t metaMod;
         float metaModDepth;
         float metaModSpeed;
+        MODTARGETS modTarget;
     };
 
     // Initialize with defaults
@@ -21,6 +24,7 @@ public:
         MyriadState::metaMod = 0;
         MyriadState::metaModDepth = 0.0f;
         MyriadState::metaModSpeed = 0.0f;
+        MyriadState::modTarget = MODTARGETS::PITCH;
         MyriadState::changeFlag = false;
         MyriadState::loadFromFlash();
     }
@@ -48,6 +52,11 @@ public:
         MyriadState::changeFlag = true;
     }
 
+    static inline void __not_in_flash_func(setModTarget)(const MODTARGETS value) {
+        MyriadState::modTarget = value;
+        MyriadState::changeFlag = true;
+    }
+
     static inline void __not_in_flash_func(clearChangeFlag)() {
         MyriadState::changeFlag = false;
     }
@@ -69,6 +78,10 @@ public:
 
     static float __not_in_flash_func(getMetaModSpeed)() {
         return MyriadState::metaModSpeed;
+    }
+
+    static MODTARGETS __not_in_flash_func(getModTarget)() {
+        return MyriadState::modTarget;
     }
 
     static inline bool __not_in_flash_func(getChangeFlag)() {
@@ -122,6 +135,7 @@ public:
         metaMod = binary.metaMod;
         metaModDepth = binary.metaModDepth;
         metaModSpeed = binary.metaModSpeed;
+        modTarget = static_cast<MODTARGETS>(binary.modTarget);
         changeFlag = false;
 
         return true;
@@ -149,6 +163,7 @@ private:
         size_t metaMod;           // Meta modulation
         float metaModDepth;       // Meta mod depth
         float metaModSpeed;       // Meta mod speed
+        uint8_t modTarget;        // Modulation target (stored as uint8_t)
         uint32_t checksum;        // Simple checksum
     };
 
@@ -162,6 +177,7 @@ private:
     static size_t STATE_MEM metaMod;         // Warm data
     static float STATE_MEM metaModDepth;     // Cold data
     static float STATE_MEM metaModSpeed;     // Cold data
+    static MODTARGETS STATE_MEM modTarget;   // Cold data
     static const char* STATE_FILE;
 
     // Simple checksum calculation
@@ -192,6 +208,7 @@ private:
             .metaMod = metaMod,
             .metaModDepth = metaModDepth,
             .metaModSpeed = metaModSpeed,
+            .modTarget = static_cast<uint8_t>(modTarget),
             .checksum = 0  // Will be calculated below
         };
 
@@ -217,6 +234,7 @@ bool MyriadState::changeFlag;
 size_t MyriadState::metaMod;
 float MyriadState::metaModDepth;
 float MyriadState::metaModSpeed;
+MODTARGETS MyriadState::modTarget;
 const char* MyriadState::STATE_FILE = "/st.bin";
 
 #endif // MYRIAD_A_STATE_HPP

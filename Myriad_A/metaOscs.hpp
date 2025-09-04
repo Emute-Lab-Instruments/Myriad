@@ -39,6 +39,12 @@ public:
     return value;
   }
 
+  inline void setValue(const float v) {
+    value = v;
+    value = std::max(minVal, value);
+    value = std::min(maxVal, value);    
+  }
+
   void setScale(T newScale) {scaleVal = newScale;}
   void setMax(T newMax) {
     maxVal = newMax; value = std::min(maxVal, value);
@@ -82,10 +88,25 @@ public:
         moddepth.update(delta);
     }
 
+    float getDepth() {
+      return moddepth.getValue();
+    }
+
+    void restoreDepth(const float v) {
+      moddepth.setValue(v);
+    }
+
     void setSpeed(float delta) {
         modspeed.update(delta);
     }
     
+    float getSpeed() {
+      return modspeed.getValue();
+    }
+
+    void restoreSpeed(const float v) {
+      modspeed.setValue(v);
+    }
 
     virtual String getName() {return "";}
 

@@ -15,7 +15,6 @@ struct debouncer {
       if(gap > 50) {
         val = nextval;
         ts =now;
-        Serial.printf("Debounce %d\n", val);
       }
     }
     return val;

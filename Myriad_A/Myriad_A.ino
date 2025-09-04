@@ -508,8 +508,7 @@ void __not_in_flash_func(processAdc)() {
     
   }
 
-  if (msgCt == 100) {
-    Serial.printf("%f \n", ctrlVal0);
+  if (msgCt == 100U) {
     // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
     Serial.print(".");
     msgCt=0;
@@ -687,25 +686,27 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
   return true;
 }
 
-void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int change) {
-  int newMetaModMode = static_cast<int>(currMetaModMode) + change;
-  //clip
-  newMetaModMode = max(0, newMetaModMode);
-  newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
+void __not_in_flash_func(setMetaOscMode)(size_t mode) {
+  currMetaMod = mode;
+  display.setMetaOsc(currMetaMod, metaOscsList[currMetaMod]);
 
-  if (newMetaModMode != currMetaModMode) {
-    //send
-    currMetaModMode = newMetaModMode;
-    display.setMetaOsc(currMetaModMode, metaOscsList[currMetaModMode]);
+  cancel_repeating_timer(&timerMetaModUpdate);
+  add_repeating_timer_ms(metaOscsList[currMetaMod]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
 
-    cancel_repeating_timer(&timerMetaModUpdate);
-    add_repeating_timer_ms(metaOscsList[currMetaModMode]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
-
-    //assume bank C
-    Serial.printf("meta mod mode change %d\n", newMetaModMode);
-  } 
+  Serial.printf("meta mod mode change %d\n", currMetaMod);
 
 }
+
+// void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int change) {
+//   int newMetaModMode = static_cast<int>(currMetaModMode) + change;
+//   //clip
+//   newMetaModMode = max(0, newMetaModMode);
+//   newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
+
+//   if (newMetaModMode != currMetaModMode) {
+//     setMetaOscMode(newMedaModMode);
+//   } 
+// }
 
 void updateTuning() {
   TuningSettings::update();
@@ -725,7 +726,14 @@ void __isr encoder1_callback() {
       case CONTROLMODES::METAOSCMODE:
       {
         controls::encoderAltValues[0] += change;
-        updateMetaOscMode(currMetaMod, change);
+        int newMetaModMode = static_cast<int>(currMetaMod) + change;
+        //clip
+        newMetaModMode = max(0, newMetaModMode);
+        newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
+
+        if (newMetaModMode != currMetaMod) {
+          setMetaOscMode(newMetaModMode);
+        } 
         break;
       }
       case CONTROLMODES::OSCMODE:
@@ -1112,7 +1120,14 @@ void __isr encoder3_switch_callback() {
         for(size_t i=0; i < 3; i++) {
           MyriadState::setOscBank(i, oscBankTypes[i]);
         }
+        MyriadState::setMetaMod(currMetaMod);
+        MyriadState::setMetaModDepth(metaOscsList.at(currMetaMod)->getDepth());
+        MyriadState::setMetaModSpeed(metaOscsList.at(currMetaMod)->getSpeed());        
+        MyriadState::setModTarget(modTarget);
         MyriadState::save();
+
+        Serial.printf("save %f %f\n", MyriadState::getMetaModDepth(), MyriadState::getMetaModSpeed());
+        
         uint32_t save = spin_lock_blocking(displaySpinlock);  
         controlMode = CONTROLMODES::OSCMODE;
         switchToOSCMode();
@@ -1207,9 +1222,7 @@ void setup() {
   display.setCalibScreenTitle(MYRIAD_VERSION);
 
   display.setScreen(portal::SCREENMODES::OSCBANKS);
-  display.setMetaOsc(0, metaOscsList[0]);
-  display.setModTarget(MODTARGETS::PITCH);
-  display.update();
+  // display.setMetaOsc(0, metaOscsList[0]);
 
   // Now turn display on
   digitalWrite(TFT_BL, HIGH);  
@@ -1284,7 +1297,17 @@ void setup() {
   display.setOscBankModel(1, oscBankTypes[1]);
   display.setOscBankModel(2, oscBankTypes[2]);
 
+  setMetaOscMode(MyriadState::getMetaMod());
+  metaOscsList.at(currMetaMod)->restoreDepth(MyriadState::getMetaModDepth());
+  metaOscsList.at(currMetaMod)->restoreSpeed(MyriadState::getMetaModSpeed());
+  modTarget = MyriadState::getModTarget();
+  display.setModTarget(modTarget);
+  display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
+  display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
 
+  display.update();
+
+  
 }
 
 
