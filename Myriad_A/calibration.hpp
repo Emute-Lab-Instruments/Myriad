@@ -1,11 +1,28 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
-#define CALIBMEM __not_in_flash("calib")
+#define CALIBMEM __scratch_x("calib")
+
+
+//adc setup
+//oversampling by 3 bits
+//https://www.ti.com/lit/an/sprad55a/sprad55a.pdf?ts=1758242355517
+constexpr size_t accumulatorBits = 4; 
+constexpr size_t accumulatorCount = 1 << accumulatorBits; 
+constexpr size_t controlUpdateFreq = 150; //Hz
+constexpr size_t adcFreq = accumulatorCount * controlUpdateFreq; //Hz
+constexpr size_t adcClockDiv = 48000000 / (adcFreq * 4); //round robin of 4 channels
+constexpr size_t adcProcessorDiv = 1000000/adcFreq;
+constexpr size_t adcResBits = 13;//12 + accumulatorBits;
+constexpr size_t adcDivisor = accumulatorBits + 12 - adcResBits; 
+constexpr size_t adcScaleMax = 1<<adcResBits;
+constexpr size_t adcInitMin = adcScaleMax * 0.1;
+constexpr size_t adcInitMax = adcScaleMax * 0.9;
+
 
 namespace CalibrationSettings {
-  static CALIBMEM size_t adcMins[4] = {99,99,99,99};
-  static CALIBMEM size_t adcMaxs[4] = {4050,4050,4050,4050};
+  static CALIBMEM size_t adcMins[4] = {adcInitMin,adcInitMin,adcInitMin,adcInitMin};
+  static CALIBMEM size_t adcMaxs[4] = {adcInitMax,adcInitMax,adcInitMax,adcInitMax};
   static CALIBMEM size_t adcRanges[4];
   static CALIBMEM float adcRangesInv[4];
 
@@ -16,6 +33,12 @@ namespace CalibrationSettings {
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
     }
+  }
+
+  void reset() {
+    adcMins[0] = adcInitMin; adcMins[1] = adcInitMin; adcMins[2] = adcInitMin; adcMins[3] = adcInitMin;
+    adcMaxs[0] = adcInitMax; adcMaxs[1] = adcInitMax; adcMaxs[2] = adcInitMax; adcMaxs[3] = adcInitMax;
+    init();
   }
 
   bool load() {

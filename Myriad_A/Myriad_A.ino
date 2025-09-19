@@ -40,6 +40,15 @@
 
 // #define SINGLEOSCILLATOR
 
+// #define TEST_ARPEGGIATOR
+#ifdef TEST_ARPEGGIATOR
+float arpCount=0;
+float arpIndex= 0;
+std::array<float, 3> arpNotes = {0.2,0.4,0.6}; //1, 3, 5
+#endif
+
+
+
 
 bool core1_separate_stack = true;
 
@@ -257,7 +266,7 @@ void setup_adcs() {
   // continuously) or > 95 (take samples less frequently than 96 cycle
   // intervals). This is all timed by the 48 MHz ADC clock.
   // adc_set_clkdiv(96 * 512);
-  adc_set_clkdiv(960);
+  adc_set_clkdiv(adcClockDiv); //520 x 96 cycle conversions
   // adc_set_clkdiv(0);
 
   // printf("Arming DMA\n");
@@ -295,10 +304,16 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float v
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
+  //get the value
   uint32_t save = spin_lock_blocking(adcSpinlock);  
-  auto val = std::max(0.f,(controlValues[adcIndex] - (CalibrationSettings::adcMins[adcIndex]))) * CalibrationSettings::adcRangesInv[adcIndex];
+  const float val = controlValues[adcIndex];
   spin_unlock(adcSpinlock, save);
-  return val;
+
+  //mapping
+  float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
+  if (mappedVal < 0.f) mappedVal = 0.f;
+
+  return mappedVal;
 }
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
@@ -322,33 +337,35 @@ static size_t __scratch_x("adc") adcAccumulator2=0;
 static size_t __scratch_x("adc") adcAccumulator3=0;
 
 bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-// bool __not_in_flash_func(adcProcessor)() {
   adcAccumulator0 += capture_buf[0];
   adcAccumulator1 += capture_buf[1];
   adcAccumulator2 += capture_buf[2];
   adcAccumulator3 += capture_buf[3];
-  adcCount++;
-  if (adcCount == 512U) {
+  if (adcCount == accumulatorCount-1) {
     adcCount=0;
-    adcAccumulator0 = adcAccumulator0 >> 9U;
-    adcAccumulator1 = adcAccumulator1 >> 9U;
-    adcAccumulator2 = adcAccumulator2 >> 9U;
-    adcAccumulator3 = adcAccumulator3 >> 9U;
+    // adcAccumulator0 = adcAccumulator0 >> accumulatorBits;
+    // adcAccumulator1 = adcAccumulator1 >> accumulatorBits;
+    // adcAccumulator2 = adcAccumulator2 >> accumulatorBits;
+    // adcAccumulator3 = adcAccumulator3 >> accumulatorBits;
     // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
     // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
     // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
     // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
     uint32_t save = spin_lock_blocking(adcSpinlock);  
-    controlValues[0] = adcAccumulator0;
-    controlValues[1] = adcAccumulator1;
-    controlValues[2] = adcAccumulator2;
-    controlValues[3] = adcAccumulator3;
+    controlValues[0] = adcAccumulator0 >> adcDivisor;
+    controlValues[1] = adcAccumulator1 >> adcDivisor;
+    controlValues[2] = adcAccumulator2 >> adcDivisor;
+    controlValues[3] = adcAccumulator3 >> adcDivisor;
     adcReadyFlag = true;
     spin_unlock(adcSpinlock, save);
+
+    adcAccumulator0=0;
+    adcAccumulator1=0;
+    adcAccumulator2=0;
+    adcAccumulator3=0;
+
   }
-  // else{
-  //   return true;
-  // }
+  adcCount++;
   return true;
 }
 
@@ -356,15 +373,18 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
 void __not_in_flash_func(processAdc)() {
 
+  Serial.printf("%f\n", controlValues[0]);
+
+
   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
 
     for(size_t i=0; i < 4; i++) {
       uint32_t save = spin_lock_blocking(adcSpinlock);  
       if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
-        CalibrationSettings::adcMins[i] = controlValues[i]+1;
+        CalibrationSettings::adcMins[i] = controlValues[i];
       }
-      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
-        CalibrationSettings::adcMaxs[i] = controlValues[i]-1;
+      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < adcScaleMax) {
+        CalibrationSettings::adcMaxs[i] = controlValues[i];
       }
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
@@ -379,7 +399,8 @@ void __not_in_flash_func(processAdc)() {
 
   // size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
   uint32_t save = spin_lock_blocking(adcSpinlock);  
-  size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
+  static __scratch_x("adc") size_t octScaleDiv = adcResBits-4;
+  size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> octScaleDiv;  // 16 divisions
   spin_unlock(adcSpinlock, save);
 
   if (octaveIdx != lastOctaveIdx) {
@@ -409,7 +430,19 @@ void __not_in_flash_func(processAdc)() {
   }
 
   
+#ifdef TEST_ARPEGGIATOR
+  float pitchCV=arpNotes[arpIndex];
+  if (arpCount==100) {
+    arpCount=0;
+    arpIndex+=1;
+    if (arpIndex >= arpNotes.size()) {
+      arpIndex=0;
+    }
+  }
+  arpCount+=1;
+#else
   float pitchCV = adcMap(0);
+#endif
 
   //quantise?
   // constexpr float step = 0.1f / 5.f;
@@ -1019,6 +1052,7 @@ void __isr encoder1_switch_callback() {
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
   {
+    CalibrationSettings::reset();
     display.setCalibEncoderSwitch(0, controls::encoderSwitches[0]);
   }
 
@@ -1275,7 +1309,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(CALIBRATE_BUTTON), calibrate_button_callback,
                     CHANGE);
 
-  add_repeating_timer_us(20, adcProcessor, NULL, &timerAdcProcessor);
+  add_repeating_timer_us(adcProcessorDiv, adcProcessor, NULL, &timerAdcProcessor);
   // add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
   // add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 
