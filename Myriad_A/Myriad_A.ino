@@ -307,24 +307,29 @@ uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
 void adc_dma_irq_handler() {
-    if (dma_channel_get_irq0_status(dma_chan)) {
-        dma_channel_acknowledge_irq0(dma_chan);
-        
-        // Your buffer is full or at the ring boundary
-        // Process data in capture_buf here
-        Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
-        // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-        // dma_channel_set_trans_count(dma_chan, 4, true);        
-    }
-    if (dma_channel_get_irq0_status(dma_chan2)) {
-        dma_channel_acknowledge_irq0(dma_chan2);
-        
-        // Your buffer is full or at the ring boundary
-        // Process data in capture_buf here
-        Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
-        // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-        // dma_channel_set_trans_count(dma_chan, 4, true);        
-    }
+  uint16_t *adcReadings = nullptr;
+  if (dma_channel_get_irq0_status(dma_chan)) {
+      dma_channel_acknowledge_irq0(dma_chan);
+      adcReadings = capture_buf_a;      
+      // Your buffer is full or at the ring boundary
+      // Process data in capture_buf here
+      // Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
+      // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+      // dma_channel_set_trans_count(dma_chan, 4, true);        
+  }
+  if (dma_channel_get_irq0_status(dma_chan2)) {
+      dma_channel_acknowledge_irq0(dma_chan2);
+      adcReadings = capture_buf_b;      
+      // Your buffer is full or at the ring boundary
+      // Process data in capture_buf here
+      // Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
+      // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+      // dma_channel_set_trans_count(dma_chan, 4, true);        
+  }
+  if (adcReadings) {
+    
+    Serial.printf("%d %d %d %d %d\n",micros(), adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
+  }
 }
 void setup_adcs() {
   adc_init();
@@ -359,7 +364,8 @@ void setup_adcs() {
   // adc_set_clkdiv(96 * 512);
   // adc_set_clkdiv(adcClockDiv); 
   // adc_set_clkdiv(0);
-  adc_set_clkdiv((48000000 / 20) - 1);
+  constexpr size_t adcSystemFreq = 100 * 4; //allow for 4 readings
+  adc_set_clkdiv((48000000 / 400) - 1);
 
   //setup two dma channels in ping pong
   dma_chan = dma_claim_unused_channel(true);
