@@ -12,6 +12,7 @@
 #include "SLIP.h"
 #include "oscillatorModels.hpp"
 #include "bitstreams.hpp"
+#include "myriad_setup.h"
 #include <memory>
 
 
@@ -101,6 +102,8 @@ uint32_t CORE1_FAST_MEM smOsc5_dma_chan_bit;
 
 volatile bool FAST_MEM oscsRunning0 = false;
 volatile bool FAST_MEM oscsRunning1 = false;
+
+float ctrlVal = 0.f;
 
 
 
@@ -200,6 +203,16 @@ void __force_inline calculateOscBuffers1() {
   }
 }
 
+inline void __not_in_flash_func(setCtrl)() {
+  currOscModels0[0]->ctrl(ctrlVal);
+  currOscModels0[1]->ctrl(ctrlVal);
+  currOscModels0[2]->ctrl(ctrlVal);
+  currOscModels1[0]->ctrl(ctrlVal);
+  currOscModels1[1]->ctrl(ctrlVal);
+  currOscModels1[2]->ctrl(ctrlVal);
+}
+
+float __scratch_x("adc") detune = 0.f;
 
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
@@ -254,90 +267,111 @@ inline void __not_in_flash_func(readUart)() {
               case WAVELEN0:
               {
                 // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0], decodeMsg.value);
-                currOscModels0[0]->setWavelen(decodeMsg.value);
+                const float new_wavelen0 = decodeMsg.value;
+                const float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
+                const float new_wavelen4 = (new_wavelen3 - detune);
+                const float new_wavelen5 = (new_wavelen4 - detune);
+                const float new_wavelen6 = (new_wavelen5 - detune);
+                const float new_wavelen7 = (new_wavelen6 - detune);
+                const float new_wavelen8 = (new_wavelen7 - detune);
+                currOscModels0[0]->setWavelen(new_wavelen3);
                 currOscModels0[0]->reset();
-                // currOscModels0[0]->newFreq = true; //trigger buffer refill
-              }
-              break;        
-              case WAVELEN1:
-              {
-                // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
-                currOscModels0[1]->setWavelen(decodeMsg.value);
+                currOscModels0[1]->setWavelen(new_wavelen4);
                 currOscModels0[1]->reset();
-                // currOscModels0[1]->newFreq = true; //trigger buffer refill
-              }
-              break;        
-              case WAVELEN2:
-              {
-                // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
-                currOscModels0[2]->setWavelen(decodeMsg.value);
+                currOscModels0[2]->setWavelen(new_wavelen5);
                 currOscModels0[2]->reset();
-                // currOscModels0[2]->newFreq = true; //trigger buffer refill
-              }
-              break;        
-              case WAVELEN3:
-              {
-                // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
-                currOscModels1[0]->setWavelen(decodeMsg.value);
+                currOscModels1[0]->setWavelen(new_wavelen6);
                 currOscModels1[0]->reset();
-                // currOscModels1[0]->newFreq = true; //trigger buffer refill
-              }
-                break;
-              case WAVELEN4:
-              {
-                // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
-                currOscModels1[1]->setWavelen(decodeMsg.value);
+                currOscModels1[1]->setWavelen(new_wavelen7);
                 currOscModels1[1]->reset();
-                // currOscModels1[1]->newFreq = true; //trigger buffer refill
-              }
-                break;
-              case WAVELEN5:
-              {
-                // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
-                currOscModels1[2]->setWavelen(decodeMsg.value);
+                currOscModels1[2]->setWavelen(new_wavelen8);
                 currOscModels1[2]->reset();
-                // currOscModels1[2]->newFreq = true; //trigger buffer refill
-                //freqs sent sequentially, so all oscs should now have a freq
                 oscsReadyToStart = true;
               }
+              break;   
+              case DETUNE:
+              {
+                detune = decodeMsg.value;
+              }     
+              // case WAVELEN1:
+              // {
+              //   // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
+              //   currOscModels0[1]->setWavelen(decodeMsg.value);
+              //   currOscModels0[1]->reset();
+              //   // currOscModels0[1]->newFreq = true; //trigger buffer refill
+              // }
+              // break;        
+              // case WAVELEN2:
+              // {
+              //   // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
+              //   currOscModels0[2]->setWavelen(decodeMsg.value);
+              //   currOscModels0[2]->reset();
+              //   // currOscModels0[2]->newFreq = true; //trigger buffer refill
+              // }
+              // break;        
+              // case WAVELEN3:
+              // {
+              //   // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
+              //   currOscModels1[0]->setWavelen(decodeMsg.value);
+              //   currOscModels1[0]->reset();
+              //   // currOscModels1[0]->newFreq = true; //trigger buffer refill
+              // }
+              //   break;
+              // case WAVELEN4:
+              // {
+              //   // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
+              //   currOscModels1[1]->setWavelen(decodeMsg.value);
+              //   currOscModels1[1]->reset();
+              //   // currOscModels1[1]->newFreq = true; //trigger buffer refill
+              // }
+              //   break;
+              // case WAVELEN5:
+              // {
+              //   // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
+              //   currOscModels1[2]->setWavelen(decodeMsg.value);
+              //   currOscModels1[2]->reset();
+              //   // currOscModels1[2]->newFreq = true; //trigger buffer refill
+              //   //freqs sent sequentially, so all oscs should now have a freq
+              //   oscsReadyToStart = true;
+              // }
               break;
               case CTRL0:
               {
-                const float v = decodeMsg.value;
-                currOscModels0[0]->ctrl(v); 
+                ctrlVal = decodeMsg.value;
+                setCtrl();
                 // Serial.println(v);
                 break;
               }
-              case CTRL1:
-              {
-                const float v = decodeMsg.value;
-                currOscModels0[1]->ctrl(v); 
-                break;
-              }
-              case CTRL2:
-              {
-                const float v = decodeMsg.value;
-                currOscModels0[2]->ctrl(v); 
-                break;
-              }
-              case CTRL3:
-              {
-                const float v = decodeMsg.value;
-                currOscModels1[0]->ctrl(v); 
-                break;
-              }
-              case CTRL4:
-              {
-                const float v = decodeMsg.value;
-                currOscModels1[1]->ctrl(v); 
-                break;
-              }
-              case CTRL5:
-              {
-                const float v = decodeMsg.value;
-                currOscModels1[2]->ctrl(v); 
-                break;
-              }
+              // case CTRL1:
+              // {
+              //   const float v = decodeMsg.value;
+              //   currOscModels0[1]->ctrl(v); 
+              //   break;
+              // }
+              // case CTRL2:
+              // {
+              //   const float v = decodeMsg.value;
+              //   currOscModels0[2]->ctrl(v); 
+              //   break;
+              // }
+              // case CTRL3:
+              // {
+              //   const float v = decodeMsg.value;
+              //   currOscModels1[0]->ctrl(v); 
+              //   break;
+              // }
+              // case CTRL4:
+              // {
+              //   const float v = decodeMsg.value;
+              //   currOscModels1[1]->ctrl(v); 
+              //   break;
+              // }
+              // case CTRL5:
+              // {
+              //   const float v = decodeMsg.value;
+              //   currOscModels1[2]->ctrl(v); 
+              //   break;
+              // }
               case BANK0:
               {
                 // Serial.println("bank0");
@@ -367,7 +401,10 @@ inline void __not_in_flash_func(readUart)() {
                 // currOscModels0[1]->newFreq=true;
                 // currOscModels0[2]->newFreq=true;
 
+                setCtrl();
+
                 calculateOscBuffers0();
+
 
                 startOscBankA();
                 spin_unlock(calcOscsSpinlock0, save);
@@ -402,6 +439,8 @@ inline void __not_in_flash_func(readUart)() {
                 // currOscModels1[0]->newFreq=true;
                 // currOscModels1[1]->newFreq=true;
                 // currOscModels1[2]->newFreq=true;
+
+                setCtrl();
 
                 calculateOscBuffers1();
 
@@ -512,14 +551,15 @@ void setup() {
   assignOscModels0(0);
 
 
-  Serial.begin(115200);
+  Serial.begin(SERIAL_CX_BAUD);
   // while (!Serial) {
   //   ; // wait for serial port to connect. Needed for native USB
   // }
+  pinMode(13, INPUT_PULLUP);
 
   Serial1.setRX(13); //uart 1
   Serial1.setTX(12);
-  Serial1.begin(115200);
+  Serial1.begin(SERIAL_CX_BAUD);
 
 
   // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
@@ -529,6 +569,10 @@ void setup() {
   //   ;
   // }
   Serial.println("Start");
+  currOscModels0[0]->ctrl(ctrlVal);
+  currOscModels0[1]->ctrl(ctrlVal);
+  currOscModels0[2]->ctrl(ctrlVal);
+
   startOscBankA();
   Serial.println("Started");
 #endif
@@ -545,11 +589,11 @@ void __not_in_flash_func(loop)() {
     spin_unlock(calcOscsSpinlock0, save);
   }
 
-  auto now = millis();
-  if (now - serialts > 100) {
-    Serial.print(".");
-    serialts=now;
-  }
+  // auto now = millis();
+  // if (now - serialts > 100) {
+  //   Serial.print(".");
+  //   serialts=now;
+  // }
   // delay(1);
   // __wfi();
 }
@@ -567,6 +611,10 @@ void setup1() {
   // }
   delay(oscStartDelay);
   Serial.println("StartB");
+  currOscModels1[0]->ctrl(ctrlVal);
+  currOscModels1[1]->ctrl(ctrlVal);
+  currOscModels1[2]->ctrl(ctrlVal);
+
   startOscBankB();
   Serial.println("StartedB");
 #endif

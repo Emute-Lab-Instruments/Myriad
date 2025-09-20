@@ -50,8 +50,10 @@ public:
   }
 
   inline void setWavelen(const size_t wlen) {
-    wavelen = wlen * clockmodinv;
-    newFreq = true;
+    if (wlen >=  minWavelen) {
+      wavelen = wlen * clockmodinv;
+      newFreq = true;
+    }
   }
 
   size_t getWavelenAtFrequency(const float freq) {

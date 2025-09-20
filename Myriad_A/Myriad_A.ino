@@ -3,6 +3,8 @@
 #include <FS.h>
 #include <LittleFS.h>
 
+#include "myriad_setup.h"
+
 #include <optional>
 #include "calibration.hpp"
 #include "displayPortal.h"
@@ -18,6 +20,7 @@
 #include "metaOscs.hpp"
 #include "debouncer.hpp"
 
+#include "fixedlpf.hpp"
 
 #include "hardware/adc.h"
 #include "hardware/dma.h"
@@ -68,7 +71,8 @@ std::array<float, 102> arpNotes =
 
 constexpr int cal_data[11] = {19, 758, 1517,2298,3051, 3815, 4589, 5342, 6125, 6878, 7639};
 
-ADCCalibrator<13,11,float> __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
+#define FRAC_BITS 16
+ADCCalibrator<12,11, int32_t, FRAC_BITS> __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
 
 
 bool core1_separate_stack = true;
@@ -264,8 +268,8 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
-volatile int32_t knobssm[4] = {0,0,0,0};
-volatile uint16_t knobs[4] = {0,0,0,0};
+volatile int32_t __scratch_x("adc")  knobssm[4] = {0,0,0,0};
+volatile uint16_t __scratch_x("adc")  knobs[4] = {0,0,0,0};
 
 void __not_in_flash_func(adc_irq_handler)() {
     // Get ADC data from FIFO
@@ -306,6 +310,33 @@ void __not_in_flash_func(adc_irq_handler)() {
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
+FixedLpf<12,1> FAST_MEM adcLpf0;
+FixedLpf<12,4> FAST_MEM adcLpf1;
+FixedLpf<12,4> FAST_MEM adcLpf2;    
+FixedLpf<12,4> FAST_MEM adcLpf3;
+
+float __scratch_x("adc") new_wavelen0 = 0;
+float __scratch_x("adc") detune = 0;
+float __scratch_x("adc") ctrlVal = 0;
+
+float __scratch_x("adc") metaModWavelenMul0 = 1.f;
+float __scratch_x("adc") metaModWavelenMul1 = 1.f;
+float __scratch_x("adc") metaModWavelenMul2 = 1.f;
+float __scratch_x("adc") metaModWavelenMul3 = 1.f;
+float __scratch_x("adc") metaModWavelenMul4 = 1.f;
+float __scratch_x("adc") metaModWavelenMul5 = 1.f;
+float __scratch_x("adc") metaModWavelenMul6 = 1.f;
+float __scratch_x("adc") metaModWavelenMul7 = 1.f;
+float __scratch_x("adc") metaModWavelenMul8 = 1.f;
+float __scratch_x("adc") metaModCtrlMul = 1.f;
+
+
+constexpr size_t systemUpdateFreq = 2000;
+constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 100;
+size_t __scratch_x("adc") metaUpdateCounter = 0;
+
+volatile bool __scratch_x("adc") newFrequenciesReady = false;
+
 void adc_dma_irq_handler() {
   uint16_t *adcReadings = nullptr;
   if (dma_channel_get_irq0_status(dma_chan)) {
@@ -328,7 +359,162 @@ void adc_dma_irq_handler() {
   }
   if (adcReadings) {
     
-    Serial.printf("%d %d %d %d %d\n",micros(), adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
+    // Serial.printf("%d %d %d %d\n",adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
+    #ifdef TEST_ARPEGGIATOR
+      float pitchCV=arpNotes[arpIndex];
+      // if (arpCount==0) {
+        // arpCount=0;
+        arpIndex+=1;
+        if (arpIndex >= arpNotes.size()) {
+          arpIndex=0;
+        }
+      // }
+      // arpCount+=1;
+    #else
+      // float pitchCV = adcMap(0);
+      // size_t index = (size_t)controlValues[0];
+      // float voltage = pitchADCMap[index];
+      // float pitchCV = (voltage+5.f) * 0.1f;
+      // Serial.printf("%d, %f, %f\n", index, voltage, pitchCV);
+      // float pitchCV = adcReadings[0] / 4095.f; //raw
+      // size_t pitchCV = pitchADCMap[adcReadings[0]];
+    #endif
+
+      // //quantise?
+      // // constexpr float step = 0.1f / 5.f;
+      // // constexpr float stepinv = 1.f/step;
+      // if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
+      //   // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
+      //   // float quantStepInv = 1.f/quantStep;
+      //   float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
+      //   // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
+      //   float diff = quantCV - pitchCV;
+      //   pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
+      // }
+
+    //exponential conversion
+    // Serial.printf("Pitch CV: %d\n", pitchCV);
+      // Serial.println(pitchCV>>FRAC_BITS);
+    // float freq = powf(2.f, (pitchCV>>FRAC_BITS)); 
+    // float freq = 0.5f;
+
+    const float filteredADC0 = adcLpf0.play(adcReadings[0]); //in q16 format
+    float pitchCV = pitchADCMap.convertFloat(filteredADC0);
+    float freq = expf(pitchCV);
+    
+    // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
+      
+      
+    //calc wavelenth
+    const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
+    new_wavelen0 = 1.0f/freq * wvlen; 
+    new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
+
+    // static int printts = 0;
+    // auto now = millis();
+    // if (now - printts > 100) {
+    //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
+    //   printts = now;
+    // }
+    float detuneControl = adcLpf1.play(adcReadings[1]) * (1.f/4095.f); //raw
+    detuneControl *= detuneControl; //exponential mapping
+
+    detune = (detuneControl * 0.016f) * new_wavelen0;
+    
+    float new_wavelen1 = (new_wavelen0 - detune);
+    float new_wavelen2 = (new_wavelen1 - detune);
+
+    // new_wavelen3 = (new_wavelen2 - detune);
+    // new_wavelen4 = (new_wavelen3 - detune);
+    // new_wavelen5 = (new_wavelen4 - detune);
+    // new_wavelen6 = (new_wavelen5 - detune);
+    // new_wavelen7 = (new_wavelen6 - detune);
+    // new_wavelen8 = (new_wavelen7 - detune);
+    
+    float octaves[9] = {1.0f, 1.0f,  1.0f,    1.0f,  1.0f,  1.0f,    1.0f,  1.0f,  1.0f};
+
+    new_wavelen0 = new_wavelen0 * octaves[0];
+    new_wavelen1 = new_wavelen1 * octaves[1];
+    new_wavelen2 = new_wavelen2 * octaves[2];
+    // new_wavelen3 = new_wavelen3 * octaves[3];
+    // new_wavelen4 = new_wavelen4 * octaves[4];
+    // new_wavelen5 = new_wavelen5 * octaves[5];
+    // new_wavelen6 = new_wavelen6 * octaves[6];
+    // new_wavelen7 = new_wavelen7 * octaves[7];
+    // new_wavelen8 = new_wavelen8 * octaves[8];
+
+    ctrlVal = adcLpf2.play(adcReadings[2]) * (1.f/4095.f); //raw
+
+    // if (metaUpdateCounter++ >= metaUpdatePeriod) {
+    //   metaUpdateCounter = 0;
+
+    //   auto metamods = metaOscsList.at(currMetaMod)->getValues();
+
+    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+    //       metaModWavelenMul0 = (1.f + (metamods[0]));
+    //       metaModWavelenMul1 = (1.f + (metamods[1]));
+    //       metaModWavelenMul2 = (1.f + (metamods[2]));
+    //       metaModWavelenMul3 = (1.f + (metamods[3]));
+    //       metaModWavelenMul4 = (1.f + (metamods[4]));
+    //       metaModWavelenMul5 = (1.f + (metamods[5]));
+    //       metaModWavelenMul6 = (1.f + (metamods[6]));
+    //       metaModWavelenMul7 = (1.f + (metamods[7]));
+    //       metaModWavelenMul8 = (1.f + (metamods[8]));
+    //   }
+
+    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+    //       metaModCtrlMul = (1.f + (metamods[0] * 5.f));
+    //   }
+      
+    // }
+    // new_wavelen0 *= metaModWavelenMul0;
+    // new_wavelen1 *= metaModWavelenMul1;
+    // new_wavelen2 *= metaModWavelenMul2;
+    // new_wavelen3 *= metaModWavelenMul3;
+    // new_wavelen4 *= metaModWavelenMul4;
+    // new_wavelen5 *= metaModWavelenMul5;
+    // new_wavelen6 *= metaModWavelenMul6;
+    // new_wavelen7 *= metaModWavelenMul7;
+    // new_wavelen8 *= metaModWavelenMul8;
+
+    // ctrlVal *= metaModCtrlMul;
+
+    // if (msgCt == 100U) {
+    //   // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+    //   Serial.print(".");
+    //   msgCt=0;
+    // }
+    // msgCt++;
+
+    //send crtl vals
+    // sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
+    // sendToMyriadB(messageTypes::CTRL1, ctrlVal4);
+    // sendToMyriadB(messageTypes::CTRL2, ctrlVal5);
+    // sendToMyriadB(messageTypes::CTRL3, ctrlVal6);
+    // sendToMyriadB(messageTypes::CTRL4, ctrlVal7);
+    // sendToMyriadB(messageTypes::CTRL5, ctrlVal8);
+
+    // currOscModels[0]->ctrl(ctrlVal0);
+    // currOscModels[1]->ctrl(ctrlVal1);
+    // currOscModels[2]->ctrl(ctrlVal2);
+
+    // sendToMyriadB(messageTypes::WAVELEN0, new_wavelen3);
+    // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
+    // sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
+    // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
+    // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
+    // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
+
+
+    currOscModels[0]->setWavelen(new_wavelen0);  
+    currOscModels[1]->setWavelen(new_wavelen1);
+    currOscModels[2]->setWavelen(new_wavelen2);
+    currOscModels[0]->ctrl(ctrlVal);
+    currOscModels[1]->ctrl(ctrlVal);
+    currOscModels[2]->ctrl(ctrlVal);
+
+    oscsReadyToStart = true;
+    newFrequenciesReady = true;
   }
 }
 void setup_adcs() {
@@ -364,8 +550,8 @@ void setup_adcs() {
   // adc_set_clkdiv(96 * 512);
   // adc_set_clkdiv(adcClockDiv); 
   // adc_set_clkdiv(0);
-  constexpr size_t adcSystemFreq = 100 * 4; //allow for 4 readings
-  adc_set_clkdiv((48000000 / 400) - 1);
+  constexpr size_t adcSystemFreq = systemUpdateFreq * 4; //allow for 4 readings
+  adc_set_clkdiv((48000000 / adcSystemFreq) - 1);
 
   //setup two dma channels in ping pong
   dma_chan = dma_claim_unused_channel(true);
@@ -378,7 +564,7 @@ void setup_adcs() {
   channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
   channel_config_set_read_increment(&cfg, false);
   channel_config_set_write_increment(&cfg, true);
-  channel_config_set_ring(&cfg, true, 8);
+  channel_config_set_ring(&cfg, true, 3);
 
   // Pace transfers based on availability of ADC samples
   channel_config_set_dreq(&cfg, DREQ_ADC);
@@ -389,7 +575,7 @@ void setup_adcs() {
   channel_config_set_transfer_data_size(&cfg2, DMA_SIZE_16);
   channel_config_set_read_increment(&cfg2, false);
   channel_config_set_write_increment(&cfg2, true);
-  channel_config_set_ring(&cfg2, true, 8);
+  channel_config_set_ring(&cfg2, true, 3);
 
   // Pace transfers based on availability of ADC samples
   channel_config_set_dreq(&cfg2, DREQ_ADC);
@@ -421,6 +607,11 @@ void setup_adcs() {
   irq_set_enabled(DMA_IRQ_0, true);  
 
   adc_run(true);
+
+
+
+  oscsReadyToStart = true;
+
 }
 
 
@@ -428,7 +619,10 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float v
   static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
   spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  // if (Serial1.availableForWrite() >= slipSize) {
+    // Serial.printf("Send to B: %d\n", msgType);
+    int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  // }
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
@@ -501,215 +695,215 @@ bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
 
 void __not_in_flash_func(processAdc)() {
 
-  Serial.printf("%f\n", controlValues[0]);
+//   Serial.printf("%f\n", controlValues[0]);
 
 
-  if (controlMode == CONTROLMODES::CALIBRATEMODE) {
+//   if (controlMode == CONTROLMODES::CALIBRATEMODE) {
 
-    for(size_t i=0; i < 4; i++) {
-      uint32_t save = spin_lock_blocking(adcSpinlock);  
-      if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
-        CalibrationSettings::adcMins[i] = controlValues[i];
-      }
-      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < adcScaleMax) {
-        CalibrationSettings::adcMaxs[i] = controlValues[i];
-      }
-      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
-      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
-      spin_unlock(adcSpinlock, save);
-    }
-    // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
-    display.setCalibADCValues(0,0,0,0);
-    display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
-    display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
-  }
+//     for(size_t i=0; i < 4; i++) {
+//       uint32_t save = spin_lock_blocking(adcSpinlock);  
+//       if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
+//         CalibrationSettings::adcMins[i] = controlValues[i];
+//       }
+//       if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < adcScaleMax) {
+//         CalibrationSettings::adcMaxs[i] = controlValues[i];
+//       }
+//       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+//       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+//       spin_unlock(adcSpinlock, save);
+//     }
+//     // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
+//     display.setCalibADCValues(0,0,0,0);
+//     display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+//     display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
+//   }
   
 
-  // size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
-  uint32_t save = spin_lock_blocking(adcSpinlock);  
-  static __scratch_x("adc") size_t octScaleDiv = adcResBits-4;
-  size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> octScaleDiv;  // 16 divisions
-  spin_unlock(adcSpinlock, save);
+//   // size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> 8;  // div by 256 -> 16 divisions
+//   uint32_t save = spin_lock_blocking(adcSpinlock);  
+//   static __scratch_x("adc") size_t octScaleDiv = adcResBits-4;
+//   size_t octaveIdx = static_cast<size_t>(controlValues[3]) >> octScaleDiv;  // 16 divisions
+//   spin_unlock(adcSpinlock, save);
 
-  if (octaveIdx != lastOctaveIdx) {
-    lastOctaveIdx = octaveIdx;
-    switch(octaveIdx) {
-      case 0:   {octaves = {1.0f, 1.0f,  1.0f,    1.0f,  1.0f,  1.0f,    1.0f,  1.0f,  1.0f}; break;}
-      case 1:   {octaves = {0.5f, 1.0f,  1.0f,    0.5f,  1.0f,  1.0f,    0.5f,  1.0f,  1.0f}; break;}
-      case 2:   {octaves = {0.5f, 0.5f,  1.0f,    0.5f,  0.5f,  1.0f,    0.5f,  0.5f,  1.0f}; break;}
-      case 3:   {octaves = {0.25f, 0.5f,  1.0f,    0.25f,  0.5f,  1.0f,    0.25f,  0.5f,  1.0f}; break;}
+//   if (octaveIdx != lastOctaveIdx) {
+//     lastOctaveIdx = octaveIdx;
+//     switch(octaveIdx) {
+//       case 0:   {octaves = {1.0f, 1.0f,  1.0f,    1.0f,  1.0f,  1.0f,    1.0f,  1.0f,  1.0f}; break;}
+//       case 1:   {octaves = {0.5f, 1.0f,  1.0f,    0.5f,  1.0f,  1.0f,    0.5f,  1.0f,  1.0f}; break;}
+//       case 2:   {octaves = {0.5f, 0.5f,  1.0f,    0.5f,  0.5f,  1.0f,    0.5f,  0.5f,  1.0f}; break;}
+//       case 3:   {octaves = {0.25f, 0.5f,  1.0f,    0.25f,  0.5f,  1.0f,    0.25f,  0.5f,  1.0f}; break;}
 
-      case 4:   {octaves = {0.25f, 0.5f,  2.0f,    0.25f,  0.5f,  2.0f,    0.25f,  0.5f,  2.0f}; break;}
-      case 5:   {octaves = {0.25f, 0.5f,  4.0f,    0.25f,  0.5f,  4.0f,    0.25f,  0.5f,  4.0f}; break;}
-      case 6:   {octaves = {0.25f, 0.25f,  4.0f,    0.25f,  0.25f,  4.0f,    0.25f,  0.25f,  4.0f}; break;}
-      case 7:   {octaves = {0.5f, 0.25f,  4.0f,    0.5f,  0.25f,  4.0f,    0.5f,  0.25f,  4.0f}; break;}
+//       case 4:   {octaves = {0.25f, 0.5f,  2.0f,    0.25f,  0.5f,  2.0f,    0.25f,  0.5f,  2.0f}; break;}
+//       case 5:   {octaves = {0.25f, 0.5f,  4.0f,    0.25f,  0.5f,  4.0f,    0.25f,  0.5f,  4.0f}; break;}
+//       case 6:   {octaves = {0.25f, 0.25f,  4.0f,    0.25f,  0.25f,  4.0f,    0.25f,  0.25f,  4.0f}; break;}
+//       case 7:   {octaves = {0.5f, 0.25f,  4.0f,    0.5f,  0.25f,  4.0f,    0.5f,  0.25f,  4.0f}; break;}
 
-      case 8:   {octaves = {0.25f, 2.0f,  4.0f,    0.25f,  2.0f,  4.0f,    0.25f,  2.0f,  4.0f}; break;}
-      case 9:   {octaves = {0.25f, 4.0f,  4.0f,    0.25f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
-      case 10:  {octaves = {0.5f, 4.0f,  4.0f,    0.5f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
-      case 11:  {octaves = {1.0f, 4.0f,  4.0f,    1.0f,  4.0f,  4.0f,    1.0f,  4.0f,  4.0f}; break;}
+//       case 8:   {octaves = {0.25f, 2.0f,  4.0f,    0.25f,  2.0f,  4.0f,    0.25f,  2.0f,  4.0f}; break;}
+//       case 9:   {octaves = {0.25f, 4.0f,  4.0f,    0.25f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
+//       case 10:  {octaves = {0.5f, 4.0f,  4.0f,    0.5f,  4.0f,  4.0f,    0.25f,  4.0f,  4.0f}; break;}
+//       case 11:  {octaves = {1.0f, 4.0f,  4.0f,    1.0f,  4.0f,  4.0f,    1.0f,  4.0f,  4.0f}; break;}
 
-      case 12:  {octaves = {2.0f, 4.0f,  4.0f,    2.0f,  4.0f,  4.0f,    2.0f,  4.0f,  4.0f}; break;}
-      case 13:  {octaves = {2.0f, 2.0f,  4.0f,    2.0f,  2.0f,  4.0f,    2.0f,  2.0f,  4.0f}; break;}
-      case 14:  {octaves = {1.0f, 2.0f,  4.0f,    1.0f,  2.0f,  4.0f,    1.0f,  2.0f,  4.0f}; break;}
-      case 15:  {octaves = {1.0f, 2.0f,  2.0f,    1.0f,  2.0f,  2.0f,    1.0f,  2.0f,  2.0f}; break;}
-      default:;
-    }
-  }
+//       case 12:  {octaves = {2.0f, 4.0f,  4.0f,    2.0f,  4.0f,  4.0f,    2.0f,  4.0f,  4.0f}; break;}
+//       case 13:  {octaves = {2.0f, 2.0f,  4.0f,    2.0f,  2.0f,  4.0f,    2.0f,  2.0f,  4.0f}; break;}
+//       case 14:  {octaves = {1.0f, 2.0f,  4.0f,    1.0f,  2.0f,  4.0f,    1.0f,  2.0f,  4.0f}; break;}
+//       case 15:  {octaves = {1.0f, 2.0f,  2.0f,    1.0f,  2.0f,  2.0f,    1.0f,  2.0f,  2.0f}; break;}
+//       default:;
+//     }
+//   }
 
   
-#ifdef TEST_ARPEGGIATOR
-  float pitchCV=arpNotes[arpIndex];
-  // if (arpCount==0) {
-    // arpCount=0;
-    arpIndex+=1;
-    if (arpIndex >= arpNotes.size()) {
-      arpIndex=0;
-    }
-  // }
-  // arpCount+=1;
-#else
-  // float pitchCV = adcMap(0);
-  size_t index = (size_t)controlValues[0];
-  float voltage = pitchADCMap[index];
-  float pitchCV = (voltage+5.f) * 0.1f;
-  Serial.printf("%d, %f, %f\n", index, voltage, pitchCV);
-#endif
+// #ifdef TEST_ARPEGGIATOR
+//   float pitchCV=arpNotes[arpIndex];
+//   // if (arpCount==0) {
+//     // arpCount=0;
+//     arpIndex+=1;
+//     if (arpIndex >= arpNotes.size()) {
+//       arpIndex=0;
+//     }
+//   // }
+//   // arpCount+=1;
+// #else
+//   // float pitchCV = adcMap(0);
+//   size_t index = (size_t)controlValues[0];
+//   float voltage = pitchADCMap[index];
+//   float pitchCV = (voltage+5.f) * 0.1f;
+//   Serial.printf("%d, %f, %f\n", index, voltage, pitchCV);
+// #endif
 
-  //quantise?
-  // constexpr float step = 0.1f / 5.f;
-  // constexpr float stepinv = 1.f/step;
-  if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
-    // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
-    // float quantStepInv = 1.f/quantStep;
-    float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
-    // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
-    float diff = quantCV - pitchCV;
-    pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
-  }
+//   //quantise?
+//   // constexpr float step = 0.1f / 5.f;
+//   // constexpr float stepinv = 1.f/step;
+//   if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
+//     // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
+//     // float quantStepInv = 1.f/quantStep;
+//     float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
+//     // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
+//     float diff = quantCV - pitchCV;
+//     pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
+//   }
 
-  //exponential conversion
-  float freq = powf(2.f, (pitchCV * 10.f) ); 
+//   //exponential conversion
+//   float freq = powf(2.f, (pitchCV * 10.f) ); 
   
   
-  //calc wavelenth
-  const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
-  float new_wavelen0 = 1.0f/freq * wvlen; 
-  new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
+//   //calc wavelenth
+//   const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
+//   float new_wavelen0 = 1.0f/freq * wvlen; 
+//   new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
 
-  // static int printts = 0;
-  // auto now = millis();
-  // if (now - printts > 100) {
-  //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
-  //   printts = now;
-  // }
-  float detuneControl = adcMap(1);
-  detuneControl *= detuneControl; //exponential mapping
+//   // static int printts = 0;
+//   // auto now = millis();
+//   // if (now - printts > 100) {
+//   //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
+//   //   printts = now;
+//   // }
+//   float detuneControl = adcMap(1);
+//   detuneControl *= detuneControl; //exponential mapping
 
-  float detune = (detuneControl * 0.01f) * new_wavelen0;
-  float acc = 1.f - (detuneControl * 0.02f);
+//   float detune = (detuneControl * 0.01f) * new_wavelen0;
+//   float acc = 1.f - (detuneControl * 0.02f);
   
-  float new_wavelen1 = (new_wavelen0 - detune) * acc;
-  float new_wavelen2 = (new_wavelen1 - detune) * acc;
-  float new_wavelen3 = (new_wavelen2 - detune) * acc;
-  float new_wavelen4 = (new_wavelen3 - detune) * acc;
-  float new_wavelen5 = (new_wavelen4 - detune) * acc;
+//   float new_wavelen1 = (new_wavelen0 - detune) * acc;
+//   float new_wavelen2 = (new_wavelen1 - detune) * acc;
+//   float new_wavelen3 = (new_wavelen2 - detune) * acc;
+//   float new_wavelen4 = (new_wavelen3 - detune) * acc;
+//   float new_wavelen5 = (new_wavelen4 - detune) * acc;
 
 
-  float new_wavelen6 = (new_wavelen5 - detune) * acc;
-  float new_wavelen7 = (new_wavelen6 - detune) * acc;
-  float new_wavelen8 = (new_wavelen7 - detune) * acc;
+//   float new_wavelen6 = (new_wavelen5 - detune) * acc;
+//   float new_wavelen7 = (new_wavelen6 - detune) * acc;
+//   float new_wavelen8 = (new_wavelen7 - detune) * acc;
 
-  // float maxOctaveMul = floorf(TuningSettings::wavelenC1 / new_wavelen0);
-  //   Serial.println(maxOctaveMul);
+//   // float maxOctaveMul = floorf(TuningSettings::wavelenC1 / new_wavelen0);
+//   //   Serial.println(maxOctaveMul);
 
-  new_wavelen0 = new_wavelen0 * octaves[0];
-  new_wavelen1 = new_wavelen1 * octaves[1];
-  new_wavelen2 = new_wavelen2 * octaves[2];
-  new_wavelen3 = new_wavelen3 * octaves[3];
-  new_wavelen4 = new_wavelen4 * octaves[4];
-  new_wavelen5 = new_wavelen5 * octaves[5];
-  new_wavelen6 = new_wavelen6 * octaves[6];
-  new_wavelen7 = new_wavelen7 * octaves[7];
-  new_wavelen8 = new_wavelen8 * octaves[8];
+//   new_wavelen0 = new_wavelen0 * octaves[0];
+//   new_wavelen1 = new_wavelen1 * octaves[1];
+//   new_wavelen2 = new_wavelen2 * octaves[2];
+//   new_wavelen3 = new_wavelen3 * octaves[3];
+//   new_wavelen4 = new_wavelen4 * octaves[4];
+//   new_wavelen5 = new_wavelen5 * octaves[5];
+//   new_wavelen6 = new_wavelen6 * octaves[6];
+//   new_wavelen7 = new_wavelen7 * octaves[7];
+//   new_wavelen8 = new_wavelen8 * octaves[8];
 
-  float ctrlVal0 = adcMap(2);
-  float ctrlVal1 = ctrlVal0;
-  float ctrlVal2 = ctrlVal0;
-  float ctrlVal3 = ctrlVal0;
-  float ctrlVal4 = ctrlVal0;
-  float ctrlVal5 = ctrlVal0;
-  float ctrlVal6 = ctrlVal0;
-  float ctrlVal7 = ctrlVal0;
-  float ctrlVal8 = ctrlVal0;
+//   float ctrlVal0 = adcMap(2);
+//   float ctrlVal1 = ctrlVal0;
+//   float ctrlVal2 = ctrlVal0;
+//   float ctrlVal3 = ctrlVal0;
+//   float ctrlVal4 = ctrlVal0;
+//   float ctrlVal5 = ctrlVal0;
+//   float ctrlVal6 = ctrlVal0;
+//   float ctrlVal7 = ctrlVal0;
+//   float ctrlVal8 = ctrlVal0;
 
-  if (currMetaMod > 0) {
-    // auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
-    auto metamods = metaOscsList.at(currMetaMod)->getValues();
+//   if (currMetaMod > 0) {
+//     // auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+//     auto metamods = metaOscsList.at(currMetaMod)->getValues();
 
-    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-        new_wavelen0 *= (1.f + (metamods[0]));
-        new_wavelen1 *= (1.f + (metamods[1]));
-        new_wavelen2 *= (1.f + (metamods[2]));
-        new_wavelen3 *= (1.f + (metamods[3]));
-        new_wavelen4 *= (1.f + (metamods[4]));
-        new_wavelen5 *= (1.f + (metamods[5]));
-        new_wavelen6 *= (1.f + (metamods[6]));
-        new_wavelen7 *= (1.f + (metamods[7]));
-        new_wavelen8 *= (1.f + (metamods[8]));
-    }
+//     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+//         new_wavelen0 *= (1.f + (metamods[0]));
+//         new_wavelen1 *= (1.f + (metamods[1]));
+//         new_wavelen2 *= (1.f + (metamods[2]));
+//         new_wavelen3 *= (1.f + (metamods[3]));
+//         new_wavelen4 *= (1.f + (metamods[4]));
+//         new_wavelen5 *= (1.f + (metamods[5]));
+//         new_wavelen6 *= (1.f + (metamods[6]));
+//         new_wavelen7 *= (1.f + (metamods[7]));
+//         new_wavelen8 *= (1.f + (metamods[8]));
+//     }
 
-    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-        ctrlVal0 *= (1.f + (metamods[0] * 5.f));
-        ctrlVal1 *= (1.f + (metamods[1] * 5.f));
-        ctrlVal2 *= (1.f + (metamods[2] * 5.f));
-        ctrlVal3 *= (1.f + (metamods[3] * 5.f));
-        ctrlVal4 *= (1.f + (metamods[4] * 5.f));
-        ctrlVal5 *= (1.f + (metamods[5] * 5.f));
-        ctrlVal6 *= (1.f + (metamods[6] * 5.f));
-        ctrlVal7 *= (1.f + (metamods[7] * 5.f));
-        ctrlVal8 *= (1.f + (metamods[8] * 5.f));
-    }
+//     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+//         ctrlVal0 *= (1.f + (metamods[0] * 5.f));
+//         ctrlVal1 *= (1.f + (metamods[1] * 5.f));
+//         ctrlVal2 *= (1.f + (metamods[2] * 5.f));
+//         ctrlVal3 *= (1.f + (metamods[3] * 5.f));
+//         ctrlVal4 *= (1.f + (metamods[4] * 5.f));
+//         ctrlVal5 *= (1.f + (metamods[5] * 5.f));
+//         ctrlVal6 *= (1.f + (metamods[6] * 5.f));
+//         ctrlVal7 *= (1.f + (metamods[7] * 5.f));
+//         ctrlVal8 *= (1.f + (metamods[8] * 5.f));
+//     }
     
-  }
+//   }
 
-  if (msgCt == 100U) {
-    // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
-    Serial.print(".");
-    msgCt=0;
-  }
-  msgCt++;
+//   if (msgCt == 100U) {
+//     // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
+//     Serial.print(".");
+//     msgCt=0;
+//   }
+//   msgCt++;
 
-  //send crtl vals
-  sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
-  sendToMyriadB(messageTypes::CTRL1, ctrlVal4);
-  sendToMyriadB(messageTypes::CTRL2, ctrlVal5);
-  sendToMyriadB(messageTypes::CTRL3, ctrlVal6);
-  sendToMyriadB(messageTypes::CTRL4, ctrlVal7);
-  sendToMyriadB(messageTypes::CTRL5, ctrlVal8);
+//   //send crtl vals
+//   sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
+//   sendToMyriadB(messageTypes::CTRL1, ctrlVal4);
+//   sendToMyriadB(messageTypes::CTRL2, ctrlVal5);
+//   sendToMyriadB(messageTypes::CTRL3, ctrlVal6);
+//   sendToMyriadB(messageTypes::CTRL4, ctrlVal7);
+//   sendToMyriadB(messageTypes::CTRL5, ctrlVal8);
 
-  currOscModels[0]->ctrl(ctrlVal0);
-  currOscModels[1]->ctrl(ctrlVal1);
-  currOscModels[2]->ctrl(ctrlVal2);
+//   currOscModels[0]->ctrl(ctrlVal0);
+//   currOscModels[1]->ctrl(ctrlVal1);
+//   currOscModels[2]->ctrl(ctrlVal2);
 
-  sendToMyriadB(messageTypes::WAVELEN0, new_wavelen3);
-  sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
-  sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
-  sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
-  sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
-  sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
+//   sendToMyriadB(messageTypes::WAVELEN0, new_wavelen3);
+//   sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
+//   sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
+//   sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
+//   sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
+//   sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
-  currOscModels[0]->setWavelen(new_wavelen0);  
-  currOscModels[1]->setWavelen(new_wavelen1);
-  currOscModels[2]->setWavelen(new_wavelen2);
+//   currOscModels[0]->setWavelen(new_wavelen0);  
+//   currOscModels[1]->setWavelen(new_wavelen1);
+//   currOscModels[2]->setWavelen(new_wavelen2);
 
-  oscsReadyToStart = true;
+//   oscsReadyToStart = true;
 
-  if (controlMode == CONTROLMODES::OSCMODE) {
-    display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
-                                  new_wavelen3,new_wavelen4,new_wavelen5,
-                                  new_wavelen6,new_wavelen7,new_wavelen8 });
-  }
+//   if (controlMode == CONTROLMODES::OSCMODE) {
+//     display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
+//                                   new_wavelen3,new_wavelen4,new_wavelen5,
+//                                   new_wavelen6,new_wavelen7,new_wavelen8 });
+//   }
 
 }
 
@@ -1393,11 +1587,12 @@ void setup() {
   // Now turn display on
   digitalWrite(TFT_BL, HIGH);  
 
-
+  gpio_set_drive_strength(12, GPIO_DRIVE_STRENGTH_12MA);
+  gpio_set_slew_rate(12, GPIO_SLEW_RATE_FAST);
   // comms to Myriad B
   Serial1.setRX(13);
   Serial1.setTX(12);
-  Serial1.begin(115200);
+  Serial1.begin(SERIAL_CX_BAUD);
 
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
@@ -1481,6 +1676,7 @@ void setup() {
 size_t FAST_MEM displayTS = 0;
 size_t FAST_MEM ocmTS = 0;
 size_t FAST_MEM adcTS = 0;
+size_t FAST_MEM ctrlTS = 0;
 
 
 void __not_in_flash_func(loop)() {
@@ -1492,11 +1688,29 @@ void __not_in_flash_func(loop)() {
   //   adcTS = now;
   //   Serial.println(".");
   // }
-  if (adcReadyFlag) {
-    processAdc();
-    adcReadyFlag = false;
+  // if (adcReadyFlag) {
+  //   processAdc();
+  //   adcReadyFlag = false;
+  // }
+
+  if (newFrequenciesReady) {
+
+    sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
+    // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
+    // sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
+    // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
+    // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
+    // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
+
+    newFrequenciesReady = false;
   }
-  
+
+  if (now - ctrlTS >= 10) {
+    sendToMyriadB(messageTypes::CTRL0, ctrlVal);
+    sendToMyriadB(messageTypes::DETUNE, detune);
+    ctrlTS = now;
+  }
+
   if (now - displayTS >= 39) {
     uint32_t save = spin_lock_blocking(displaySpinlock);  
 

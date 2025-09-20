@@ -24,40 +24,66 @@ constexpr size_t adcInitMax = adcScaleMax * 0.9;
 #include <cstdint>
 #include <cmath>
 
+#include <type_traits>
+
 // Template parameters:
 // - BitDepth: ADC bit resolution (e.g., 12 for 12-bit ADC)
 // - CalPoints: Number of calibration points
-// - T: Data type for lookup table (float, int16_t, etc.)
-template<int BitDepth, int CalPoints, typename T = float>
+// - FixedPointT: Integer type for fixed-point storage (uint32_t, int32_t, etc.)
+// - FracBits: Number of fractional bits in fixed-point representation
+template<int BitDepth, int CalPoints, typename FixedPointT = uint32_t, int FracBits = 16>
 class ADCCalibrator {
 private:
     static constexpr int ADC_MAX_VALUE = (1 << BitDepth) - 1;
     static constexpr int TABLE_SIZE = ADC_MAX_VALUE + 1;
+    static constexpr FixedPointT SCALE_FACTOR = FixedPointT(1) << FracBits;
+    static constexpr float SCALE_FACTOR_F = static_cast<float>(SCALE_FACTOR);
+    static constexpr bool IS_SIGNED = std::is_signed<FixedPointT>::value;
     
-    std::array<T, TABLE_SIZE> lookupTable;
+    // Validate template parameters at compile time
+    static_assert(std::is_integral<FixedPointT>::value, "FixedPointT must be an integer type");
+    static_assert(FracBits > 0 && FracBits < (sizeof(FixedPointT) * 8 - (IS_SIGNED ? 1 : 0)), 
+                  "FracBits must leave room for integer part (and sign bit if signed)");
+    
+    std::array<FixedPointT, TABLE_SIZE> lookupTable;
     float minVoltage;
     float maxVoltage;
     float voltageStep;
+    float outputMin;
+    float outputMax;
     
 public:
-    // Constructor takes calibration readings and voltage range
+    // Type aliases for clarity
+    using fixed_t = FixedPointT;
+    static constexpr int fractional_bits = FracBits;
+    static constexpr int integer_bits = sizeof(FixedPointT) * 8 - FracBits - (IS_SIGNED ? 1 : 0);
+    
+    // Constructor with output range rescaling (default 0-10)
     constexpr ADCCalibrator(const std::array<int, CalPoints>& calReadings,
                             float vMin = -5.0f,
-                            float vMax = 5.0f)
+                            float vMax = 5.0f,
+                            float outMin = 0.0f,
+                            float outMax = 10.0f)
         : minVoltage(vMin),
           maxVoltage(vMax),
-          voltageStep((vMax - vMin) / (CalPoints - 1)) {
+          voltageStep((vMax - vMin) / (CalPoints - 1)),
+          outputMin(outMin),
+          outputMax(outMax) {
         
         buildLookupTable(calReadings);
     }
     
-    // Alternative constructor with C-array for easier initialization
+    // Alternative constructor with C-array
     constexpr ADCCalibrator(const int (&calReadings)[CalPoints],
                             float vMin = -5.0f,
-                            float vMax = 5.0f)
+                            float vMax = 5.0f,
+                            float outMin = 0.0f,
+                            float outMax = 10.0f)
         : minVoltage(vMin),
           maxVoltage(vMax),
-          voltageStep((vMax - vMin) / (CalPoints - 1)) {
+          voltageStep((vMax - vMin) / (CalPoints - 1)),
+          outputMin(outMin),
+          outputMax(outMax) {
         
         std::array<int, CalPoints> calArray;
         for (int i = 0; i < CalPoints; ++i) {
@@ -66,29 +92,171 @@ public:
         buildLookupTable(calArray);
     }
     
-    // O(1) lookup - force inline for MCU performance
-    inline T convert(int adcReading) const {
+    // O(1) lookup - returns fixed-point integer
+    inline FixedPointT convertFixed(int adcReading) const {
         if (adcReading < 0) return lookupTable[0];
         if (adcReading > ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
         return lookupTable[adcReading];
     }
     
-    // Operator[] for convenient access
-    inline T operator[](int adcReading) const {
-        return convert(adcReading);
+    // Convert and return as float
+    inline float convertFloat(int adcReading) const {
+        return fixedToFloat(convertFixed(adcReading));
     }
     
-    // Get configuration at compile time
+    // Operator[] returns fixed-point value
+    inline FixedPointT operator[](int adcReading) const {
+        return convertFixed(adcReading);
+    }
+    
+    // Static conversion utilities - C++14 compatible
+private:
+    // Pre-computed reciprocal for faster division
+    static constexpr float SCALE_RECIPROCAL = 1.0f / SCALE_FACTOR_F;
+    
+    template<bool Signed>
+    static constexpr typename std::enable_if<Signed, FixedPointT>::type
+    floatToFixedImpl(float value) {
+        // Round to nearest integer in fixed-point representation
+        return static_cast<FixedPointT>(value * SCALE_FACTOR_F + (value >= 0 ? 0.5f : -0.5f));
+    }
+    
+    template<bool Signed>
+    static constexpr typename std::enable_if<!Signed, FixedPointT>::type
+    floatToFixedImpl(float value) {
+        // For unsigned, ensure we don't go negative
+        if (value < 0) return 0;
+        // Round to nearest integer in fixed-point representation
+        return static_cast<FixedPointT>(value * SCALE_FACTOR_F + 0.5f);
+    }
+    
+public:
+    static constexpr FixedPointT floatToFixed(float value) {
+        return floatToFixedImpl<IS_SIGNED>(value);
+    }
+    
+    // Optimized fixed-to-float conversion
+    static constexpr float fixedToFloat(FixedPointT value) {
+        // Use multiplication by reciprocal instead of division
+        // This is faster on most MCUs, especially those without hardware division
+        return static_cast<float>(value) * SCALE_RECIPROCAL;
+    }
+    
+    // Alternative for MCUs without FPU - returns integer and fractional parts separately
+    // This avoids floating point entirely until the final step
+    static void fixedToIntFrac(FixedPointT value, int& intPart, int& fracPart1000) {
+        intPart = value >> FracBits;
+        FixedPointT fracBits = value & ((FixedPointT(1) << FracBits) - 1);
+        // Convert fraction to thousandths (0-999) for display without float math
+        fracPart1000 = (static_cast<int64_t>(fracBits) * 1000) >> FracBits;
+    }
+    
+    // Fixed-point arithmetic helpers - C++14 compatible using SFINAE
+private:
+    template<typename T>
+    static constexpr typename std::enable_if<(sizeof(T) <= 2), T>::type
+    fixedMultiplyImpl(T a, T b, int fracBits) {
+        int32_t result = static_cast<int32_t>(a) * static_cast<int32_t>(b);
+        return static_cast<T>(result >> fracBits);
+    }
+    
+    template<typename T>
+    static constexpr typename std::enable_if<((sizeof(T) > 2) && (sizeof(T) <= 4)), T>::type
+    fixedMultiplyImpl(T a, T b, int fracBits) {
+        int64_t result = static_cast<int64_t>(a) * static_cast<int64_t>(b);
+        return static_cast<T>(result >> fracBits);
+    }
+    
+    template<typename T>
+    static constexpr typename std::enable_if<(sizeof(T) > 4), T>::type
+    fixedMultiplyImpl(T a, T b, int fracBits) {
+        T a_int = a >> fracBits;
+        T a_frac = a & ((T(1) << fracBits) - 1);
+        T b_int = b >> fracBits;
+        T b_frac = b & ((T(1) << fracBits) - 1);
+        
+        T result = a_int * b_int;
+        result += ((a_int * b_frac) >> fracBits) + ((a_frac * b_int) >> fracBits);
+        result += (a_frac * b_frac) >> (2 * fracBits);
+        return result;
+    }
+    
+    template<typename T>
+    static constexpr typename std::enable_if<(sizeof(T) <= 2), T>::type
+    fixedDivideImpl(T a, T b, int fracBits) {
+        int32_t temp = (static_cast<int32_t>(a) << fracBits) / static_cast<int32_t>(b);
+        return static_cast<T>(temp);
+    }
+    
+    template<typename T>
+    static constexpr typename std::enable_if<((sizeof(T) > 2) && (sizeof(T) <= 4)), T>::type
+    fixedDivideImpl(T a, T b, int fracBits) {
+        int64_t temp = (static_cast<int64_t>(a) << fracBits) / static_cast<int64_t>(b);
+        return static_cast<T>(temp);
+    }
+    
+    template<typename T>
+    static constexpr typename std::enable_if<(sizeof(T) > 4), T>::type
+    fixedDivideImpl(T a, T b, int fracBits) {
+        return static_cast<T>((a << fracBits) / b);
+    }
+    
+public:
+    static constexpr FixedPointT fixedMultiply(FixedPointT a, FixedPointT b) {
+        return fixedMultiplyImpl(a, b, FracBits);
+    }
+    
+    static constexpr FixedPointT fixedDivide(FixedPointT a, FixedPointT b) {
+        return fixedDivideImpl(a, b, FracBits);
+    }
+    
+    // Get configuration
     static constexpr int getBitDepth() { return BitDepth; }
     static constexpr int getTableSize() { return TABLE_SIZE; }
     static constexpr int getCalibrationPoints() { return CalPoints; }
-    static constexpr size_t getMemoryUsage() { return TABLE_SIZE * sizeof(T); }
+    static constexpr size_t getMemoryUsage() { return TABLE_SIZE * sizeof(FixedPointT); }
+    static constexpr int getFractionalBits() { return FracBits; }
+    static constexpr int getIntegerBits() { return integer_bits; }
+    static constexpr float getResolution() { return 1.0f / SCALE_FACTOR_F; }
     
     float getMinVoltage() const { return minVoltage; }
     float getMaxVoltage() const { return maxVoltage; }
     float getVoltageStep() const { return voltageStep; }
+    float getOutputMin() const { return outputMin; }
+    float getOutputMax() const { return outputMax; }
+    
+    // Debug function to get raw fixed-point value
+    FixedPointT getRawFixed(int adcReading) const {
+        if (adcReading < 0) return lookupTable[0];
+        if (adcReading > ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+        return lookupTable[adcReading];
+    }
+    
+    // Debug function to check intermediate voltage before rescaling
+    float getUnscaledVoltage(int adcReading) const {
+        std::array<int, CalPoints> calReadings;
+        std::array<float, CalPoints> calVoltages;
+        
+        // This is just for debugging - rebuild calibration arrays
+        // In production, you might want to store these
+        float currentVoltage = minVoltage;
+        for (int i = 0; i < CalPoints; ++i) {
+            calVoltages[i] = currentVoltage;
+            currentVoltage += voltageStep;
+        }
+        
+        // You'd need to store calReadings or pass them in for this to work
+        // For now, returning a placeholder
+        return 0.0f; // Placeholder
+    }
     
 private:
+    // Rescale voltage from input range to output range
+    float rescaleVoltage(float voltage) const {
+        float normalized = (voltage - minVoltage) / (maxVoltage - minVoltage);
+        return outputMin + normalized * (outputMax - outputMin);
+    }
+    
     void buildLookupTable(const std::array<int, CalPoints>& calReadings) {
         // Build voltage array for calibration points
         std::array<float, CalPoints> calVoltages;
@@ -98,10 +266,14 @@ private:
             currentVoltage += voltageStep;
         }
         
-        // Fill lookup table
+        // Fill lookup table with rescaled fixed-point values
         for (int adc = 0; adc <= ADC_MAX_VALUE; ++adc) {
+            // Get the interpolated voltage in the original range
             float voltage = interpolateVoltage(adc, calReadings, calVoltages);
-            lookupTable[adc] = static_cast<T>(voltage);
+            // Rescale to output range (e.g., 0-10)
+            float rescaled = rescaleVoltage(voltage);
+            // Convert to fixed-point
+            lookupTable[adc] = floatToFixed(rescaled);
         }
     }
     
@@ -111,7 +283,7 @@ private:
         
         // Below minimum calibration point
         if (adcReading <= calReadings[0]) {
-            if constexpr (CalPoints < 2) return calVoltages[0];
+            if (CalPoints < 2) return calVoltages[0];
             
             float slope = (calVoltages[1] - calVoltages[0]) / 
                          (calReadings[1] - calReadings[0]);
@@ -120,7 +292,7 @@ private:
         
         // Above maximum calibration point
         if (adcReading >= calReadings[CalPoints - 1]) {
-            if constexpr (CalPoints < 2) return calVoltages[CalPoints - 1];
+            if (CalPoints < 2) return calVoltages[CalPoints - 1];
             
             float slope = (calVoltages[CalPoints-1] - calVoltages[CalPoints-2]) / 
                          (calReadings[CalPoints-1] - calReadings[CalPoints-2]);
@@ -138,6 +310,121 @@ private:
         return calVoltages[lowerIdx] + ratio * (calVoltages[upperIdx] - calVoltages[lowerIdx]);
     }
 };
+
+// Template parameters:
+// - BitDepth: ADC bit resolution (e.g., 12 for 12-bit ADC)
+// - CalPoints: Number of calibration points
+// - T: Data type for lookup table (float, int16_t, etc.)
+// template<int BitDepth, int CalPoints, typename T = float>
+// class ADCCalibrator {
+// private:
+//     static constexpr int ADC_MAX_VALUE = (1 << BitDepth) - 1;
+//     static constexpr int TABLE_SIZE = ADC_MAX_VALUE + 1;
+    
+//     std::array<T, TABLE_SIZE> lookupTable;
+//     float minVoltage;
+//     float maxVoltage;
+//     float voltageStep;
+    
+// public:
+//     // Constructor takes calibration readings and voltage range
+//     constexpr ADCCalibrator(const std::array<int, CalPoints>& calReadings,
+//                             float vMin = -5.0f,
+//                             float vMax = 5.0f)
+//         : minVoltage(vMin),
+//           maxVoltage(vMax),
+//           voltageStep((vMax - vMin) / (CalPoints - 1)) {
+        
+//         buildLookupTable(calReadings);
+//     }
+    
+//     // Alternative constructor with C-array for easier initialization
+//     constexpr ADCCalibrator(const int (&calReadings)[CalPoints],
+//                             float vMin = -5.0f,
+//                             float vMax = 5.0f)
+//         : minVoltage(vMin),
+//           maxVoltage(vMax),
+//           voltageStep((vMax - vMin) / (CalPoints - 1)) {
+        
+//         std::array<int, CalPoints> calArray;
+//         for (int i = 0; i < CalPoints; ++i) {
+//             calArray[i] = calReadings[i];
+//         }
+//         buildLookupTable(calArray);
+//     }
+    
+//     // O(1) lookup - force inline for MCU performance
+//     inline T convert(int adcReading) const {
+//         if (adcReading < 0) return lookupTable[0];
+//         if (adcReading > ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+//         return lookupTable[adcReading];
+//     }
+    
+//     // Operator[] for convenient access
+//     inline T operator[](int adcReading) const {
+//         return convert(adcReading);
+//     }
+    
+//     // Get configuration at compile time
+//     static constexpr int getBitDepth() { return BitDepth; }
+//     static constexpr int getTableSize() { return TABLE_SIZE; }
+//     static constexpr int getCalibrationPoints() { return CalPoints; }
+//     static constexpr size_t getMemoryUsage() { return TABLE_SIZE * sizeof(T); }
+    
+//     float getMinVoltage() const { return minVoltage; }
+//     float getMaxVoltage() const { return maxVoltage; }
+//     float getVoltageStep() const { return voltageStep; }
+    
+// private:
+//     void buildLookupTable(const std::array<int, CalPoints>& calReadings) {
+//         // Build voltage array for calibration points
+//         std::array<float, CalPoints> calVoltages;
+//         float currentVoltage = minVoltage;
+//         for (int i = 0; i < CalPoints; ++i) {
+//             calVoltages[i] = currentVoltage;
+//             currentVoltage += voltageStep;
+//         }
+        
+//         // Fill lookup table
+//         for (int adc = 0; adc <= ADC_MAX_VALUE; ++adc) {
+//             float voltage = interpolateVoltage(adc, calReadings, calVoltages);
+//             lookupTable[adc] = static_cast<T>(voltage);
+//         }
+//     }
+    
+//     float interpolateVoltage(int adcReading,
+//                             const std::array<int, CalPoints>& calReadings,
+//                             const std::array<float, CalPoints>& calVoltages) const {
+        
+//         // Below minimum calibration point
+//         if (adcReading <= calReadings[0]) {
+//             if constexpr (CalPoints < 2) return calVoltages[0];
+            
+//             float slope = (calVoltages[1] - calVoltages[0]) / 
+//                          (calReadings[1] - calReadings[0]);
+//             return calVoltages[0] + slope * (adcReading - calReadings[0]);
+//         }
+        
+//         // Above maximum calibration point
+//         if (adcReading >= calReadings[CalPoints - 1]) {
+//             if constexpr (CalPoints < 2) return calVoltages[CalPoints - 1];
+            
+//             float slope = (calVoltages[CalPoints-1] - calVoltages[CalPoints-2]) / 
+//                          (calReadings[CalPoints-1] - calReadings[CalPoints-2]);
+//             return calVoltages[CalPoints-1] + slope * (adcReading - calReadings[CalPoints-1]);
+//         }
+        
+//         // Binary search for interpolation points
+//         auto it = std::lower_bound(calReadings.begin(), calReadings.end(), adcReading);
+//         int upperIdx = std::distance(calReadings.begin(), it);
+//         int lowerIdx = upperIdx - 1;
+        
+//         // Linear interpolation
+//         float ratio = static_cast<float>(adcReading - calReadings[lowerIdx]) / 
+//                      (calReadings[upperIdx] - calReadings[lowerIdx]);
+//         return calVoltages[lowerIdx] + ratio * (calVoltages[upperIdx] - calVoltages[lowerIdx]);
+//     }
+// };
 
 // // Specialization for compressed storage using fixed-point arithmetic
 // template<int BitDepth, int CalPoints>

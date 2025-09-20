@@ -435,6 +435,8 @@ class sawOscillatorModel : public virtual oscillatorModel {
     sawOscillatorModel() : oscillatorModel(){
       loopLength=16;
       prog=bitbybit_program;
+      // setClockMod(2.f);
+
       // generateSawtoothTable();
       // for(size_t i = 0; i < 1000; ++i) {
       //   MULTIPLIER_TABLE[i] = generate_multiplier(i);
@@ -1146,9 +1148,10 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
   public:
 
     pulseSDOscillatorModel() : oscillatorModel(){
-      loopLength=16;
+      loopLength=32;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockMod(2.f);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
