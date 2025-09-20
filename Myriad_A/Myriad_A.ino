@@ -316,6 +316,8 @@ FixedLpf<12,4> FAST_MEM adcLpf2;
 FixedLpf<12,4> FAST_MEM adcLpf3;
 
 float __scratch_x("adc") new_wavelen0 = 0;
+float __scratch_x("adc") new_wavelen1 = 0;
+float __scratch_x("adc") new_wavelen2 = 0;
 float __scratch_x("adc") detune = 0;
 float __scratch_x("adc") ctrlVal = 0;
 
@@ -329,10 +331,11 @@ float __scratch_x("adc") metaModWavelenMul6 = 1.f;
 float __scratch_x("adc") metaModWavelenMul7 = 1.f;
 float __scratch_x("adc") metaModWavelenMul8 = 1.f;
 float __scratch_x("adc") metaModCtrlMul = 1.f;
+bool __scratch_x("adc") metaModReady = false;
 
 
 constexpr size_t systemUpdateFreq = 2000;
-constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 100;
+constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
 volatile bool __scratch_x("adc") newFrequenciesReady = false;
@@ -421,8 +424,8 @@ void adc_dma_irq_handler() {
 
     detune = (detuneControl * 0.016f) * new_wavelen0;
     
-    float new_wavelen1 = (new_wavelen0 - detune);
-    float new_wavelen2 = (new_wavelen1 - detune);
+    new_wavelen1 = (new_wavelen0 - detune);
+    new_wavelen2 = (new_wavelen1 - detune);
 
     // new_wavelen3 = (new_wavelen2 - detune);
     // new_wavelen4 = (new_wavelen3 - detune);
@@ -436,40 +439,35 @@ void adc_dma_irq_handler() {
     new_wavelen0 = new_wavelen0 * octaves[0];
     new_wavelen1 = new_wavelen1 * octaves[1];
     new_wavelen2 = new_wavelen2 * octaves[2];
-    // new_wavelen3 = new_wavelen3 * octaves[3];
-    // new_wavelen4 = new_wavelen4 * octaves[4];
-    // new_wavelen5 = new_wavelen5 * octaves[5];
-    // new_wavelen6 = new_wavelen6 * octaves[6];
-    // new_wavelen7 = new_wavelen7 * octaves[7];
-    // new_wavelen8 = new_wavelen8 * octaves[8];
 
     ctrlVal = adcLpf2.play(adcReadings[2]) * (1.f/4095.f); //raw
 
-    // if (metaUpdateCounter++ >= metaUpdatePeriod) {
-    //   metaUpdateCounter = 0;
+    if (metaUpdateCounter++ >= metaUpdatePeriod) {
+      metaUpdateCounter = 0;
 
-    //   auto metamods = metaOscsList.at(currMetaMod)->getValues();
+      auto metamods = metaOscsList.at(currMetaMod)->getValues();
 
-    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-    //       metaModWavelenMul0 = (1.f + (metamods[0]));
-    //       metaModWavelenMul1 = (1.f + (metamods[1]));
-    //       metaModWavelenMul2 = (1.f + (metamods[2]));
-    //       metaModWavelenMul3 = (1.f + (metamods[3]));
-    //       metaModWavelenMul4 = (1.f + (metamods[4]));
-    //       metaModWavelenMul5 = (1.f + (metamods[5]));
-    //       metaModWavelenMul6 = (1.f + (metamods[6]));
-    //       metaModWavelenMul7 = (1.f + (metamods[7]));
-    //       metaModWavelenMul8 = (1.f + (metamods[8]));
-    //   }
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+          metaModWavelenMul0 = (1.f + (metamods[0]));
+          metaModWavelenMul1 = (1.f + (metamods[1]));
+          metaModWavelenMul2 = (1.f + (metamods[2]));
+          metaModWavelenMul3 = (1.f + (metamods[3]));
+          metaModWavelenMul4 = (1.f + (metamods[4]));
+          metaModWavelenMul5 = (1.f + (metamods[5]));
+          metaModWavelenMul6 = (1.f + (metamods[6]));
+          metaModWavelenMul7 = (1.f + (metamods[7]));
+          metaModWavelenMul8 = (1.f + (metamods[8]));
+      }
 
-    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-    //       metaModCtrlMul = (1.f + (metamods[0] * 5.f));
-    //   }
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+          metaModCtrlMul = (1.f + (metamods[0] * 5.f));
+      }
+      metaModReady = true;
       
-    // }
-    // new_wavelen0 *= metaModWavelenMul0;
-    // new_wavelen1 *= metaModWavelenMul1;
-    // new_wavelen2 *= metaModWavelenMul2;
+    }
+    new_wavelen0 *= metaModWavelenMul0;
+    new_wavelen1 *= metaModWavelenMul1;
+    new_wavelen2 *= metaModWavelenMul2;
     // new_wavelen3 *= metaModWavelenMul3;
     // new_wavelen4 *= metaModWavelenMul4;
     // new_wavelen5 *= metaModWavelenMul5;
@@ -477,7 +475,7 @@ void adc_dma_irq_handler() {
     // new_wavelen7 *= metaModWavelenMul7;
     // new_wavelen8 *= metaModWavelenMul8;
 
-    // ctrlVal *= metaModCtrlMul;
+    ctrlVal *= metaModCtrlMul;
 
     // if (msgCt == 100U) {
     //   // Serial.printf("%f %f %f %f\n",adcMap(0), freq, new_wavelen0, wavelen20hz);
@@ -1677,11 +1675,13 @@ size_t FAST_MEM displayTS = 0;
 size_t FAST_MEM ocmTS = 0;
 size_t FAST_MEM adcTS = 0;
 size_t FAST_MEM ctrlTS = 0;
+size_t FAST_MEM freqTS=0;
+size_t FAST_MEM metaModSendIdx=0;
 
 
 void __not_in_flash_func(loop)() {
 
-  auto now = millis();
+  auto now = micros();
 
   // if (now - adcTS >= 20) {
   //   adcProcessor();
@@ -1693,7 +1693,7 @@ void __not_in_flash_func(loop)() {
   //   adcReadyFlag = false;
   // }
 
-  if (newFrequenciesReady) {
+  if (newFrequenciesReady && now - freqTS >= 1000) {
 
     sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
     // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
@@ -1703,16 +1703,60 @@ void __not_in_flash_func(loop)() {
     // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
 
     newFrequenciesReady = false;
+    freqTS = now;
   }
 
-  if (now - ctrlTS >= 10) {
+  //stagg
+  switch(metaModSendIdx) {
+    case 5:
+    metaModSendIdx = 4;
+    sendToMyriadB(messageTypes::METAMOD3, metaModWavelenMul3);
+    break;
+    case 4:
+    metaModSendIdx = 3;
+    sendToMyriadB(messageTypes::METAMOD4, metaModWavelenMul4);
+    break;
+    case 3:
+    metaModSendIdx = 2;
+    sendToMyriadB(messageTypes::METAMOD5, metaModWavelenMul5);
+    break;
+    case 2:
+    metaModSendIdx = 1;
+    sendToMyriadB(messageTypes::METAMOD6, metaModWavelenMul6);
+    break;
+    case 1:
+    metaModSendIdx = 0;
+    sendToMyriadB(messageTypes::METAMOD7, metaModWavelenMul7);
+    break;
+  }
+  if (metaModReady) {
+    sendToMyriadB(messageTypes::METAMOD8, metaModWavelenMul8);
+    metaModSendIdx=5;
+    metaModReady=false;
+  }
+  
+
+  if (now - ctrlTS >= 10000) {
     sendToMyriadB(messageTypes::CTRL0, ctrlVal);
     sendToMyriadB(messageTypes::DETUNE, detune);
     ctrlTS = now;
   }
 
-  if (now - displayTS >= 39) {
+  if (now - displayTS >= 39000) {
     uint32_t save = spin_lock_blocking(displaySpinlock);  
+    if (controlMode == CONTROLMODES::OSCMODE) {
+      //same calc as on myriad B, but just for display
+      const float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
+      const float new_wavelen4 = (new_wavelen3 - detune);
+      const float new_wavelen5 = (new_wavelen4 - detune);
+      const float new_wavelen6 = (new_wavelen5 - detune);
+      const float new_wavelen7 = (new_wavelen6 - detune);
+      const float new_wavelen8 = (new_wavelen7 - detune);
+
+      display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
+                                    new_wavelen3,new_wavelen4,new_wavelen5,
+                                    new_wavelen6,new_wavelen7,new_wavelen8 });
+    }
 
     display.update();
     displayTS = now;
@@ -1721,7 +1765,7 @@ void __not_in_flash_func(loop)() {
 
   }
 
-  if (now - ocmTS >= 31) {
+  if (now - ocmTS >= 31000) {
     oscModeChangeMonitor();
     ocmTS = now;
   }

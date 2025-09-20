@@ -213,6 +213,13 @@ inline void __not_in_flash_func(setCtrl)() {
 }
 
 float __scratch_x("adc") detune = 0.f;
+float __scratch_x("adc") metaModWavelenMul3 = 1.f;
+float __scratch_x("adc") metaModWavelenMul4 = 1.f;
+float __scratch_x("adc") metaModWavelenMul5 = 1.f;
+float __scratch_x("adc") metaModWavelenMul6 = 1.f;
+float __scratch_x("adc") metaModWavelenMul7 = 1.f;
+float __scratch_x("adc") metaModWavelenMul8 = 1.f;
+
 
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
@@ -274,17 +281,17 @@ inline void __not_in_flash_func(readUart)() {
                 const float new_wavelen6 = (new_wavelen5 - detune);
                 const float new_wavelen7 = (new_wavelen6 - detune);
                 const float new_wavelen8 = (new_wavelen7 - detune);
-                currOscModels0[0]->setWavelen(new_wavelen3);
+                currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
                 currOscModels0[0]->reset();
-                currOscModels0[1]->setWavelen(new_wavelen4);
+                currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
                 currOscModels0[1]->reset();
-                currOscModels0[2]->setWavelen(new_wavelen5);
+                currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
                 currOscModels0[2]->reset();
-                currOscModels1[0]->setWavelen(new_wavelen6);
+                currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
                 currOscModels1[0]->reset();
-                currOscModels1[1]->setWavelen(new_wavelen7);
+                currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
                 currOscModels1[1]->reset();
-                currOscModels1[2]->setWavelen(new_wavelen8);
+                currOscModels1[2]->setWavelen(new_wavelen8 * metaModWavelenMul8);
                 currOscModels1[2]->reset();
                 oscsReadyToStart = true;
               }
@@ -292,7 +299,38 @@ inline void __not_in_flash_func(readUart)() {
               case DETUNE:
               {
                 detune = decodeMsg.value;
+                break;
               }     
+              case METAMOD3:
+              {
+                metaModWavelenMul3 = decodeMsg.value;
+                break;
+              }
+              case METAMOD4:
+              {
+                metaModWavelenMul4 = decodeMsg.value;
+                break;
+              }
+              case METAMOD5:
+              {
+                metaModWavelenMul5 = decodeMsg.value;
+                break;
+              }
+              case METAMOD6:
+              {
+                metaModWavelenMul6 = decodeMsg.value;
+                break;
+              }
+              case METAMOD7:
+              {
+                metaModWavelenMul7 = decodeMsg.value;
+                break;
+              }
+              case METAMOD8:
+              {
+                metaModWavelenMul8 = decodeMsg.value;
+                break;
+              }
               // case WAVELEN1:
               // {
               //   // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
