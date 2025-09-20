@@ -434,12 +434,12 @@ private:
       const float prevpos = oscVisPhase[i] * TWOPI;
       const float prevcospos = sineTable::fast_cos(prevpos);
       const float prevsinpos = sineTable::fast_sin(prevpos);
-      const float linelen=18 + ((i+1)*unitR);
-      const float halflinelen = linelen * 0.5;
+      const float linelen=18.f + ((i+1.f)*unitR);
+      const float halflinelen = linelen * 0.5f;
 
-      const size_t cx = 120+ (linelen * prevcospos);
-      const size_t cy = 120+ (linelen * prevsinpos);
-      tft.drawLine(120,120, cx,cy, ELI_BLUE );
+      const size_t cx = 120.f+ (linelen * prevcospos);
+      const size_t cy = 120.f+ (linelen * prevsinpos);
+      tft.drawLine(120.f,120.f, cx,cy, ELI_BLUE );
       tft.drawLine(currState.modLineXStart[i], currState.modLineYStart[i], currState.modLineX[i], currState.modLineY[i], ELI_BLUE );
       tft.drawCircle(cx, cy, 5, ELI_BLUE);
 

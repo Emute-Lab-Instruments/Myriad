@@ -247,6 +247,8 @@ static float __scratch_x("adc") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
+static uint16_t __not_in_flash("adc") capture_buf_a[16] __attribute__((aligned(2048)));
+static uint16_t __not_in_flash("adc") capture_buf_b[16] __attribute__((aligned(2048)));
 
 static float __not_in_flash("mydata") octave0=1;
 static float __not_in_flash("mydata") octave1=1;
@@ -267,7 +269,7 @@ volatile uint16_t knobs[4] = {0,0,0,0};
 
 void __not_in_flash_func(adc_irq_handler)() {
     // Get ADC data from FIFO
-    uint16_t adc = adc_fifo_get_blocking();
+    const uint16_t adc = adc_fifo_get_blocking();
     // Serial.printf("%d %d\n", adc, adc_get_selected_input());
     switch(adc_get_selected_input()) {
         case 0:
@@ -277,10 +279,16 @@ void __not_in_flash_func(adc_irq_handler)() {
             // Serial.print("K0: "); Serial.println(adc);
             break;
         case 1:
+        {
             // Knob 1
             knobssm[1] = (127 * (knobssm[1]) + 16 * adc) >> 7;
             knobs[1] = knobssm[1] >> 4;
-            // Serial.print("K1: "); Serial.println(adc);
+            Serial.print("K1: "); Serial.println(adc);
+            bool err = (adc & 0b1000000000000000) > 0;
+            if (err) {
+              Serial.println("ADC ERROR");
+            }
+          }
             break;
         case 2:
             // Knob 2
@@ -295,7 +303,29 @@ void __not_in_flash_func(adc_irq_handler)() {
     }
 }
 
+uint __scratch_x("adc") dma_chan;
+uint __scratch_x("adc") dma_chan2;
 
+void adc_dma_irq_handler() {
+    if (dma_channel_get_irq0_status(dma_chan)) {
+        dma_channel_acknowledge_irq0(dma_chan);
+        
+        // Your buffer is full or at the ring boundary
+        // Process data in capture_buf here
+        Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
+        // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+        // dma_channel_set_trans_count(dma_chan, 4, true);        
+    }
+    if (dma_channel_get_irq0_status(dma_chan2)) {
+        dma_channel_acknowledge_irq0(dma_chan2);
+        
+        // Your buffer is full or at the ring boundary
+        // Process data in capture_buf here
+        Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
+        // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+        // dma_channel_set_trans_count(dma_chan, 4, true);        
+    }
+}
 void setup_adcs() {
   adc_init();
   adc_gpio_init(26);
@@ -303,65 +333,87 @@ void setup_adcs() {
   adc_gpio_init(28);
   adc_gpio_init(29);
 
-  // adc_set_round_robin(15);
-  // adc_fifo_setup(
-  //   true,   // Write each completed conversion to the sample FIFO
-  //   true,   // Enable DMA data request (DREQ)
-  //   1,      // DREQ (and IRQ) asserted when at least 1 sample present
-  //   false,  // We won't see the ERR bit because of 8 bit reads; disable.
-  //   false   // Shift each sample to 8 bits when pushing to FIFO
-  // );
+  // // STOP ADC to ensure clean start
+  // adc_run(false);
+  
+  // // Flush any existing FIFO data
+  // while (!adc_fifo_is_empty()) {
+  //     adc_fifo_get_blocking();
+  // }  
 
-  // // Divisor of 0 -> full speed. Free-running capture with the divider is
-  // // equivalent to pressing the ADC_CS_START_ONCE button once per `div + 1`
-  // // cycles (div not necessarily an integer). Each conversion takes 96
-  // // cycles, so in general you want a divider of 0 (hold down the button
-  // // continuously) or > 95 (take samples less frequently than 96 cycle
-  // // intervals). This is all timed by the 48 MHz ADC clock.
-  // // adc_set_clkdiv(96 * 512);
+  adc_set_round_robin(15);
+  adc_fifo_setup(
+    true,   // Write each completed conversion to the sample FIFO
+    true,   // Enable DMA data request (DREQ)
+    4,      // DREQ (and IRQ) asserted when at least 1 sample present
+    false,  // We won't see the ERR bit because of 8 bit reads; disable.
+    false   // Shift each sample to 8 bits when pushing to FIFO
+  );
+
+  // Divisor of 0 -> full speed. Free-running capture with the divider is
+  // equivalent to pressing the ADC_CS_START_ONCE button once per `div + 1`
+  // cycles (div not necessarily an integer). Each conversion takes 96
+  // cycles, so in general you want a divider of 0 (hold down the button
+  // continuously) or > 95 (take samples less frequently than 96 cycle
+  // intervals). This is all timed by the 48 MHz ADC clock.
+  // adc_set_clkdiv(96 * 512);
   // adc_set_clkdiv(adcClockDiv); 
-  // // adc_set_clkdiv(0);
+  // adc_set_clkdiv(0);
+  adc_set_clkdiv((48000000 / 20) - 1);
 
-  // // printf("Arming DMA\n");
-  // // sleep_ms(1);
-  // // Set up the DMA to start transferring data as soon as it appears in FIFO
-  // uint dma_chan = dma_claim_unused_channel(true);
-  // dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
+  //setup two dma channels in ping pong
+  dma_chan = dma_claim_unused_channel(true);
+  dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
 
-  // // Reading from constant address, writing to incrementing byte addresses
-  // channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
-  // channel_config_set_read_increment(&cfg, false);
-  // channel_config_set_write_increment(&cfg, true);
-  // channel_config_set_ring(&cfg, true, 3);
+  dma_chan2 = dma_claim_unused_channel(true);
+  dma_channel_config cfg2 = dma_channel_get_default_config(dma_chan2);
 
-  // // Pace transfers based on availability of ADC samples
-  // channel_config_set_dreq(&cfg, DREQ_ADC);
+  // Reading from constant address, writing to incrementing byte addresses
+  channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
+  channel_config_set_read_increment(&cfg, false);
+  channel_config_set_write_increment(&cfg, true);
+  channel_config_set_ring(&cfg, true, 8);
 
-  // dma_channel_configure(dma_chan, &cfg,
-  //                       capture_buf,    // dst
-  //                       &adc_hw->fifo,  // src
-  //                       -1,             // transfer count
-  //                       true            // start immediately
-  // );
+  // Pace transfers based on availability of ADC samples
+  channel_config_set_dreq(&cfg, DREQ_ADC);
+  channel_config_set_chain_to(&cfg, dma_chan2);
 
-  // adc_select_input(0);
-  // adc_gpio_init(26);
-  // adc_gpio_init(27);
-  // adc_gpio_init(28);
-  // adc_gpio_init(29);
 
-  // Set round robin for all 4 channels
-  adc_set_round_robin(0x0F);
-  adc_fifo_setup(true, true, 1, false, false);
+  // Reading from constant address, writing to incrementing byte addresses
+  channel_config_set_transfer_data_size(&cfg2, DMA_SIZE_16);
+  channel_config_set_read_increment(&cfg2, false);
+  channel_config_set_write_increment(&cfg2, true);
+  channel_config_set_ring(&cfg2, true, 8);
 
-  // 96kHz sampling rate (48MHz / 500 = 96kHz)
-  adc_set_clkdiv((48000000 / 100) - 1);
+  // Pace transfers based on availability of ADC samples
+  channel_config_set_dreq(&cfg2, DREQ_ADC);
+  channel_config_set_chain_to(&cfg2, dma_chan);
 
-  // Setup interrupt handler
-  irq_set_exclusive_handler(ADC_IRQ_FIFO, adc_irq_handler);
-  adc_irq_set_enabled(true);
-  irq_set_enabled(ADC_IRQ_FIFO, true);
+
+  dma_channel_configure(dma_chan, &cfg,
+                        capture_buf_a,    // dst
+                        &adc_hw->fifo,  // src
+                        4,             // transfer count
+                        false            // start immediately
+  );
+
+  dma_channel_configure(dma_chan2, &cfg2,
+                        capture_buf_b,    // dst
+                        &adc_hw->fifo,  // src
+                        4,             // transfer count
+                        false            // start immediately
+  );
+
+  dma_channel_start(dma_chan);
+
   adc_select_input(0);
+
+  //set up interrupts
+  dma_channel_set_irq0_enabled(dma_chan, true);
+  dma_channel_set_irq0_enabled(dma_chan2, true);
+  irq_set_exclusive_handler(DMA_IRQ_0, adc_dma_irq_handler);
+  irq_set_enabled(DMA_IRQ_0, true);  
+
   adc_run(true);
 }
 

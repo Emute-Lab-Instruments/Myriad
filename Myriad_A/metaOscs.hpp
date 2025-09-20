@@ -123,7 +123,7 @@ protected:
   //add screen bounds
 };
 
-constexpr float TWOPI  = PI * 2;
+constexpr float TWOPI  = PI * 2.f;
 
 template<size_t N>
 class metaOscNone : public metaOsc<N> {
