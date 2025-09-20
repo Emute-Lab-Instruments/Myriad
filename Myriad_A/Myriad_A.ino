@@ -44,10 +44,31 @@
 #ifdef TEST_ARPEGGIATOR
 float arpCount=0;
 float arpIndex= 0;
-std::array<float, 3> arpNotes = {0.2,0.4,0.6}; //1, 3, 5
+// std::array<float, 4> arpNotes = {0.2,0.4,0.6, 0.8}; //1, 3, 5
+std::array<float, 102> arpNotes = 
+{
+  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
+  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
+  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
+  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
+  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
+
+  0.520930,
+
+  0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
+0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
+0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
+0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
+0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
+0.482853
+
+};
 #endif
 
 
+constexpr int cal_data[11] = {19, 758, 1517,2298,3051, 3815, 4589, 5342, 6125, 6878, 7639};
+
+ADCCalibrator<13,11,float> __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
 
 
 bool core1_separate_stack = true;
@@ -241,57 +262,103 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
+volatile int32_t knobssm[4] = {0,0,0,0};
+volatile uint16_t knobs[4] = {0,0,0,0};
 
+void __not_in_flash_func(adc_irq_handler)() {
+    // Get ADC data from FIFO
+    uint16_t adc = adc_fifo_get_blocking();
+
+    switch(adc_get_selected_input()) {
+        case 0:
+            // Knob 0 - stronger smoothing for knobs
+            // knobssm[0] = (127 * (knobssm[0]) + 16 * adc) >> 7;
+            // knobs[0] = knobssm[0] >> 4;
+            Serial.print("K0: "); Serial.println(adc);
+            break;
+        case 1:
+            // Knob 1
+            knobssm[1] = (127 * (knobssm[1]) + 16 * adc) >> 7;
+            knobs[1] = knobssm[1] >> 4;
+            break;
+        case 2:
+            // Knob 2
+            knobssm[2] = (127 * (knobssm[2]) + 16 * adc) >> 7;
+            knobs[2] = knobssm[2] >> 4;
+            break;
+        case 3:
+            // Knob 3
+            knobssm[3] = (127 * (knobssm[3]) + 16 * adc) >> 7;
+            knobs[3] = knobssm[3] >> 4;
+            break;
+    }
+}
 
 
 void setup_adcs() {
   adc_init();
+  // adc_gpio_init(26);
+  // adc_gpio_init(27);
+  // adc_gpio_init(28);
+  // adc_gpio_init(29);
+  // adc_set_round_robin(15);
+  // adc_fifo_setup(
+  //   true,   // Write each completed conversion to the sample FIFO
+  //   true,   // Enable DMA data request (DREQ)
+  //   1,      // DREQ (and IRQ) asserted when at least 1 sample present
+  //   false,  // We won't see the ERR bit because of 8 bit reads; disable.
+  //   false   // Shift each sample to 8 bits when pushing to FIFO
+  // );
+
+  // // Divisor of 0 -> full speed. Free-running capture with the divider is
+  // // equivalent to pressing the ADC_CS_START_ONCE button once per `div + 1`
+  // // cycles (div not necessarily an integer). Each conversion takes 96
+  // // cycles, so in general you want a divider of 0 (hold down the button
+  // // continuously) or > 95 (take samples less frequently than 96 cycle
+  // // intervals). This is all timed by the 48 MHz ADC clock.
+  // // adc_set_clkdiv(96 * 512);
+  // adc_set_clkdiv(adcClockDiv); 
+  // // adc_set_clkdiv(0);
+
+  // // printf("Arming DMA\n");
+  // // sleep_ms(1);
+  // // Set up the DMA to start transferring data as soon as it appears in FIFO
+  // uint dma_chan = dma_claim_unused_channel(true);
+  // dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
+
+  // // Reading from constant address, writing to incrementing byte addresses
+  // channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
+  // channel_config_set_read_increment(&cfg, false);
+  // channel_config_set_write_increment(&cfg, true);
+  // channel_config_set_ring(&cfg, true, 3);
+
+  // // Pace transfers based on availability of ADC samples
+  // channel_config_set_dreq(&cfg, DREQ_ADC);
+
+  // dma_channel_configure(dma_chan, &cfg,
+  //                       capture_buf,    // dst
+  //                       &adc_hw->fifo,  // src
+  //                       -1,             // transfer count
+  //                       true            // start immediately
+  // );
+
+  // adc_select_input(0);
   adc_gpio_init(26);
   adc_gpio_init(27);
   adc_gpio_init(28);
   adc_gpio_init(29);
-  adc_set_round_robin(15);
-  adc_fifo_setup(
-    true,   // Write each completed conversion to the sample FIFO
-    true,   // Enable DMA data request (DREQ)
-    1,      // DREQ (and IRQ) asserted when at least 1 sample present
-    false,  // We won't see the ERR bit because of 8 bit reads; disable.
-    false   // Shift each sample to 8 bits when pushing to FIFO
-  );
 
-  // Divisor of 0 -> full speed. Free-running capture with the divider is
-  // equivalent to pressing the ADC_CS_START_ONCE button once per `div + 1`
-  // cycles (div not necessarily an integer). Each conversion takes 96
-  // cycles, so in general you want a divider of 0 (hold down the button
-  // continuously) or > 95 (take samples less frequently than 96 cycle
-  // intervals). This is all timed by the 48 MHz ADC clock.
-  // adc_set_clkdiv(96 * 512);
-  adc_set_clkdiv(adcClockDiv); //520 x 96 cycle conversions
-  // adc_set_clkdiv(0);
+  // Set round robin for all 4 channels
+  adc_set_round_robin(0x0F);
+  adc_fifo_setup(true, true, 1, false, false);
 
-  // printf("Arming DMA\n");
-  // sleep_ms(1);
-  // Set up the DMA to start transferring data as soon as it appears in FIFO
-  uint dma_chan = dma_claim_unused_channel(true);
-  dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
+  // 96kHz sampling rate (48MHz / 500 = 96kHz)
+  adc_set_clkdiv((48000000 / 100) - 1);
 
-  // Reading from constant address, writing to incrementing byte addresses
-  channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
-  channel_config_set_read_increment(&cfg, false);
-  channel_config_set_write_increment(&cfg, true);
-  channel_config_set_ring(&cfg, true, 3);
-
-  // Pace transfers based on availability of ADC samples
-  channel_config_set_dreq(&cfg, DREQ_ADC);
-
-  dma_channel_configure(dma_chan, &cfg,
-                        capture_buf,    // dst
-                        &adc_hw->fifo,  // src
-                        -1,             // transfer count
-                        true            // start immediately
-  );
-
-  adc_select_input(0);
+  // Setup interrupt handler
+  irq_set_exclusive_handler(ADC_IRQ_FIFO, adc_irq_handler);
+  adc_irq_set_enabled(true);
+  irq_set_enabled(ADC_IRQ_FIFO, true);
   adc_run(true);
 }
 
@@ -432,22 +499,26 @@ void __not_in_flash_func(processAdc)() {
   
 #ifdef TEST_ARPEGGIATOR
   float pitchCV=arpNotes[arpIndex];
-  if (arpCount==100) {
-    arpCount=0;
+  // if (arpCount==0) {
+    // arpCount=0;
     arpIndex+=1;
     if (arpIndex >= arpNotes.size()) {
       arpIndex=0;
     }
-  }
-  arpCount+=1;
+  // }
+  // arpCount+=1;
 #else
-  float pitchCV = adcMap(0);
+  // float pitchCV = adcMap(0);
+  size_t index = (size_t)controlValues[0];
+  float voltage = pitchADCMap[index];
+  float pitchCV = (voltage+5.f) * 0.1f;
+  Serial.printf("%d, %f, %f\n", index, voltage, pitchCV);
 #endif
 
   //quantise?
   // constexpr float step = 0.1f / 5.f;
   // constexpr float stepinv = 1.f/step;
-  if (!TuningSettings::bypass && TuningSettings::quantPull > 0) {
+  if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
     // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
     // float quantStepInv = 1.f/quantStep;
     float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
@@ -1309,7 +1380,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(CALIBRATE_BUTTON), calibrate_button_callback,
                     CHANGE);
 
-  add_repeating_timer_us(adcProcessorDiv, adcProcessor, NULL, &timerAdcProcessor);
+  // add_repeating_timer_us(adcProcessorDiv, adcProcessor, NULL, &timerAdcProcessor);
   // add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
   // add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 
