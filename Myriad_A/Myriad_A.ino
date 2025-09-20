@@ -268,18 +268,19 @@ volatile uint16_t knobs[4] = {0,0,0,0};
 void __not_in_flash_func(adc_irq_handler)() {
     // Get ADC data from FIFO
     uint16_t adc = adc_fifo_get_blocking();
-
+    // Serial.printf("%d %d\n", adc, adc_get_selected_input());
     switch(adc_get_selected_input()) {
         case 0:
             // Knob 0 - stronger smoothing for knobs
             // knobssm[0] = (127 * (knobssm[0]) + 16 * adc) >> 7;
             // knobs[0] = knobssm[0] >> 4;
-            Serial.print("K0: "); Serial.println(adc);
+            // Serial.print("K0: "); Serial.println(adc);
             break;
         case 1:
             // Knob 1
             knobssm[1] = (127 * (knobssm[1]) + 16 * adc) >> 7;
             knobs[1] = knobssm[1] >> 4;
+            // Serial.print("K1: "); Serial.println(adc);
             break;
         case 2:
             // Knob 2
@@ -297,10 +298,11 @@ void __not_in_flash_func(adc_irq_handler)() {
 
 void setup_adcs() {
   adc_init();
-  // adc_gpio_init(26);
-  // adc_gpio_init(27);
-  // adc_gpio_init(28);
-  // adc_gpio_init(29);
+  adc_gpio_init(26);
+  adc_gpio_init(27);
+  adc_gpio_init(28);
+  adc_gpio_init(29);
+
   // adc_set_round_robin(15);
   // adc_fifo_setup(
   //   true,   // Write each completed conversion to the sample FIFO
@@ -343,10 +345,10 @@ void setup_adcs() {
   // );
 
   // adc_select_input(0);
-  adc_gpio_init(26);
-  adc_gpio_init(27);
-  adc_gpio_init(28);
-  adc_gpio_init(29);
+  // adc_gpio_init(26);
+  // adc_gpio_init(27);
+  // adc_gpio_init(28);
+  // adc_gpio_init(29);
 
   // Set round robin for all 4 channels
   adc_set_round_robin(0x0F);
@@ -359,6 +361,7 @@ void setup_adcs() {
   irq_set_exclusive_handler(ADC_IRQ_FIFO, adc_irq_handler);
   adc_irq_set_enabled(true);
   irq_set_enabled(ADC_IRQ_FIFO, true);
+  adc_select_input(0);
   adc_run(true);
 }
 
