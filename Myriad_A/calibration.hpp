@@ -475,11 +475,7 @@ template<int CalPoints>
 using ADC12Bit = ADCCalibrator<12, CalPoints, float>;
 
 
-// Example usage
-#include <iostream>
-#include <iomanip>
 
-// Global constant calibration data (stored in flash on MCU)
 constexpr int cal_12bit_bipolar[11] = {
     10,    // -5V
     420,   // -4V

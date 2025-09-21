@@ -1666,7 +1666,7 @@ void __not_in_flash_func(loop)() {
   //   adcReadyFlag = false;
   // }
 
-  if (newFrequenciesReady && now - freqTS >= 1000) {
+  if (newFrequenciesReady && now - freqTS >= 500) {
 
     sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
     // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
