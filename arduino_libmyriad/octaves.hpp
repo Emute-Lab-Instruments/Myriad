@@ -1,7 +1,7 @@
 #ifndef OCTAVES_HPP
 #define OCTAVES_HPP
 
-static const __scratch_x("octaves") float octaveTable[16][9] = {
+static const __not_in_flash("octaves") float octaveTable[16][9] = {
     {1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f},   // case 0
     {0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f},   // case 1
     {0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f},   // case 2
@@ -20,7 +20,7 @@ static const __scratch_x("octaves") float octaveTable[16][9] = {
     {1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f}    // case 15
 };
 
-static float __scratch_x("adc") *currentOctaves = (float *)octaveTable[0];
+static float __not_in_flash("adc") *currentOctaves = (float *)octaveTable[0];
 
 //   if (octaveIdx != lastOctaveIdx) {
 //     lastOctaveIdx = octaveIdx;

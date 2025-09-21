@@ -273,7 +273,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<12,1> FAST_MEM adcLpf0;
+FixedLpf<16,1> FAST_MEM adcLpf0;
 FixedLpf<12,4> FAST_MEM adcLpf1;
 FixedLpf<12,4> FAST_MEM adcLpf2;    
 FixedLpf<12,4> FAST_MEM adcLpf3;
@@ -301,7 +301,7 @@ size_t __scratch_x("adc") lastOctaveIdx = 0;
 size_t __scratch_x("adc") octaveIdx = 0;
 
 
-constexpr size_t systemUpdateFreq = 3000;
+constexpr size_t systemUpdateFreq = 4000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
@@ -370,6 +370,7 @@ void adc_dma_irq_handler() {
 
     const float filteredADC0 = adcLpf0.play(adcReadings[0]); //in q16 format
     float pitchCV = pitchADCMap.convertFloat(filteredADC0);
+    controlValues[0] = filteredADC0;
 
     //quantise?
     // constexpr float step = 0.1f / 5.f;
@@ -381,7 +382,6 @@ void adc_dma_irq_handler() {
       // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
       const float diff = quantCV - pitchCV;
       pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
-      Serial.printf("Pitch CV: %f, quantCV: %f\n", pitchCV, quantCV);
     }
     float freq = expf(pitchCV);
     
@@ -401,13 +401,16 @@ void adc_dma_irq_handler() {
     // }
     float detuneControl = adcLpf1.play(adcReadings[1]) * (1.f/4095.f); //raw
     detuneControl *= detuneControl; //exponential mapping
+    controlValues[1] = detuneControl;
+
 
     detune = (detuneControl * 0.016f) * new_wavelen0;    
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
 
-
-    ctrlVal = adcLpf2.play(adcReadings[2]) * (1.f/4095.f); //raw
+    ctrlVal = adcLpf2.play(adcReadings[2]);
+    controlValues[2] = ctrlVal;
+    ctrlVal = ctrlVal * (1.f/4095.f); 
 
     if (metaUpdateCounter++ >= metaUpdatePeriod) {
       metaUpdateCounter = 0;
@@ -430,7 +433,11 @@ void adc_dma_irq_handler() {
           metaModCtrlMul = (1.f + (metamods[0] * 5.f));
       }
       metaModReady = true;
-      octaveIdx = static_cast<size_t>(adcReadings[3]) >> 8;  // 16 divisions
+
+      size_t octControl = adcReadings[3];
+      controlValues[3] = octControl;
+
+      octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
 
       if (octaveIdx != lastOctaveIdx) {
         lastOctaveIdx = octaveIdx;
@@ -1670,59 +1677,68 @@ void __not_in_flash_func(loop)() {
 
     newFrequenciesReady = false;
     freqTS = now;
+  }else{
+    //stagger meta mod sends
+    switch(metaModSendIdx) {
+      case 5:
+      metaModSendIdx = 4;
+      sendToMyriadB(messageTypes::METAMOD3, metaModWavelenMul3);
+      break;
+      case 4:
+      metaModSendIdx = 3;
+      sendToMyriadB(messageTypes::METAMOD4, metaModWavelenMul4);
+      break;
+      case 3:
+      metaModSendIdx = 2;
+      sendToMyriadB(messageTypes::METAMOD5, metaModWavelenMul5);
+      break;
+      case 2:
+      metaModSendIdx = 1;
+      sendToMyriadB(messageTypes::METAMOD6, metaModWavelenMul6);
+      break;
+      case 1:
+      metaModSendIdx = 0;
+      sendToMyriadB(messageTypes::METAMOD7, metaModWavelenMul7);
+      break;
+    }
+    if (metaModReady) {
+      sendToMyriadB(messageTypes::METAMOD8, metaModWavelenMul8);
+      metaModSendIdx=5;
+      metaModReady=false;
+    }
+    
+
+    if (now - ctrlTS >= 10000) {
+      sendToMyriadB(messageTypes::CTRL0, ctrlVal);
+      sendToMyriadB(messageTypes::DETUNE, detune);
+      ctrlTS = now;
+    }
+
+    if (octReady) {
+      sendToMyriadB(messageTypes::OCTSPREAD, octaveIdx);
+      octReady = false;
+    }  
+
   }
 
-  //stagger meta mod sends
-  switch(metaModSendIdx) {
-    case 5:
-    metaModSendIdx = 4;
-    sendToMyriadB(messageTypes::METAMOD3, metaModWavelenMul3);
-    break;
-    case 4:
-    metaModSendIdx = 3;
-    sendToMyriadB(messageTypes::METAMOD4, metaModWavelenMul4);
-    break;
-    case 3:
-    metaModSendIdx = 2;
-    sendToMyriadB(messageTypes::METAMOD5, metaModWavelenMul5);
-    break;
-    case 2:
-    metaModSendIdx = 1;
-    sendToMyriadB(messageTypes::METAMOD6, metaModWavelenMul6);
-    break;
-    case 1:
-    metaModSendIdx = 0;
-    sendToMyriadB(messageTypes::METAMOD7, metaModWavelenMul7);
-    break;
-  }
-  if (metaModReady) {
-    sendToMyriadB(messageTypes::METAMOD8, metaModWavelenMul8);
-    metaModSendIdx=5;
-    metaModReady=false;
-  }
-  
-
-  if (now - ctrlTS >= 10000) {
-    sendToMyriadB(messageTypes::CTRL0, ctrlVal);
-    sendToMyriadB(messageTypes::DETUNE, detune);
-    ctrlTS = now;
-  }
-
-  if (octReady) {
-    sendToMyriadB(messageTypes::OCTSPREAD, octaveIdx);
-    octReady = false;
-  }
 
   if (now - displayTS >= 39000) {
     uint32_t save = spin_lock_blocking(displaySpinlock);  
     if (controlMode == CONTROLMODES::OSCMODE) {
       //same calc as on myriad B, but just for display
-      const float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
-      const float new_wavelen4 = (new_wavelen3 - detune);
-      const float new_wavelen5 = (new_wavelen4 - detune);
-      const float new_wavelen6 = (new_wavelen5 - detune);
-      const float new_wavelen7 = (new_wavelen6 - detune);
-      const float new_wavelen8 = (new_wavelen7 - detune);
+      float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
+      float new_wavelen4 = (new_wavelen3 - detune);
+      float new_wavelen5 = (new_wavelen4 - detune);
+      float new_wavelen6 = (new_wavelen5 - detune);
+      float new_wavelen7 = (new_wavelen6 - detune);
+      float new_wavelen8 = (new_wavelen7 - detune);
+      new_wavelen3 = new_wavelen3 * currentOctaves[3];
+      new_wavelen4 = new_wavelen4 * currentOctaves[4];
+      new_wavelen5 = new_wavelen5 * currentOctaves[5];
+      new_wavelen6 = new_wavelen6 * currentOctaves[6];
+      new_wavelen7 = new_wavelen7 * currentOctaves[7];
+      new_wavelen8 = new_wavelen8 * currentOctaves[8];
+
 
       display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
                                     new_wavelen3,new_wavelen4,new_wavelen5,
@@ -1741,7 +1757,28 @@ void __not_in_flash_func(loop)() {
     ocmTS = now;
   }
 
-  delayMicroseconds(100);
+  if (controlMode == CONTROLMODES::CALIBRATEMODE) {
+
+    for(size_t i=0; i < 4; i++) {
+      uint32_t save = spin_lock_blocking(adcSpinlock);  
+      if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
+        CalibrationSettings::adcMins[i] = controlValues[i];
+      }
+      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < adcScaleMax) {
+        CalibrationSettings::adcMaxs[i] = controlValues[i];
+      }
+      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+      spin_unlock(adcSpinlock, save);
+    }
+    // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
+    display.setCalibADCValues(0,0,0,0);
+    display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+    display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
+  }
+
+
+  // delayMicroseconds(100);
 }
 
 
