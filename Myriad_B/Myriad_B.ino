@@ -216,10 +216,17 @@ float FAST_MEM metaModWavelenMul6 = 1.f;
 float FAST_MEM metaModWavelenMul7 = 1.f;
 float FAST_MEM metaModWavelenMul8 = 1.f;
 
+float FAST_MEM currOct3=1;
+float FAST_MEM currOct4=1;
+float FAST_MEM currOct5=1;
+float FAST_MEM currOct6=1;
+float FAST_MEM currOct7=1;
+float FAST_MEM currOct8=1;
+
 size_t FAST_MEM octaveIdx = 0;
 
-bool FAST_MEM newFrequenciesReady0 = false;
-bool FAST_MEM newFrequenciesReady1 = false;
+volatile bool FAST_MEM newFrequenciesReady0 = false;
+volatile bool FAST_MEM newFrequenciesReady1 = false;
 
 float new_wavelen0 = 10000;
 
@@ -343,17 +350,23 @@ inline void __not_in_flash_func(readUart)() {
                 }
                 case METAMOD6:
                 {
+                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul6 = decodeMsg.value;
+                  spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case METAMOD7:
                 {
+                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul7 = decodeMsg.value;
+                  spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case METAMOD8:
                 {
+                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul8 = decodeMsg.value;
+                  spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case OCTSPREAD:
@@ -361,6 +374,15 @@ inline void __not_in_flash_func(readUart)() {
                   octaveIdx = decodeMsg.ivalue;
                   if (octaveIdx > 15) octaveIdx = 15;
                   currentOctaves = (float *)octaveTable[octaveIdx];
+                  //copy to save array access later
+                  currOct3 = currentOctaves[3];
+                  currOct4 = currentOctaves[4];
+                  currOct5 = currentOctaves[5];
+                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  currOct6 = currentOctaves[6];
+                  currOct7 = currentOctaves[7];
+                  currOct8 = currentOctaves[8];
+                  spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 // case WAVELEN1:
@@ -659,9 +681,9 @@ void __not_in_flash_func(loop)() {
       float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
       float new_wavelen4 = (new_wavelen3 - detune);
       float new_wavelen5 = (new_wavelen4 - detune);
-      new_wavelen3 = new_wavelen3 * currentOctaves[3];
-      new_wavelen4 = new_wavelen4 * currentOctaves[4];
-      new_wavelen5 = new_wavelen5 * currentOctaves[5];
+      new_wavelen3 = new_wavelen3 * currOct3;
+      new_wavelen4 = new_wavelen4 * currOct4;
+      new_wavelen5 = new_wavelen5 * currOct5;
       currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
       currOscModels0[0]->reset();
       currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
@@ -685,9 +707,9 @@ void __not_in_flash_func(loop)() {
     // currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
     // currOscModels0[2]->reset();
 
-    uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+    // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
     calculateOscBuffers0();
-    spin_unlock(calcOscsSpinlock0, save);
+    // spin_unlock(calcOscsSpinlock0, save);
   }
 
   // auto now = millis();
@@ -723,13 +745,14 @@ void setup1() {
 
 void loop1() {
   if (oscsRunning1) {
+    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
     if (newFrequenciesReady1) {
       float new_wavelen6 = (new_wavelen0 - detune - detune - detune - detune - detune);
       float new_wavelen7 = (new_wavelen6 - detune);
       float new_wavelen8 = (new_wavelen7 - detune);
-      new_wavelen6 = new_wavelen6 * currentOctaves[6];
-      new_wavelen7 = new_wavelen7 * currentOctaves[7];
-      new_wavelen8 = new_wavelen8 * currentOctaves[8];
+      new_wavelen6 = new_wavelen6 * currOct6;
+      new_wavelen7 = new_wavelen7 * currOct7;
+      new_wavelen8 = new_wavelen8 * currOct8;
       currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
       currOscModels1[0]->reset();
       currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
@@ -738,7 +761,7 @@ void loop1() {
       currOscModels1[2]->reset();
       newFrequenciesReady1 = false;
     }
-    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+    // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
     calculateOscBuffers1();
     spin_unlock(calcOscsSpinlock1, save);
 
