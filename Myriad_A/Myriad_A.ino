@@ -115,9 +115,9 @@ std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList =
 
 size_t FAST_MEM currMetaMod = 0;
 
-DEFINE_TIMING_SWAPBUFFERS(0)
-DEFINE_TIMING_SWAPBUFFERS(1)
-DEFINE_TIMING_SWAPBUFFERS(2)
+DEFINE_TIMING_SWAPBUFFERS(0, __scratch_y("swap"))
+DEFINE_TIMING_SWAPBUFFERS(1, __scratch_y("swap"))
+DEFINE_TIMING_SWAPBUFFERS(2, __scratch_y("swap"))
 
 #define CORE1_FAST_MEM __scratch_y("myriad")
 
@@ -317,8 +317,12 @@ volatile bool __scratch_x("adc") newFrequenciesReady = false;
 static size_t __scratch_x("adc") adcCount = 0;
 static size_t __scratch_x("adc") adcAccumulator0=0;
 static size_t __scratch_x("adc") adc0Oversample=0;
-#define oversampleBits 4
+#define oversampleBits 2
 #define oversampleFactor (1<<oversampleBits)
+
+float __scratch_x("adc") octMul0=1;
+float __scratch_x("adc") octMul1=1;
+float __scratch_x("adc") octMul2=1;
 
 
 void adc_dma_irq_handler() {
@@ -482,14 +486,17 @@ void adc_dma_irq_handler() {
         lastOctaveIdx = octaveIdx;
         currentOctaves = (float *)octaveTable[octaveIdx];
         octReady = true;
+        octMul0 = currentOctaves[0];
+        octMul1 = currentOctaves[1];
+        octMul2 = currentOctaves[2];
       }
 
       
     }
 
-    new_wavelen0 = new_wavelen0 * currentOctaves[0];
-    new_wavelen1 = new_wavelen1 * currentOctaves[1];
-    new_wavelen2 = new_wavelen2 * currentOctaves[2];
+    new_wavelen0 = new_wavelen0 * octMul0;
+    new_wavelen1 = new_wavelen1 * octMul1;
+    new_wavelen2 = new_wavelen2 * octMul2;
 
     new_wavelen0 *= metaModWavelenMul0;
     new_wavelen1 *= metaModWavelenMul1;
@@ -504,12 +511,12 @@ void adc_dma_irq_handler() {
     // }
     // msgCt++;
 
-    // currOscModels[0]->setWavelen(new_wavelen0);  
-    // currOscModels[1]->setWavelen(new_wavelen1);
-    // currOscModels[2]->setWavelen(new_wavelen2);
-    // currOscModels[0]->ctrl(ctrlVal);
-    // currOscModels[1]->ctrl(ctrlVal);
-    // currOscModels[2]->ctrl(ctrlVal);
+    currOscModels[0]->setWavelen(new_wavelen0);  
+    currOscModels[1]->setWavelen(new_wavelen1);
+    currOscModels[2]->setWavelen(new_wavelen2);
+    currOscModels[0]->ctrl(ctrlVal);
+    currOscModels[1]->ctrl(ctrlVal);
+    currOscModels[2]->ctrl(ctrlVal);
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
@@ -955,23 +962,17 @@ static uint16_t FAST_MEM enc3Store = 0;
 
 void __force_inline __not_in_flash_func(calculateOscBuffers)() {
   if ((currOscModels[0]->updateBufferInSyncWithDMA && bufSent0) || (!currOscModels[0]->updateBufferInSyncWithDMA && currOscModels[0]->newFreq)) {
-    currOscModels[0]->setWavelen(new_wavelen0);  
-    currOscModels[0]->ctrl(ctrlVal);
     currOscModels[0]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0]);
     bufSent0 = false;
   }
   if ((currOscModels[1]->updateBufferInSyncWithDMA && bufSent1) || (!currOscModels[1]->updateBufferInSyncWithDMA && currOscModels[1]->newFreq)) {
-    currOscModels[1]->setWavelen(new_wavelen1);
-    currOscModels[1]->ctrl(ctrlVal);
     currOscModels[1]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1]);
     bufSent1 = false;
   }
   if ((currOscModels[2]->updateBufferInSyncWithDMA && bufSent2) || (!currOscModels[2]->updateBufferInSyncWithDMA && currOscModels[2]->newFreq)) {
-    currOscModels[2]->setWavelen(new_wavelen2);
     currOscModels[2]->newFreq = false;
-    currOscModels[2]->ctrl(ctrlVal);
     updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2]);
     bufSent2 = false;
   }

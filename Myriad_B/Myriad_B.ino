@@ -351,23 +351,23 @@ inline void __not_in_flash_func(readUart)() {
                 }
                 case METAMOD6:
                 {
-                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul6 = decodeMsg.value;
-                  spin_unlock(calcOscsSpinlock1, save1);
+                  // spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case METAMOD7:
                 {
-                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul7 = decodeMsg.value;
-                  spin_unlock(calcOscsSpinlock1, save1);
+                  // spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case METAMOD8:
                 {
-                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   metaModWavelenMul8 = decodeMsg.value;
-                  spin_unlock(calcOscsSpinlock1, save1);
+                  // spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 case OCTSPREAD:
@@ -379,11 +379,11 @@ inline void __not_in_flash_func(readUart)() {
                   currOct3 = currentOctaves[3];
                   currOct4 = currentOctaves[4];
                   currOct5 = currentOctaves[5];
-                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
                   currOct6 = currentOctaves[6];
                   currOct7 = currentOctaves[7];
                   currOct8 = currentOctaves[8];
-                  spin_unlock(calcOscsSpinlock1, save1);
+                  // spin_unlock(calcOscsSpinlock1, save1);
                   break;
                 }
                 // case WAVELEN1:
@@ -758,9 +758,7 @@ void __not_in_flash_func(loop1)() {
       newCtrlReady = false;
     }
     if (newFrequenciesReady1) {
-      uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
       float new_wavelen6 = (new_wavelen0 - detune - detune - detune - detune - detune);
-      spin_unlock(calcOscsSpinlock1, save);
       float new_wavelen7 = (new_wavelen6 - detune);
       float new_wavelen8 = (new_wavelen7 - detune);
       new_wavelen6 = new_wavelen6 * currOct6;
@@ -775,7 +773,9 @@ void __not_in_flash_func(loop1)() {
       newFrequenciesReady1 = false;
     }
     // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
     calculateOscBuffers1();
+    spin_unlock(calcOscsSpinlock1, save);
 
   }
 }
