@@ -34,6 +34,7 @@
 #include "MedianFilter.h"
 #include "MAFilter.h"
 #include "ResponsiveFilter.hpp"
+#include "medians.hpp"
 
 #include "freqlookup.h"
 #include "myriad_messages.h"
@@ -71,10 +72,11 @@ std::array<float, 102> arpNotes =
 #endif
 
 
-constexpr int cal_data[11] = {19, 758, 1517,2298,3051, 3815, 4589, 5342, 6125, 6878, 7639};
+constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
 
 #define FRAC_BITS 16
-ADCCalibrator<12,11, int32_t, FRAC_BITS> __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
+using ADCCalibType = ADCCalibrator<12,11, int32_t, FRAC_BITS>;
+ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
 
 
 bool core1_separate_stack = true;
@@ -268,12 +270,14 @@ static float __not_in_flash("mydata") octave8=1;
 static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,1, 1,1,1, 1,1,1};
 
 
+
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<16,1> FAST_MEM adcLpf0;
+FixedLpf<16,2> FAST_MEM adcLpf0;
+FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,4> FAST_MEM adcLpf1;
 FixedLpf<12,4> FAST_MEM adcLpf2;    
 FixedLpf<12,4> FAST_MEM adcLpf3;
@@ -299,13 +303,21 @@ bool __scratch_x("adc") octReady = false;
 
 size_t __scratch_x("adc") lastOctaveIdx = 0;
 size_t __scratch_x("adc") octaveIdx = 0;
+median_filter_t __scratch_x("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 4000;
+constexpr size_t systemUpdateFreq = 3000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
 volatile bool __scratch_x("adc") newFrequenciesReady = false;
+
+static size_t __scratch_x("adc") adcCount = 0;
+static size_t __scratch_x("adc") adcAccumulator0=0;
+static size_t __scratch_x("adc") adc0Oversample=0;
+#define oversampleBits 4
+#define oversampleFactor (1<<oversampleBits)
+
 
 void adc_dma_irq_handler() {
   uint16_t *adcReadings = nullptr;
@@ -328,6 +340,19 @@ void adc_dma_irq_handler() {
       // dma_channel_set_trans_count(dma_chan, 4, true);        
   }
   if (adcReadings) {
+    //oversampling pitch
+    adcAccumulator0 += adcReadings[0];
+    adcCount++;
+
+    if (adcCount == oversampleFactor) {
+      adcCount=0;
+      adc0Oversample = adcAccumulator0 >> oversampleBits;
+      adcAccumulator0=0;
+    }else{
+      return;
+    }
+
+    
     
     // Serial.printf("%d %d %d %d\n",adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
     #ifdef TEST_ARPEGGIATOR
@@ -368,9 +393,13 @@ void adc_dma_irq_handler() {
     // float freq = powf(2.f, (pitchCV>>FRAC_BITS)); 
     // float freq = 0.5f;
 
-    const float filteredADC0 = adcLpf0.play(adcReadings[0]); //in q16 format
+    const size_t filteredADC0 = adcLpf0.play(adc0Oversample); 
+    // size_t filteredADC0 = median_filter_3pt_update_fast(&pitchMedian, adcReadings[0]);
+    // size_t filteredADC0 = adcReadings[0];
+    // const size_t filteredPitch = adcLpf0b.play(pitchADCMap.convertFixed(filteredADC0));
     float pitchCV = pitchADCMap.convertFloat(filteredADC0);
     controlValues[0] = filteredADC0;
+    // Serial.printf("Pitch ADC: %d, CV: %f\n", filteredADC0, pitchCV);
 
     //quantise?
     // constexpr float step = 0.1f / 5.f;
@@ -399,18 +428,22 @@ void adc_dma_irq_handler() {
     //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
     //   printts = now;
     // }
-    float detuneControl = adcLpf1.play(adcReadings[1]) * (1.f/4095.f); //raw
-    detuneControl *= detuneControl; //exponential mapping
-    controlValues[1] = detuneControl;
+    size_t filteredADC1 = adcLpf1.play(adcReadings[1]);
+    float detuneControl = ( filteredADC1 - (CalibrationSettings::adcMins[1])) * CalibrationSettings::adcRangesInv[1];
+    if (detuneControl < 0.f) detuneControl = 0.f;
 
+    controlValues[1] = filteredADC1;
+    detuneControl *= detuneControl; //exponential mapping
 
     detune = (detuneControl * 0.016f) * new_wavelen0;    
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
 
-    ctrlVal = adcLpf2.play(adcReadings[2]);
-    controlValues[2] = ctrlVal;
-    ctrlVal = ctrlVal * (1.f/4095.f); 
+    size_t filteredADC2 = adcLpf2.play(adcReadings[2]);
+    ctrlVal = ( filteredADC2 - (CalibrationSettings::adcMins[1])) * CalibrationSettings::adcRangesInv[1];
+    if (ctrlVal < 0.f) ctrlVal = 0.f;
+
+    controlValues[2] = filteredADC2;
 
     if (metaUpdateCounter++ >= metaUpdatePeriod) {
       metaUpdateCounter = 0;
@@ -509,7 +542,7 @@ void setup_adcs() {
   // adc_set_clkdiv(96 * 512);
   // adc_set_clkdiv(adcClockDiv); 
   // adc_set_clkdiv(0);
-  constexpr size_t adcSystemFreq = systemUpdateFreq * 4; //allow for 4 readings
+  constexpr size_t adcSystemFreq = systemUpdateFreq * 4 * oversampleFactor; //allow for 4 readings
   adc_set_clkdiv((48000000 / adcSystemFreq) - 1);
 
   //setup two dma channels in ping pong
