@@ -26,7 +26,8 @@ namespace TuningSettings {
     float TUNING_MEM quantNotesPerOct = 12.f;
     float TUNING_MEM quantPull = 0.f;
 
-    float TUNING_MEM quantStep = 0.1f / quantNotesPerOct;    
+    
+    float TUNING_MEM quantStep = 1.0f / quantNotesPerOct;    
     float TUNING_MEM quantStepInv = 1.f/quantStep;
     float TUNING_MEM quantAlpha = quantPull * 0.01f;
 
@@ -48,7 +49,7 @@ namespace TuningSettings {
     }
 
     void updateQuant() {
-        quantStep = 0.1f / quantNotesPerOct;    
+        quantStep = 1.f / quantNotesPerOct;    
         quantStepInv = 1.f/quantStep;
         quantAlpha = quantPull * 0.01f;
     }

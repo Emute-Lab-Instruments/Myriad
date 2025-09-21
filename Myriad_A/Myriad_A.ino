@@ -370,6 +370,19 @@ void adc_dma_irq_handler() {
 
     const float filteredADC0 = adcLpf0.play(adcReadings[0]); //in q16 format
     float pitchCV = pitchADCMap.convertFloat(filteredADC0);
+
+    //quantise?
+    // constexpr float step = 0.1f / 5.f;
+    // constexpr float stepinv = 1.f/step;
+    if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
+      // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
+      // float quantStepInv = 1.f/quantStep;
+      const float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
+      // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
+      const float diff = quantCV - pitchCV;
+      pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
+      Serial.printf("Pitch CV: %f, quantCV: %f\n", pitchCV, quantCV);
+    }
     float freq = expf(pitchCV);
     
     // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
@@ -568,11 +581,6 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float v
   msg.msg = msgType;
   msg.value = value;
   sendMessage(msg);
-  // unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  // // if (Serial1.availableForWrite() >= slipSize) {
-  //   // Serial.printf("Send to B: %d\n", msgType);
-  // int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-  // // }
 }
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, size_t value) {
@@ -580,11 +588,6 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, size_t 
   msg.msg = msgType;
   msg.ivalue = value;
   sendMessage(msg);
-  // unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  // // if (Serial1.availableForWrite() >= slipSize) {
-  //   // Serial.printf("Send to B: %d\n", msgType);
-  // int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-  // // }
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
