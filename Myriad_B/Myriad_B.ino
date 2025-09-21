@@ -14,7 +14,7 @@
 #include "bitstreams.hpp"
 #include "myriad_setup.h"
 #include <memory>
-
+#include "octaves.hpp"
 
 #define RUNCORE0_OSCS
 #define RUNCORE1_OSCS
@@ -220,6 +220,8 @@ float __scratch_x("adc") metaModWavelenMul6 = 1.f;
 float __scratch_x("adc") metaModWavelenMul7 = 1.f;
 float __scratch_x("adc") metaModWavelenMul8 = 1.f;
 
+size_t __scratch_x("adc") octaveIdx = 0;
+
 
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
@@ -265,230 +267,256 @@ inline void __not_in_flash_func(readUart)() {
             // }
             // Serial.println("");
             spiMessage decodeMsg;
-            SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
-            // Serial.print(decodeMsg.msg);
-            // Serial.print(": ");
-            
-            // Serial.println(decodeMsg.value);
-            switch(decodeMsg.msg) {
-              case WAVELEN0:
-              {
-                // updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels0[0], decodeMsg.value);
-                const float new_wavelen0 = decodeMsg.value;
-                const float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
-                const float new_wavelen4 = (new_wavelen3 - detune);
-                const float new_wavelen5 = (new_wavelen4 - detune);
-                const float new_wavelen6 = (new_wavelen5 - detune);
-                const float new_wavelen7 = (new_wavelen6 - detune);
-                const float new_wavelen8 = (new_wavelen7 - detune);
-                currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
-                currOscModels0[0]->reset();
-                currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
-                currOscModels0[1]->reset();
-                currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
-                currOscModels0[2]->reset();
-                currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
-                currOscModels1[0]->reset();
-                currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
-                currOscModels1[1]->reset();
-                currOscModels1[2]->setWavelen(new_wavelen8 * metaModWavelenMul8);
-                currOscModels1[2]->reset();
-                oscsReadyToStart = true;
-              }
-              break;   
-              case DETUNE:
-              {
-                detune = decodeMsg.value;
+            constexpr size_t decodeMsgSize =sizeof(spiMessage);
+
+            size_t bytesDecoded = SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
+            if (bytesDecoded == decodeMsgSize) {
+              // Serial.print(decodeMsg.msg);
+              // Serial.print(": ");
+              
+              // Serial.println(decodeMsg.value);
+              switch(decodeMsg.msg) {
+                case WAVELEN0:
+                {
+                  
+                  uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+                  const float new_wavelen0 = decodeMsg.value;
+                  float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
+                  float new_wavelen4 = (new_wavelen3 - detune);
+                  float new_wavelen5 = (new_wavelen4 - detune);
+                  new_wavelen3 = new_wavelen3 * currentOctaves[3];
+                  new_wavelen4 = new_wavelen4 * currentOctaves[4];
+                  new_wavelen5 = new_wavelen5 * currentOctaves[5];
+
+                  currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
+                  currOscModels0[0]->reset();
+                  currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
+                  currOscModels0[1]->reset();
+                  currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
+                  currOscModels0[2]->reset();
+                  spin_unlock(calcOscsSpinlock0, save);
+
+
+                  uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+                  float new_wavelen6 = (new_wavelen5 - detune);
+                  float new_wavelen7 = (new_wavelen6 - detune);
+                  float new_wavelen8 = (new_wavelen7 - detune);
+                  new_wavelen6 = new_wavelen6 * currentOctaves[6];
+                  new_wavelen7 = new_wavelen7 * currentOctaves[7];
+                  new_wavelen8 = new_wavelen8 * currentOctaves[8];
+
+                  currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
+                  currOscModels1[0]->reset();
+                  currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
+                  currOscModels1[1]->reset();
+                  currOscModels1[2]->setWavelen(new_wavelen8 * metaModWavelenMul8);
+                  currOscModels1[2]->reset();
+                  spin_unlock(calcOscsSpinlock1, save1);
+
+                  oscsReadyToStart = true;
+                }
+                break;   
+                case DETUNE:
+                {
+                  detune = decodeMsg.value;
+                  break;
+                }     
+                case METAMOD3:
+                {
+                  metaModWavelenMul3 = decodeMsg.value;
+                  break;
+                }
+                case METAMOD4:
+                {
+                  metaModWavelenMul4 = decodeMsg.value;
+                  break;
+                }
+                case METAMOD5:
+                {
+                  metaModWavelenMul5 = decodeMsg.value;
+                  break;
+                }
+                case METAMOD6:
+                {
+                  metaModWavelenMul6 = decodeMsg.value;
+                  break;
+                }
+                case METAMOD7:
+                {
+                  metaModWavelenMul7 = decodeMsg.value;
+                  break;
+                }
+                case METAMOD8:
+                {
+                  metaModWavelenMul8 = decodeMsg.value;
+                  break;
+                }
+                case OCTSPREAD:
+                {
+                  octaveIdx = decodeMsg.ivalue;
+                  if (octaveIdx > 15) octaveIdx = 15;
+                  currentOctaves = (float *)octaveTable[octaveIdx];
+                  break;
+                }
+                // case WAVELEN1:
+                // {
+                //   // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
+                //   currOscModels0[1]->setWavelen(decodeMsg.value);
+                //   currOscModels0[1]->reset();
+                //   // currOscModels0[1]->newFreq = true; //trigger buffer refill
+                // }
+                // break;        
+                // case WAVELEN2:
+                // {
+                //   // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
+                //   currOscModels0[2]->setWavelen(decodeMsg.value);
+                //   currOscModels0[2]->reset();
+                //   // currOscModels0[2]->newFreq = true; //trigger buffer refill
+                // }
+                // break;        
+                // case WAVELEN3:
+                // {
+                //   // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
+                //   currOscModels1[0]->setWavelen(decodeMsg.value);
+                //   currOscModels1[0]->reset();
+                //   // currOscModels1[0]->newFreq = true; //trigger buffer refill
+                // }
+                //   break;
+                // case WAVELEN4:
+                // {
+                //   // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
+                //   currOscModels1[1]->setWavelen(decodeMsg.value);
+                //   currOscModels1[1]->reset();
+                //   // currOscModels1[1]->newFreq = true; //trigger buffer refill
+                // }
+                //   break;
+                // case WAVELEN5:
+                // {
+                //   // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
+                //   currOscModels1[2]->setWavelen(decodeMsg.value);
+                //   currOscModels1[2]->reset();
+                //   // currOscModels1[2]->newFreq = true; //trigger buffer refill
+                //   //freqs sent sequentially, so all oscs should now have a freq
+                //   oscsReadyToStart = true;
+                // }
                 break;
-              }     
-              case METAMOD3:
-              {
-                metaModWavelenMul3 = decodeMsg.value;
+                case CTRL0:
+                {
+                  ctrlVal = decodeMsg.value;
+                  setCtrl();
+                  // Serial.println(v);
+                  break;
+                }
+                // case CTRL1:
+                // {
+                //   const float v = decodeMsg.value;
+                //   currOscModels0[1]->ctrl(v); 
+                //   break;
+                // }
+                // case CTRL2:
+                // {
+                //   const float v = decodeMsg.value;
+                //   currOscModels0[2]->ctrl(v); 
+                //   break;
+                // }
+                // case CTRL3:
+                // {
+                //   const float v = decodeMsg.value;
+                //   currOscModels1[0]->ctrl(v); 
+                //   break;
+                // }
+                // case CTRL4:
+                // {
+                //   const float v = decodeMsg.value;
+                //   currOscModels1[1]->ctrl(v); 
+                //   break;
+                // }
+                // case CTRL5:
+                // {
+                //   const float v = decodeMsg.value;
+                //   currOscModels1[2]->ctrl(v); 
+                //   break;
+                // }
+                case BANK0:
+                {
+                  // Serial.println("bank0");
+                  uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+
+                  stopOscBankA();
+
+                  dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
+
+                  auto w1 = currOscModels0[0]->getWavelen();
+                  auto w2 = currOscModels0[1]->getWavelen();
+                  auto w3 = currOscModels0[2]->getWavelen();
+
+                  assignOscModels0(decodeMsg.ivalue);
+
+                  currOscModels0[0]->reset();
+                  currOscModels0[1]->reset();
+                  currOscModels0[2]->reset();
+
+                  currOscModels0[0]->setWavelen(w1);
+                  currOscModels0[1]->setWavelen(w2);
+                  currOscModels0[2]->setWavelen(w3);
+
+                  //refill from new oscillator
+                  //trigger buffer refills
+                  // currOscModels0[0]->newFreq=true;
+                  // currOscModels0[1]->newFreq=true;
+                  // currOscModels0[2]->newFreq=true;
+
+                  setCtrl();
+
+                  calculateOscBuffers0();
+
+
+                  startOscBankA();
+                  spin_unlock(calcOscsSpinlock0, save);
+
+                }
                 break;
-              }
-              case METAMOD4:
-              {
-                metaModWavelenMul4 = decodeMsg.value;
+                case BANK1:
+                {
+                  // Serial.println("bank1");   
+                  // // Serial.println(decodeMsg.value);
+                  uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+
+                  stopOscBankB();
+
+                  dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
+
+                  auto w1 = currOscModels1[0]->getWavelen();
+                  auto w2 = currOscModels1[1]->getWavelen();
+                  auto w3 = currOscModels1[2]->getWavelen();
+                  assignOscModels1(decodeMsg.ivalue);
+
+                  currOscModels1[0]->reset();
+                  currOscModels1[1]->reset();
+                  currOscModels1[2]->reset();
+
+                  currOscModels1[0]->setWavelen(w1);
+                  currOscModels1[1]->setWavelen(w2);
+                  currOscModels1[2]->setWavelen(w3);
+
+                  //refill from new oscillator
+                  //trigger buffer refills
+                  // currOscModels1[0]->newFreq=true;
+                  // currOscModels1[1]->newFreq=true;
+                  // currOscModels1[2]->newFreq=true;
+
+                  setCtrl();
+
+                  calculateOscBuffers1();
+
+                  startOscBankB();
+                  spin_unlock(calcOscsSpinlock1, save);
+
+                }
                 break;
+                default:
+                  break;
               }
-              case METAMOD5:
-              {
-                metaModWavelenMul5 = decodeMsg.value;
-                break;
-              }
-              case METAMOD6:
-              {
-                metaModWavelenMul6 = decodeMsg.value;
-                break;
-              }
-              case METAMOD7:
-              {
-                metaModWavelenMul7 = decodeMsg.value;
-                break;
-              }
-              case METAMOD8:
-              {
-                metaModWavelenMul8 = decodeMsg.value;
-                break;
-              }
-              // case WAVELEN1:
-              // {
-              //   // updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels0[1], decodeMsg.value);
-              //   currOscModels0[1]->setWavelen(decodeMsg.value);
-              //   currOscModels0[1]->reset();
-              //   // currOscModels0[1]->newFreq = true; //trigger buffer refill
-              // }
-              // break;        
-              // case WAVELEN2:
-              // {
-              //   // updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels0[2], decodeMsg.value);
-              //   currOscModels0[2]->setWavelen(decodeMsg.value);
-              //   currOscModels0[2]->reset();
-              //   // currOscModels0[2]->newFreq = true; //trigger buffer refill
-              // }
-              // break;        
-              // case WAVELEN3:
-              // {
-              //   // updateTimingBuffer(nextTimingBuffer3, timing_swapbuffer_3_A, timing_swapbuffer_3_B, currOscModels1[0], decodeMsg.value);
-              //   currOscModels1[0]->setWavelen(decodeMsg.value);
-              //   currOscModels1[0]->reset();
-              //   // currOscModels1[0]->newFreq = true; //trigger buffer refill
-              // }
-              //   break;
-              // case WAVELEN4:
-              // {
-              //   // updateTimingBuffer(nextTimingBuffer4, timing_swapbuffer_4_A, timing_swapbuffer_4_B, currOscModels1[1], decodeMsg.value);
-              //   currOscModels1[1]->setWavelen(decodeMsg.value);
-              //   currOscModels1[1]->reset();
-              //   // currOscModels1[1]->newFreq = true; //trigger buffer refill
-              // }
-              //   break;
-              // case WAVELEN5:
-              // {
-              //   // updateTimingBuffer(nextTimingBuffer5, timing_swapbuffer_5_A, timing_swapbuffer_5_B, currOscModels1[2], decodeMsg.value);
-              //   currOscModels1[2]->setWavelen(decodeMsg.value);
-              //   currOscModels1[2]->reset();
-              //   // currOscModels1[2]->newFreq = true; //trigger buffer refill
-              //   //freqs sent sequentially, so all oscs should now have a freq
-              //   oscsReadyToStart = true;
-              // }
-              break;
-              case CTRL0:
-              {
-                ctrlVal = decodeMsg.value;
-                setCtrl();
-                // Serial.println(v);
-                break;
-              }
-              // case CTRL1:
-              // {
-              //   const float v = decodeMsg.value;
-              //   currOscModels0[1]->ctrl(v); 
-              //   break;
-              // }
-              // case CTRL2:
-              // {
-              //   const float v = decodeMsg.value;
-              //   currOscModels0[2]->ctrl(v); 
-              //   break;
-              // }
-              // case CTRL3:
-              // {
-              //   const float v = decodeMsg.value;
-              //   currOscModels1[0]->ctrl(v); 
-              //   break;
-              // }
-              // case CTRL4:
-              // {
-              //   const float v = decodeMsg.value;
-              //   currOscModels1[1]->ctrl(v); 
-              //   break;
-              // }
-              // case CTRL5:
-              // {
-              //   const float v = decodeMsg.value;
-              //   currOscModels1[2]->ctrl(v); 
-              //   break;
-              // }
-              case BANK0:
-              {
-                // Serial.println("bank0");
-                uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
-
-                stopOscBankA();
-
-                dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
-
-                auto w1 = currOscModels0[0]->getWavelen();
-                auto w2 = currOscModels0[1]->getWavelen();
-                auto w3 = currOscModels0[2]->getWavelen();
-
-                assignOscModels0(decodeMsg.value);
-
-                currOscModels0[0]->reset();
-                currOscModels0[1]->reset();
-                currOscModels0[2]->reset();
-
-                currOscModels0[0]->setWavelen(w1);
-                currOscModels0[1]->setWavelen(w2);
-                currOscModels0[2]->setWavelen(w3);
-
-                //refill from new oscillator
-                //trigger buffer refills
-                // currOscModels0[0]->newFreq=true;
-                // currOscModels0[1]->newFreq=true;
-                // currOscModels0[2]->newFreq=true;
-
-                setCtrl();
-
-                calculateOscBuffers0();
-
-
-                startOscBankA();
-                spin_unlock(calcOscsSpinlock0, save);
-
-              }
-              break;
-              case BANK1:
-              {
-                // Serial.println("bank1");   
-                // // Serial.println(decodeMsg.value);
-                uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
-
-                stopOscBankB();
-
-                dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
-
-                auto w1 = currOscModels1[0]->getWavelen();
-                auto w2 = currOscModels1[1]->getWavelen();
-                auto w3 = currOscModels1[2]->getWavelen();
-                assignOscModels1(decodeMsg.value);
-
-                currOscModels1[0]->reset();
-                currOscModels1[1]->reset();
-                currOscModels1[2]->reset();
-
-                currOscModels1[0]->setWavelen(w1);
-                currOscModels1[1]->setWavelen(w2);
-                currOscModels1[2]->setWavelen(w3);
-
-                //refill from new oscillator
-                //trigger buffer refills
-                // currOscModels1[0]->newFreq=true;
-                // currOscModels1[1]->newFreq=true;
-                // currOscModels1[2]->newFreq=true;
-
-                setCtrl();
-
-                calculateOscBuffers1();
-
-                startOscBankB();
-                spin_unlock(calcOscsSpinlock1, save);
-
-              }
-              break;
-              default:
-                break;
             }
             spiState = SPISTATES::WAITFOREND;
           }

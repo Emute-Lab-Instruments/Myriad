@@ -31,7 +31,7 @@ public:
     /// \returns The number of bytes written to the \p encodedBuffer.
     /// \warning The encodedBuffer must have at least getEncodedBufferSize() 
     ///          allocated.
-    static size_t encode(const uint8_t* buffer,
+    static inline size_t __not_in_flash_func(encode)(const uint8_t* buffer,
                          size_t size,
                          uint8_t* encodedBuffer)
     {
@@ -76,8 +76,8 @@ public:
     /// \param decodedBuffer The target buffer for the decoded bytes.
     /// \returns The number of bytes written to the \p decodedBuffer.
     /// \warning decodedBuffer must have a minimum capacity of size.
-    static size_t decode(const uint8_t* encodedBuffer,
-                         size_t size,
+    static inline size_t __not_in_flash_func(decode)(const uint8_t* encodedBuffer,
+                         const size_t size,
                          uint8_t* decodedBuffer)
     {
         if (size == 0)
@@ -85,6 +85,7 @@ public:
 
         size_t read_index  = 0;
         size_t write_index = 0;
+        const size_t sizeMinusOne = size-1;
 
         while (read_index < size)
         {
@@ -94,20 +95,27 @@ public:
                 read_index++;
             }
             else if (encodedBuffer[read_index] == ESC)
-            {
-                if (encodedBuffer[read_index+1] == ESC_END)
-                {
-                    decodedBuffer[write_index++] = END;
-                    read_index += 2;
-                }
-                else if (encodedBuffer[read_index+1] == ESC_ESC)
-                {
-                    decodedBuffer[write_index++] = ESC;
-                    read_index += 2;
-                }
-                else
-                {
+            {   
+                const size_t nextReadIndex = read_index + 1;
+                if (read_index < sizeMinusOne) {
+                    if (encodedBuffer[nextReadIndex] == ESC_END)
+                    {
+                        decodedBuffer[write_index++] = END;
+                        read_index += 2;
+                    }
+                    else if (encodedBuffer[nextReadIndex] == ESC_ESC)
+                    {
+                        decodedBuffer[write_index++] = ESC;
+                        read_index += 2;
+                    }
+                    else
+                    {
+                        // This case is considered a protocol violation.
+                        return 0;
+                    }
+                }else{
                     // This case is considered a protocol violation.
+                    return 0;
                 }
             }
             else
@@ -128,7 +136,7 @@ public:
     ///
     /// \param unencodedBufferSize The size of the buffer to be encoded.
     /// \returns the maximum size of the required encoded buffer.
-    static size_t getEncodedBufferSize(size_t unencodedBufferSize)
+    static size_t __not_in_flash_func(getEncodedBufferSize)(size_t unencodedBufferSize)
     {
         return unencodedBufferSize * 2 + 2;
     }

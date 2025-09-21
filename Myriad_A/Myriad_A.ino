@@ -22,6 +22,8 @@
 
 #include "fixedlpf.hpp"
 
+#include "octaves.hpp"
+
 #include "hardware/adc.h"
 #include "hardware/dma.h"
 #include "hardware/spi.h"
@@ -268,45 +270,6 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
-volatile int32_t __scratch_x("adc")  knobssm[4] = {0,0,0,0};
-volatile uint16_t __scratch_x("adc")  knobs[4] = {0,0,0,0};
-
-void __not_in_flash_func(adc_irq_handler)() {
-    // Get ADC data from FIFO
-    const uint16_t adc = adc_fifo_get_blocking();
-    // Serial.printf("%d %d\n", adc, adc_get_selected_input());
-    switch(adc_get_selected_input()) {
-        case 0:
-            // Knob 0 - stronger smoothing for knobs
-            // knobssm[0] = (127 * (knobssm[0]) + 16 * adc) >> 7;
-            // knobs[0] = knobssm[0] >> 4;
-            // Serial.print("K0: "); Serial.println(adc);
-            break;
-        case 1:
-        {
-            // Knob 1
-            knobssm[1] = (127 * (knobssm[1]) + 16 * adc) >> 7;
-            knobs[1] = knobssm[1] >> 4;
-            Serial.print("K1: "); Serial.println(adc);
-            bool err = (adc & 0b1000000000000000) > 0;
-            if (err) {
-              Serial.println("ADC ERROR");
-            }
-          }
-            break;
-        case 2:
-            // Knob 2
-            knobssm[2] = (127 * (knobssm[2]) + 16 * adc) >> 7;
-            knobs[2] = knobssm[2] >> 4;
-            break;
-        case 3:
-            // Knob 3
-            knobssm[3] = (127 * (knobssm[3]) + 16 * adc) >> 7;
-            knobs[3] = knobssm[3] >> 4;
-            break;
-    }
-}
-
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
@@ -332,9 +295,13 @@ float __scratch_x("adc") metaModWavelenMul7 = 1.f;
 float __scratch_x("adc") metaModWavelenMul8 = 1.f;
 float __scratch_x("adc") metaModCtrlMul = 1.f;
 bool __scratch_x("adc") metaModReady = false;
+bool __scratch_x("adc") octReady = false;
+
+size_t __scratch_x("adc") lastOctaveIdx = 0;
+size_t __scratch_x("adc") octaveIdx = 0;
 
 
-constexpr size_t systemUpdateFreq = 2000;
+constexpr size_t systemUpdateFreq = 3000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
@@ -422,23 +389,10 @@ void adc_dma_irq_handler() {
     float detuneControl = adcLpf1.play(adcReadings[1]) * (1.f/4095.f); //raw
     detuneControl *= detuneControl; //exponential mapping
 
-    detune = (detuneControl * 0.016f) * new_wavelen0;
-    
+    detune = (detuneControl * 0.016f) * new_wavelen0;    
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
 
-    // new_wavelen3 = (new_wavelen2 - detune);
-    // new_wavelen4 = (new_wavelen3 - detune);
-    // new_wavelen5 = (new_wavelen4 - detune);
-    // new_wavelen6 = (new_wavelen5 - detune);
-    // new_wavelen7 = (new_wavelen6 - detune);
-    // new_wavelen8 = (new_wavelen7 - detune);
-    
-    float octaves[9] = {1.0f, 1.0f,  1.0f,    1.0f,  1.0f,  1.0f,    1.0f,  1.0f,  1.0f};
-
-    new_wavelen0 = new_wavelen0 * octaves[0];
-    new_wavelen1 = new_wavelen1 * octaves[1];
-    new_wavelen2 = new_wavelen2 * octaves[2];
 
     ctrlVal = adcLpf2.play(adcReadings[2]) * (1.f/4095.f); //raw
 
@@ -463,17 +417,24 @@ void adc_dma_irq_handler() {
           metaModCtrlMul = (1.f + (metamods[0] * 5.f));
       }
       metaModReady = true;
+      octaveIdx = static_cast<size_t>(adcReadings[3]) >> 8;  // 16 divisions
+
+      if (octaveIdx != lastOctaveIdx) {
+        lastOctaveIdx = octaveIdx;
+        currentOctaves = (float *)octaveTable[octaveIdx];
+        octReady = true;
+      }
+
       
     }
+
+    new_wavelen0 = new_wavelen0 * currentOctaves[0];
+    new_wavelen1 = new_wavelen1 * currentOctaves[1];
+    new_wavelen2 = new_wavelen2 * currentOctaves[2];
+
     new_wavelen0 *= metaModWavelenMul0;
     new_wavelen1 *= metaModWavelenMul1;
     new_wavelen2 *= metaModWavelenMul2;
-    // new_wavelen3 *= metaModWavelenMul3;
-    // new_wavelen4 *= metaModWavelenMul4;
-    // new_wavelen5 *= metaModWavelenMul5;
-    // new_wavelen6 *= metaModWavelenMul6;
-    // new_wavelen7 *= metaModWavelenMul7;
-    // new_wavelen8 *= metaModWavelenMul8;
 
     ctrlVal *= metaModCtrlMul;
 
@@ -483,26 +444,6 @@ void adc_dma_irq_handler() {
     //   msgCt=0;
     // }
     // msgCt++;
-
-    //send crtl vals
-    // sendToMyriadB(messageTypes::CTRL0, ctrlVal3);
-    // sendToMyriadB(messageTypes::CTRL1, ctrlVal4);
-    // sendToMyriadB(messageTypes::CTRL2, ctrlVal5);
-    // sendToMyriadB(messageTypes::CTRL3, ctrlVal6);
-    // sendToMyriadB(messageTypes::CTRL4, ctrlVal7);
-    // sendToMyriadB(messageTypes::CTRL5, ctrlVal8);
-
-    // currOscModels[0]->ctrl(ctrlVal0);
-    // currOscModels[1]->ctrl(ctrlVal1);
-    // currOscModels[2]->ctrl(ctrlVal2);
-
-    // sendToMyriadB(messageTypes::WAVELEN0, new_wavelen3);
-    // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
-    // sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
-    // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
-    // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
-    // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
-
 
     currOscModels[0]->setWavelen(new_wavelen0);  
     currOscModels[1]->setWavelen(new_wavelen1);
@@ -613,14 +554,37 @@ void setup_adcs() {
 }
 
 
-void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
+void __force_inline __not_in_flash_func(sendMessage) (spiMessage &msg) {
   static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
-  spiMessage msg {msgType, value};
   unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
   // if (Serial1.availableForWrite() >= slipSize) {
     // Serial.printf("Send to B: %d\n", msgType);
-    int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
   // }
+}
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
+  spiMessage msg;
+  msg.msg = msgType;
+  msg.value = value;
+  sendMessage(msg);
+  // unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
+  // // if (Serial1.availableForWrite() >= slipSize) {
+  //   // Serial.printf("Send to B: %d\n", msgType);
+  // int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  // // }
+}
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, size_t value) {
+  spiMessage msg;
+  msg.msg = msgType;
+  msg.ivalue = value;
+  sendMessage(msg);
+  // unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
+  // // if (Serial1.availableForWrite() >= slipSize) {
+  //   // Serial.printf("Send to B: %d\n", msgType);
+  // int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+  // // }
 }
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
@@ -648,46 +612,45 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
 size_t FAST_MEM msgCt=0;
 volatile bool FAST_MEM adcReadyFlag = false;
 
-static size_t __not_in_flash("adcData") lastOctaveIdx = 0;
-static size_t __scratch_x("adc") adcCount = 0;
+// static size_t __scratch_x("adc") adcCount = 0;
 // static size_t __scratch_x("adc") adcAccumulator[4] = {0,0,0,0};
-static size_t __scratch_x("adc") adcAccumulator0=0;
-static size_t __scratch_x("adc") adcAccumulator1=0;
-static size_t __scratch_x("adc") adcAccumulator2=0;
-static size_t __scratch_x("adc") adcAccumulator3=0;
+// static size_t __scratch_x("adc") adcAccumulator0=0;
+// static size_t __scratch_x("adc") adcAccumulator1=0;
+// static size_t __scratch_x("adc") adcAccumulator2=0;
+// static size_t __scratch_x("adc") adcAccumulator3=0;
 
-bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-  adcAccumulator0 += capture_buf[0];
-  adcAccumulator1 += capture_buf[1];
-  adcAccumulator2 += capture_buf[2];
-  adcAccumulator3 += capture_buf[3];
-  if (adcCount == accumulatorCount-1) {
-    adcCount=0;
-    // adcAccumulator0 = adcAccumulator0 >> accumulatorBits;
-    // adcAccumulator1 = adcAccumulator1 >> accumulatorBits;
-    // adcAccumulator2 = adcAccumulator2 >> accumulatorBits;
-    // adcAccumulator3 = adcAccumulator3 >> accumulatorBits;
-    // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
-    // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
-    // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
-    // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
-    uint32_t save = spin_lock_blocking(adcSpinlock);  
-    controlValues[0] = adcAccumulator0 >> adcDivisor;
-    controlValues[1] = adcAccumulator1 >> adcDivisor;
-    controlValues[2] = adcAccumulator2 >> adcDivisor;
-    controlValues[3] = adcAccumulator3 >> adcDivisor;
-    adcReadyFlag = true;
-    spin_unlock(adcSpinlock, save);
+// bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
+//   adcAccumulator0 += capture_buf[0];
+//   adcAccumulator1 += capture_buf[1];
+//   adcAccumulator2 += capture_buf[2];
+//   adcAccumulator3 += capture_buf[3];
+//   if (adcCount == accumulatorCount-1) {
+//     adcCount=0;
+//     // adcAccumulator0 = adcAccumulator0 >> accumulatorBits;
+//     // adcAccumulator1 = adcAccumulator1 >> accumulatorBits;
+//     // adcAccumulator2 = adcAccumulator2 >> accumulatorBits;
+//     // adcAccumulator3 = adcAccumulator3 >> accumulatorBits;
+//     // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
+//     // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
+//     // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
+//     // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
+//     uint32_t save = spin_lock_blocking(adcSpinlock);  
+//     controlValues[0] = adcAccumulator0 >> adcDivisor;
+//     controlValues[1] = adcAccumulator1 >> adcDivisor;
+//     controlValues[2] = adcAccumulator2 >> adcDivisor;
+//     controlValues[3] = adcAccumulator3 >> adcDivisor;
+//     adcReadyFlag = true;
+//     spin_unlock(adcSpinlock, save);
 
-    adcAccumulator0=0;
-    adcAccumulator1=0;
-    adcAccumulator2=0;
-    adcAccumulator3=0;
+//     adcAccumulator0=0;
+//     adcAccumulator1=0;
+//     adcAccumulator2=0;
+//     adcAccumulator3=0;
 
-  }
-  adcCount++;
-  return true;
-}
+//   }
+//   adcCount++;
+//   return true;
+// }
 
 
 
@@ -1706,7 +1669,7 @@ void __not_in_flash_func(loop)() {
     freqTS = now;
   }
 
-  //stagg
+  //stagger meta mod sends
   switch(metaModSendIdx) {
     case 5:
     metaModSendIdx = 4;
@@ -1740,6 +1703,11 @@ void __not_in_flash_func(loop)() {
     sendToMyriadB(messageTypes::CTRL0, ctrlVal);
     sendToMyriadB(messageTypes::DETUNE, detune);
     ctrlTS = now;
+  }
+
+  if (octReady) {
+    sendToMyriadB(messageTypes::OCTSPREAD, octaveIdx);
+    octReady = false;
   }
 
   if (now - displayTS >= 39000) {
