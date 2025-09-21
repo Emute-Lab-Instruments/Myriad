@@ -44,6 +44,8 @@
 #include "tuning.hpp"
 #include "state.hpp"
 
+#include "exp2Table.hpp"
+
 // #define SINGLEOSCILLATOR
 
 // #define TEST_ARPEGGIATOR
@@ -276,11 +278,11 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<16,2> FAST_MEM adcLpf0;
-FixedLpf<16,1> FAST_MEM adcLpf0b;
-FixedLpf<12,4> FAST_MEM adcLpf1;
-FixedLpf<12,4> FAST_MEM adcLpf2;    
-FixedLpf<12,4> FAST_MEM adcLpf3;
+FixedLpf<16,3> FAST_MEM adcLpf0;
+// FixedLpf<16,1> FAST_MEM adcLpf0b;
+FixedLpf<12,5> FAST_MEM adcLpf1;
+FixedLpf<12,5> FAST_MEM adcLpf2;    
+FixedLpf<12,5> FAST_MEM adcLpf3;
 
 float __scratch_x("adc") new_wavelen0 = 0;
 float __scratch_x("adc") new_wavelen1 = 0;
@@ -306,7 +308,7 @@ size_t __scratch_x("adc") octaveIdx = 0;
 median_filter_t __scratch_x("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 3000;
+constexpr size_t systemUpdateFreq = 4000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
@@ -341,13 +343,15 @@ void adc_dma_irq_handler() {
   }
   if (adcReadings) {
     //oversampling pitch
-    adcAccumulator0 += adcReadings[0];
+    const size_t filteredADC0 = adcLpf0.play(adcReadings[0]); 
+
+    // adcAccumulator0 += adcReadings[0];
     adcCount++;
 
     if (adcCount == oversampleFactor) {
       adcCount=0;
-      adc0Oversample = adcAccumulator0 >> oversampleBits;
-      adcAccumulator0=0;
+      // adc0Oversample = adcAccumulator0 >> oversampleBits;
+      // adcAccumulator0=0;
     }else{
       return;
     }
@@ -393,7 +397,7 @@ void adc_dma_irq_handler() {
     // float freq = powf(2.f, (pitchCV>>FRAC_BITS)); 
     // float freq = 0.5f;
 
-    const size_t filteredADC0 = adcLpf0.play(adc0Oversample); 
+    // const size_t filteredADC0 = adcLpf0.play(adc0Oversample); 
     // size_t filteredADC0 = median_filter_3pt_update_fast(&pitchMedian, adcReadings[0]);
     // size_t filteredADC0 = adcReadings[0];
     // const size_t filteredPitch = adcLpf0b.play(pitchADCMap.convertFixed(filteredADC0));
@@ -412,7 +416,9 @@ void adc_dma_irq_handler() {
       const float diff = quantCV - pitchCV;
       pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
     }
-    float freq = expf(pitchCV);
+    
+    float freq = fast_exp2f(pitchCV);
+    // float freq = expf(pitchCV);
     
     // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
       
@@ -440,10 +446,10 @@ void adc_dma_irq_handler() {
     new_wavelen2 = (new_wavelen1 - detune);
 
     size_t filteredADC2 = adcLpf2.play(adcReadings[2]);
-    ctrlVal = ( filteredADC2 - (CalibrationSettings::adcMins[1])) * CalibrationSettings::adcRangesInv[1];
+    ctrlVal = ( filteredADC2 - (CalibrationSettings::adcMins[2])) * CalibrationSettings::adcRangesInv[2];
     if (ctrlVal < 0.f) ctrlVal = 0.f;
 
-    controlValues[2] = filteredADC2;
+    controlValues[2] = ctrlVal;
 
     if (metaUpdateCounter++ >= metaUpdatePeriod) {
       metaUpdateCounter = 0;
@@ -498,12 +504,12 @@ void adc_dma_irq_handler() {
     // }
     // msgCt++;
 
-    currOscModels[0]->setWavelen(new_wavelen0);  
-    currOscModels[1]->setWavelen(new_wavelen1);
-    currOscModels[2]->setWavelen(new_wavelen2);
-    currOscModels[0]->ctrl(ctrlVal);
-    currOscModels[1]->ctrl(ctrlVal);
-    currOscModels[2]->ctrl(ctrlVal);
+    // currOscModels[0]->setWavelen(new_wavelen0);  
+    // currOscModels[1]->setWavelen(new_wavelen1);
+    // currOscModels[2]->setWavelen(new_wavelen2);
+    // currOscModels[0]->ctrl(ctrlVal);
+    // currOscModels[1]->ctrl(ctrlVal);
+    // currOscModels[2]->ctrl(ctrlVal);
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
@@ -949,17 +955,23 @@ static uint16_t FAST_MEM enc3Store = 0;
 
 void __force_inline __not_in_flash_func(calculateOscBuffers)() {
   if ((currOscModels[0]->updateBufferInSyncWithDMA && bufSent0) || (!currOscModels[0]->updateBufferInSyncWithDMA && currOscModels[0]->newFreq)) {
+    currOscModels[0]->setWavelen(new_wavelen0);  
+    currOscModels[0]->ctrl(ctrlVal);
     currOscModels[0]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer0, timing_swapbuffer_0_A, timing_swapbuffer_0_B, currOscModels[0]);
     bufSent0 = false;
   }
   if ((currOscModels[1]->updateBufferInSyncWithDMA && bufSent1) || (!currOscModels[1]->updateBufferInSyncWithDMA && currOscModels[1]->newFreq)) {
+    currOscModels[1]->setWavelen(new_wavelen1);
+    currOscModels[1]->ctrl(ctrlVal);
     currOscModels[1]->newFreq = false;
     updateTimingBuffer(nextTimingBuffer1, timing_swapbuffer_1_A, timing_swapbuffer_1_B, currOscModels[1]);
     bufSent1 = false;
   }
   if ((currOscModels[2]->updateBufferInSyncWithDMA && bufSent2) || (!currOscModels[2]->updateBufferInSyncWithDMA && currOscModels[2]->newFreq)) {
+    currOscModels[2]->setWavelen(new_wavelen2);
     currOscModels[2]->newFreq = false;
+    currOscModels[2]->ctrl(ctrlVal);
     updateTimingBuffer(nextTimingBuffer2, timing_swapbuffer_2_A, timing_swapbuffer_2_B, currOscModels[2]);
     bufSent2 = false;
   }
@@ -1559,6 +1571,8 @@ void setup() {
       while(1);
   });
 
+  init_exp2_table();
+
   //USB Serial
   Serial.begin();
   // while(!Serial) {}
@@ -1681,6 +1695,7 @@ size_t FAST_MEM displayTS = 0;
 size_t FAST_MEM ocmTS = 0;
 size_t FAST_MEM adcTS = 0;
 size_t FAST_MEM ctrlTS = 0;
+size_t FAST_MEM detuneTS = 0;
 size_t FAST_MEM freqTS=0;
 size_t FAST_MEM metaModSendIdx=0;
 
@@ -1743,8 +1758,11 @@ void __not_in_flash_func(loop)() {
 
     if (now - ctrlTS >= 10000) {
       sendToMyriadB(messageTypes::CTRL0, ctrlVal);
-      sendToMyriadB(messageTypes::DETUNE, detune);
       ctrlTS = now;
+    }
+    if (now - detuneTS >= 9800) {
+      sendToMyriadB(messageTypes::DETUNE, detune);
+      detuneTS = now;
     }
 
     if (octReady) {

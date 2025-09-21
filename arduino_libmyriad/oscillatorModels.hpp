@@ -503,139 +503,71 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
 };
 
+volatile bool triTableGenerated=false;
+static int32_t __not_in_flash("tri") MULTIPLIER_TABLE_RISING[1000];
+static int32_t __not_in_flash("tri") MULTIPLIER_TABLE_RISING_INV[1000];
+static int32_t __not_in_flash("tri") MULTIPLIER_TABLE_FALLING[1000];
+
 class triOscillatorModel : public virtual oscillatorModel {
   public:
 
     triOscillatorModel() : oscillatorModel(){
-      loopLength=64;
+      loopLength=32;
       prog=bitbybit_program;
-      setClockMod(2.f);
-      for(size_t i = 0; i < 1000; ++i) {
-        float v = i/1000.f;
-        float gradRising = 2.f + (v * 7.f);
-        float gradRisingInv = 1.f/gradRising; 
-        float gradFalling = 1.f/(1.f - (1.f / gradRising));
-        phaseRisingMul = static_cast<size_t>((gradRising * qfpMul) + 0.5f);
-        phaseRisingInvMul = static_cast<size_t>((gradRisingInv * qfpMul) + 0.5f);
-        phaseFallingMul = static_cast<size_t>((gradFalling * qfpMul) + 0.5f);
-        MULTIPLIER_TABLE_RISING[i] = phaseRisingMul;
-        MULTIPLIER_TABLE_RISING_INV[i] = phaseRisingInvMul;
-        MULTIPLIER_TABLE_FALLING[i] = phaseFallingMul;
+      setClockMod(4.f);
+      if (!triTableGenerated) {
+        triTableGenerated=true;
+        for(size_t i = 0; i < 1000; ++i) {
+          float v = i/1000.f;
+          float gradRising = 2.f + (v * 7.f);
+          float gradRisingInv = 1.f/gradRising; 
+          float gradFalling = 1.f/(1.f - (1.f / gradRising));
+          phaseRisingMul = static_cast<size_t>((gradRising * qfpMul) + 0.5f);
+          phaseRisingInvMul = static_cast<size_t>((gradRisingInv * qfpMul) + 0.5f);
+          phaseFallingMul = static_cast<size_t>((gradFalling * qfpMul) + 0.5f);
+          MULTIPLIER_TABLE_RISING[i] = phaseRisingMul;
+          MULTIPLIER_TABLE_RISING_INV[i] = phaseRisingInvMul;
+          MULTIPLIER_TABLE_FALLING[i] = phaseFallingMul;
+        }
       }
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
     inline void fillBuffer(uint32_t* bufferA) {      
       const size_t wlen = this->wavelen;
-      if (ctrlChange) {
-        ctrlChange = false;
-      }
 
       const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
       for (size_t i = 0; i < loopLength; ++i) {
-        uint32_t word=0U;
+        register uint32_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
-          // if (phase>=wavelen) {
-          //   phase = 0U;
-          // }
           phase = phase >= wlen ? 0 : phase; // wrap around
-
-          
-          // int32_t isRising = phase <= triPeakPoint;
-          // amp_fp += isRising ? risingInc : fallingInc;
-          
-          // // Handle wraparound
-          // if (phase == 0) amp_fp = 0;
-          // if (phase == triPeakPoint) amp_fp = wavelen << qfp;
-          
-          // size_t amp = amp_fp >> qfp;
-
           int32_t amp=0;
-          // if (phase <= triPeakPoint) {
-          //   amp = ( phase * phaseRisingMul) >> qfp; 
-          // }else{
-          //   const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
-          //   // fallingPhase = (fallingPhase * phaseFallingMul) >> qfp;
-          //   amp = wavelen - fallingPhase; 
-          // }
 
-          int32_t temp;  // declare this before the asm block
           if (phase <= triPeakPoint) {
-              // Rising phase - use inline assembly for the multiply and shift
-              asm volatile (
-                  "mul    %[result], %[multiplicand]  \n\t"
-                  "asr    %[result], %[shift_amount]  \n\t"
-                  : [result] "=&l" (amp)
-                  : [multiplicand] "l" (phaseRisingMul), 
-                    [shift_amount] "l" (qfp),
-                    "0" (phase)  // input tied to output register
-                  : "cc"
-              );
-          } else {
-              // Falling phase
-              int32_t fallingPhase;
-              asm volatile (
-                  "sub    %[temp], %[ph], %[peak]     \n\t"
-                  "mul    %[temp], %[fallMul]         \n\t"
-                  "asr    %[temp], %[shift]           \n\t"
-                  "sub    %[result], %[wlen], %[temp] \n\t"
-                  : [result] "=&l" (amp), [temp] "=&l" (fallingPhase)
-                  : [ph] "l" (phase), [peak] "l" (triPeakPoint),
-                    [fallMul] "l" (phaseFallingMul), [shift] "l" (qfp),
-                    [wlen] "l" (wlen)
-                  : "cc"
-              );
+            amp = ( phase * phaseRisingMul) >> qfp; 
+          }else{
+            const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
+            // fallingPhase = (fallingPhase * phaseFallingMul) >> qfp;
+            amp = wavelen - fallingPhase; 
           }
-          // size_t amp = (phase <= triPeakPoint) 
-          //     ? (phase * phaseRisingMul) >> qfp
-          //     : wavelen - (((phase - triPeakPoint) * phaseFallingMul) >> qfp);
-        
-          // size_t amp = (phase * phaseMul) >> 15U;
-          // if (amp >= wavelen) {
-          //   amp = 0U; // wrap around
-          // }
-          // const size_t mask = -(amp < wavelen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
-          // amp &= mask;
-
-
-          //delta-sigma modulation
 
           int32_t y = amp >= err0 ? 1 : 0;
           err0 = (y ? wlen : 0) - amp + err0;
 
-          // bit operations TODO: - get some aliasing here, but maybe works on faster saw osc.
-          // if (phase <= triPeakPoint) {
-          //   y = !y;
-          // }
 
           word |= (y << bit);
 
           phase++;
 
         }
-        // word = (word * bitmul) >> 15U;;
-        // word = ~word;
-        // uint64_t word64 = word << bitshift;
-        // word = word << 20U; 
-        // *(bufferA + i) = static_cast<uint32_t>(word64);  
-        // *(bufferA + i) = word & lastWord & lastWord2 & lastWord3; 
-        // lastWord2 = lastWord;
-        // lastWord3 = lastWord2;                                                              
-        // lastWord = word;
         *(bufferA + i) = word;
-
       }
 
     }
 
+
     void ctrl(const float v) override {
-      // float gradRising = 2.f + (v * v * 100.f);
-      // float gradFalling = 1.f/(1.f - (1.f / gradRising));
-      // phaseRisingMul = static_cast<size_t>((gradRising * 32768.f) + 0.5f);
-      // phaseFallingMul = static_cast<size_t>((gradFalling * 32768.f) + 0.5f);
-
-
       const size_t index = static_cast<size_t>(v * 999.f + 0.5f);
       if (index != lastPW || wavelen != lastWavelen) {
         lastPW = index;
@@ -646,7 +578,7 @@ class triOscillatorModel : public virtual oscillatorModel {
         phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
         risingInc = phaseRisingMul;
         fallingInc = -phaseFallingMul;  
-        ctrlChange=true;    
+        // ctrlChange=true;    
         // amp_fp=0;
       }
         // bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
@@ -667,9 +599,6 @@ class triOscillatorModel : public virtual oscillatorModel {
     bool y=0;
     int32_t err0=0;
     size_t val=0;
-    int32_t MULTIPLIER_TABLE_RISING[1000];
-    int32_t MULTIPLIER_TABLE_RISING_INV[1000];
-    int32_t MULTIPLIER_TABLE_FALLING[1000];
     
     int32_t phaseRisingMul=2;
     int32_t phaseRisingInvMul=2;
@@ -698,7 +627,7 @@ class triOscillatorModel : public virtual oscillatorModel {
 class squareBBBOscillatorModel : public virtual oscillatorModel {
   public:
     squareBBBOscillatorModel() : oscillatorModel(){
-      loopLength=512;
+      loopLength=32;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -742,7 +671,7 @@ class slideOscillatorModel : public virtual oscillatorModel {
   public:
   slideOscillatorModel() : oscillatorModel(){
       loopLength=6;
-      setClockMod(0.125f);
+      setClockMod(0.25f);
       prog=pulse_program;
       oscInterpTemplate.resize(loopLength,1.0f/loopLength);
       smoothTemplate.resize(loopLength,1.0f/loopLength);
@@ -866,7 +795,8 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
   public:
 
     triSDVar1OscillatorModel() : oscillatorModel(){
-      loopLength=64;
+      loopLength=32;
+      setClockMod(2.f);
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -1102,7 +1032,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 
 
     whiteNoiseOscillatorModel() : oscillatorModel(){
-      loopLength=64;
+      loopLength=32;
       prog=bitbybit_program;
       setClockMod(2.0f);
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA

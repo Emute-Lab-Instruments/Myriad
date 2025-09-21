@@ -39,12 +39,12 @@ volatile bool FAST_MEM oscsReadyToStart=false;
 
 
 
-DEFINE_TIMING_SWAPBUFFERS(0)
-DEFINE_TIMING_SWAPBUFFERS(1)
-DEFINE_TIMING_SWAPBUFFERS(2)
-DEFINE_TIMING_SWAPBUFFERS(3)
-DEFINE_TIMING_SWAPBUFFERS(4)
-DEFINE_TIMING_SWAPBUFFERS(5)
+DEFINE_TIMING_SWAPBUFFERS(0, __scratch_x("swap"))
+DEFINE_TIMING_SWAPBUFFERS(1, __scratch_x("swap"))
+DEFINE_TIMING_SWAPBUFFERS(2, __scratch_x("swap"))
+DEFINE_TIMING_SWAPBUFFERS(3, __scratch_y("swap"))
+DEFINE_TIMING_SWAPBUFFERS(4, __scratch_y("swap"))
+DEFINE_TIMING_SWAPBUFFERS(5, __scratch_y("swap"))
 
 
 uint32_t CORE0_FAST_MEM smOsc0_dma_chan;
@@ -231,6 +231,7 @@ volatile bool FAST_MEM newFrequenciesReady1 = false;
 float new_wavelen0 = 10000;
 
 static uint8_t __scratch_x("mydata") slipBuffer[64];
+volatile bool FAST_MEM newCtrlReady = false;
 
 inline void __not_in_flash_func(readUart)() {
   uint8_t spiByte=0;
@@ -430,7 +431,11 @@ inline void __not_in_flash_func(readUart)() {
                 case CTRL0:
                 {
                   ctrlVal = decodeMsg.value;
-                  setCtrl();
+                  currOscModels0[0]->ctrl(ctrlVal);
+                  currOscModels0[1]->ctrl(ctrlVal);
+                  currOscModels0[2]->ctrl(ctrlVal);
+
+                  newCtrlReady = true;
                   // Serial.println(v);
                   break;
                 }
@@ -743,11 +748,19 @@ void setup1() {
 #endif
 }
 
-void loop1() {
+//TODO: better spin locking and concurrency safety
+void __not_in_flash_func(loop1)() {
   if (oscsRunning1) {
-    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+    if (newCtrlReady) {
+      currOscModels1[0]->ctrl(ctrlVal);
+      currOscModels1[1]->ctrl(ctrlVal);
+      currOscModels1[2]->ctrl(ctrlVal);
+      newCtrlReady = false;
+    }
     if (newFrequenciesReady1) {
+      uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
       float new_wavelen6 = (new_wavelen0 - detune - detune - detune - detune - detune);
+      spin_unlock(calcOscsSpinlock1, save);
       float new_wavelen7 = (new_wavelen6 - detune);
       float new_wavelen8 = (new_wavelen7 - detune);
       new_wavelen6 = new_wavelen6 * currOct6;
@@ -763,7 +776,6 @@ void loop1() {
     }
     // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
     calculateOscBuffers1();
-    spin_unlock(calcOscsSpinlock1, save);
 
   }
 }
