@@ -278,7 +278,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<16,3> FAST_MEM adcLpf0;
+FixedLpf<18,4> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,5> FAST_MEM adcLpf1;
 FixedLpf<12,5> FAST_MEM adcLpf2;    
@@ -308,7 +308,7 @@ size_t __scratch_x("adc") octaveIdx = 0;
 median_filter_t __scratch_x("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 4000;
+constexpr size_t systemUpdateFreq = 6000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
@@ -317,7 +317,7 @@ volatile bool __scratch_x("adc") newFrequenciesReady = false;
 static size_t __scratch_x("adc") adcCount = 0;
 static size_t __scratch_x("adc") adcAccumulator0=0;
 static size_t __scratch_x("adc") adc0Oversample=0;
-#define oversampleBits 2
+#define oversampleBits 4
 #define oversampleFactor (1<<oversampleBits)
 
 float __scratch_x("adc") octMul0=1;
@@ -1016,7 +1016,28 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
         // delayMicroseconds(100);
           // stopOscBankA();
 
+          while (dma_channel_is_busy(smOsc0_dma_chan) || 
+                dma_channel_is_busy(smOsc1_dma_chan) || 
+                dma_channel_is_busy(smOsc2_dma_chan)) {
+            tight_loop_contents();
+          }          
+
           dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
+
+          busy_wait_us(100);
+
+
+          memset(timing_swapbuffer_0_A, 0, sizeof(timing_swapbuffer_0_A));
+          memset(timing_swapbuffer_0_B, 0, sizeof(timing_swapbuffer_0_B));
+          memset(timing_swapbuffer_1_A, 0, sizeof(timing_swapbuffer_1_A));
+          memset(timing_swapbuffer_1_B, 0, sizeof(timing_swapbuffer_1_B));
+          memset(timing_swapbuffer_2_A, 0, sizeof(timing_swapbuffer_2_A));
+          memset(timing_swapbuffer_2_B, 0, sizeof(timing_swapbuffer_2_B));
+
+          // Reset buffer pointers to A buffers
+          nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+          nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+          nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;          
 
           auto w1 = currOscModels[0]->getWavelen();
           auto w2 = currOscModels[1]->getWavelen();
@@ -1715,7 +1736,7 @@ void __not_in_flash_func(loop)() {
   //   adcReadyFlag = false;
   // }
 
-  if (newFrequenciesReady && now - freqTS >= 500) {
+  if (newFrequenciesReady && now - freqTS >= 400) {
 
     sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
     // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);

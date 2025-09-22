@@ -35,7 +35,10 @@ static spin_lock_t FAST_MEM *calcOscsSpinlock1;
 
 
 
-volatile bool FAST_MEM oscsReadyToStart=false;
+volatile bool FAST_MEM waitingForFirstFrequency0=true;
+volatile bool FAST_MEM oscsStartedAfterFirstFrequency0=false;
+volatile bool FAST_MEM waitingForFirstFrequency1=true;
+volatile bool FAST_MEM oscsStartedAfterFirstFrequency1=false;
 
 
 
@@ -326,7 +329,8 @@ inline void __not_in_flash_func(readUart)() {
                   // currOscModels1[2]->reset();
                   // spin_unlock(calcOscsSpinlock1, save1);
 
-                  oscsReadyToStart = true;
+                  waitingForFirstFrequency0 = false;
+                  waitingForFirstFrequency1 = false;
                   break;
                 }
                 case DETUNE:
@@ -476,6 +480,8 @@ inline void __not_in_flash_func(readUart)() {
 
                   stopOscBankA();
 
+                  busy_wait_us(100);                  
+
                   dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
                   auto w1 = currOscModels0[0]->getWavelen();
@@ -515,6 +521,8 @@ inline void __not_in_flash_func(readUart)() {
                   uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
 
                   stopOscBankB();
+
+                  busy_wait_us(100);
 
                   dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
 
@@ -590,9 +598,30 @@ void startOscBankA() {
 
 void stopOscBankA() {
   oscsRunning0 = false;
+
+  // Wait for any pending DMA transfers to complete
+  while (dma_channel_is_busy(smOsc0_dma_chan) || 
+         dma_channel_is_busy(smOsc1_dma_chan) || 
+         dma_channel_is_busy(smOsc2_dma_chan)) {
+    tight_loop_contents();
+  }
+
   smOsc0.stop();
   smOsc1.stop();
   smOsc2.stop();
+
+    // Clear the buffers explicitly
+  memset(timing_swapbuffer_0_A, 0, sizeof(timing_swapbuffer_0_A));
+  memset(timing_swapbuffer_0_B, 0, sizeof(timing_swapbuffer_0_B));
+  memset(timing_swapbuffer_1_A, 0, sizeof(timing_swapbuffer_1_A));
+  memset(timing_swapbuffer_1_B, 0, sizeof(timing_swapbuffer_1_B));
+  memset(timing_swapbuffer_2_A, 0, sizeof(timing_swapbuffer_2_A));
+  memset(timing_swapbuffer_2_B, 0, sizeof(timing_swapbuffer_2_B));
+
+  // Reset buffer pointers to A buffers
+  nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+  nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+  nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;  
 
   bufSent0 = false;
   bufSent1 = false;
@@ -626,9 +655,29 @@ void startOscBankB() {
 
 void stopOscBankB() {
   oscsRunning1 = false;
+
+ // Wait for any pending DMA transfers to complete
+  while (dma_channel_is_busy(smOsc3_dma_chan) || 
+         dma_channel_is_busy(smOsc4_dma_chan) || 
+         dma_channel_is_busy(smOsc5_dma_chan)) {
+    tight_loop_contents();
+  }
+
   smOsc3.stop();
   smOsc4.stop();
   smOsc5.stop();
+
+  memset(timing_swapbuffer_3_A, 0, sizeof(timing_swapbuffer_3_A));
+  memset(timing_swapbuffer_3_B, 0, sizeof(timing_swapbuffer_3_B));
+  memset(timing_swapbuffer_4_A, 0, sizeof(timing_swapbuffer_4_A));
+  memset(timing_swapbuffer_4_B, 0, sizeof(timing_swapbuffer_4_B));
+  memset(timing_swapbuffer_5_A, 0, sizeof(timing_swapbuffer_5_A));
+  memset(timing_swapbuffer_5_B, 0, sizeof(timing_swapbuffer_5_B));
+  
+  // Reset buffer pointers to A buffers
+  nextTimingBuffer3 = (io_rw_32)timing_swapbuffer_3_A;
+  nextTimingBuffer4 = (io_rw_32)timing_swapbuffer_4_A;
+  nextTimingBuffer5 = (io_rw_32)timing_swapbuffer_5_A;  
 
   bufSent3 = false;
   bufSent4 = false;
@@ -657,30 +706,34 @@ void setup() {
 
   Serial1.setRX(13); //uart 1
   Serial1.setTX(12);
+  Serial1.setFIFOSize(16); //reduce latency
   Serial1.begin(SERIAL_CX_BAUD);
 
 
   // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
 #ifdef RUNCORE0_OSCS
-  delay(oscStartDelay);
+  // delay(oscStartDelay);
   // while(!oscsReadyToStart) {
   //   ;
   // }
-  Serial.println("Start");
-  currOscModels0[0]->ctrl(ctrlVal);
-  currOscModels0[1]->ctrl(ctrlVal);
-  currOscModels0[2]->ctrl(ctrlVal);
+  // Serial.println("Start");
+  // currOscModels0[0]->ctrl(ctrlVal);
+  // currOscModels0[1]->ctrl(ctrlVal);
+  // currOscModels0[2]->ctrl(ctrlVal);
 
-  startOscBankA();
-  Serial.println("Started");
+  // startOscBankA();
+  // Serial.println("Started");
 #endif
 }
 
 
 size_t serialts=0;
-/* Fonction loop() */
 void __not_in_flash_func(loop)() {
   readUart();
+  if (waitingForFirstFrequency0 == false && oscsStartedAfterFirstFrequency0 == false) {
+    startOscBankA();
+    oscsStartedAfterFirstFrequency0 = true;
+  }
   if (oscsRunning0) {
     if (newFrequenciesReady0) {
       float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
@@ -690,11 +743,11 @@ void __not_in_flash_func(loop)() {
       new_wavelen4 = new_wavelen4 * currOct4;
       new_wavelen5 = new_wavelen5 * currOct5;
       currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
-      currOscModels0[0]->reset();
+      // currOscModels0[0]->reset();
       currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
-      currOscModels0[1]->reset();
+      // currOscModels0[1]->reset();
       currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
-      currOscModels0[2]->reset();
+      // currOscModels0[2]->reset();
       newFrequenciesReady0 = false;
     }
     
@@ -737,19 +790,23 @@ void setup1() {
   // while(!oscsReadyToStart) {
   //   ;
   // }
-  delay(oscStartDelay);
-  Serial.println("StartB");
-  currOscModels1[0]->ctrl(ctrlVal);
-  currOscModels1[1]->ctrl(ctrlVal);
-  currOscModels1[2]->ctrl(ctrlVal);
+  // delay(oscStartDelay);
+  // Serial.println("StartB");
+  // currOscModels1[0]->ctrl(ctrlVal);
+  // currOscModels1[1]->ctrl(ctrlVal);
+  // currOscModels1[2]->ctrl(ctrlVal);
 
-  startOscBankB();
-  Serial.println("StartedB");
+  // // startOscBankB();
+  // Serial.println("StartedB");
 #endif
 }
 
 //TODO: better spin locking and concurrency safety
 void __not_in_flash_func(loop1)() {
+  // if (waitingForFirstFrequency1 == false && oscsStartedAfterFirstFrequency1 == false) {
+  //   startOscBankB();
+  //   oscsStartedAfterFirstFrequency1 = true;
+  // }
   if (oscsRunning1) {
     if (newCtrlReady) {
       currOscModels1[0]->ctrl(ctrlVal);
@@ -765,11 +822,11 @@ void __not_in_flash_func(loop1)() {
       new_wavelen7 = new_wavelen7 * currOct7;
       new_wavelen8 = new_wavelen8 * currOct8;
       currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
-      currOscModels1[0]->reset();
+      // currOscModels1[0]->reset();
       currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
-      currOscModels1[1]->reset();
+      // currOscModels1[1]->reset();
       currOscModels1[2]->setWavelen(new_wavelen8 * metaModWavelenMul8);
-      currOscModels1[2]->reset();
+      // currOscModels1[2]->reset();
       newFrequenciesReady1 = false;
     }
     // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  

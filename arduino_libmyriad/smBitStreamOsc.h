@@ -107,12 +107,17 @@ public:
     }else{
       dma_channel_set_irq1_enabled(pio_dma_chan, false);
     }
+    
+    dma_channel_wait_for_finish_blocking(pio_dma_chan);
+      
     dma_channel_abort(pio_dma_chan);  // Ensure the DMA is aborted
-    pio_sm_init(pio, sm, 0, NULL);    
-    pio_sm_clear_fifos(pio, sm);
+
     pio_sm_set_enabled(pio, sm, false);
-    //Restart SM to clear internal state BEFORE disabling
-    // pio_sm_restart(pio, sm);
+
+    // pio_sm_init(pio, sm, 0, NULL);    
+    pio_sm_clear_fifos(pio, sm);
+
+    pio_sm_restart(pio, sm);
 
     pio_interrupt_clear(pio, sm); 
 

@@ -85,13 +85,20 @@ public:
 class squareOscillatorModel2 : public oscillatorModel {
 public:
   squareOscillatorModel2() : oscillatorModel() {
-    loopLength=10;
+    loopLength=4;
     prog=pin_ctrl_program;
+    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+
   }
   inline void fillBuffer(uint32_t* bufferA) {
     const float wlen = this->wavelen * 2.5f;
-    for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
+    // for (size_t i = 0; i < oscTemplate.size(); ++i) {
+    //     *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
+    // }
+    for (size_t i = 0; i < loopLength; ++i) {
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[bufferIndex] * wlen);
+        bufferIndex++;
+        if (bufferIndex >= oscTemplate.size()) bufferIndex=0;
     }
   }
 
@@ -122,8 +129,16 @@ public:
 
   }
 
+  void reset() override {
+    oscillatorModel::reset();
+    bufferIndex=0;
+  }
+
+
   //ratios 9:1,8:2,7:3,6:4,5:5
-  std::vector<float> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
+  std::array<float, 10> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
+
+  size_t bufferIndex=0;
 
   String getIdentifier() override {
     return "sq2";
