@@ -150,14 +150,20 @@ public:
 class squareOscillatorModel14 : public oscillatorModel {
 public:
   squareOscillatorModel14() : oscillatorModel() {
-    loopLength=14;
+    loopLength=4;
     prog=pin_ctrl_program;
+    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
   }
   
   inline void fillBuffer(uint32_t* bufferA) {
     const float wlen = this->wavelen * 1.75f * 2.0f;
-    for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
+    // for (size_t i = 0; i < oscTemplate.size(); ++i) {
+    //     *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
+    // }
+    for (size_t i = 0; i < loopLength; ++i) {
+        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[bufferIndex] * wlen);
+        bufferIndex++;
+        if (bufferIndex >= oscTemplate.size()) bufferIndex=0;
     }
   }
 
@@ -196,8 +202,16 @@ public:
 
   }
 
-  std::vector<float> oscTemplate {oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,
+  std::array<float, 14> oscTemplate {oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,
   oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14};
+
+  size_t bufferIndex=0;
+
+  void reset() override {
+    oscillatorModel::reset();
+    bufferIndex=0;
+  }
+
 
   String getIdentifier() override {
     return "sq14";

@@ -12,6 +12,7 @@ namespace TuningSettings {
     constexpr float freqC1 = freqC0*2.f;
     constexpr float wavelenC1 = sampleClock/freqC1; //start from C1
     constexpr float wavelenC1Inv = 1.f/freqC1; //start from C1
+    constexpr float wavelenC2 = wavelenC1 * 0.5f;
 
     static TUNING_MEM int octaves=0;
     static TUNING_MEM int semitones=0;
