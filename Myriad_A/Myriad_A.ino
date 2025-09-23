@@ -74,11 +74,25 @@ std::array<float, 102> arpNotes =
 #endif
 
 
-constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
+// constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
+//initial guess
+constexpr int cal_12bit_bipolar[11] = {
+    10,    // -5V
+    420,   // -4V
+    835,   // -3V
+    1250,  // -2V
+    1665,  // -1V
+    2048,  //  0V
+    2430,  //  1V
+    2845,  //  2V
+    3260,  //  3V
+    3675,  //  4V
+    4090   //  5V
+};
 
 #define FRAC_BITS 16
 using ADCCalibType = ADCCalibrator<12,11, int32_t, FRAC_BITS>;
-ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(cal_data);
+ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(cal_12bit_bipolar);
 
 
 bool core1_separate_stack = true;
@@ -350,7 +364,7 @@ void adc_dma_irq_handler() {
   }
   if (adcReadings) {
     //oversampling pitch
-    const size_t filteredADC0 = adcLpf0.play(adcReadings[0]); 
+    const int filteredADC0 = adcLpf0.play(adcReadings[0]); 
 
     // adcAccumulator0 += adcReadings[0];
     adcCount++;
@@ -441,22 +455,28 @@ void adc_dma_irq_handler() {
     //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
     //   printts = now;
     // }
-    size_t filteredADC1 = adcLpf1.play(adcReadings[1]);
+    int filteredADC1 = adcLpf1.play(adcReadings[1]);
     controlValues[1] = filteredADC1;
     filteredADC1 = filteredADC1 - (CalibrationSettings::adcMins[1]);
     if (filteredADC1<0) filteredADC1=0;
+    if (filteredADC1>4095) filteredADC1=4095;
     float detuneControl = filteredADC1 * CalibrationSettings::adcRangesInv[1];
 
+
     detuneControl *= detuneControl; //exponential mapping
+
+    // if (detuneControl > 1.0f) detuneControl = 1.0f;
+    // if (detuneControl < 0.0f) detuneControl = 0.0f;
 
     detune = (detuneControl * 0.016f) * new_wavelen0;    
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
 
-    size_t filteredADC2 = adcLpf2.play(adcReadings[2]);
-    controlValues[2] = filteredADC2;
+    int filteredADC2 = adcLpf2.play(adcReadings[2]);
     filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
     if (filteredADC2<0) filteredADC2=0;
+    if (filteredADC2>4095) filteredADC2=4095;
+    controlValues[2] = filteredADC2;
     ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
 
 
@@ -483,6 +503,7 @@ void adc_dma_irq_handler() {
       metaModReady = true;
 
       size_t octControl = adcReadings[3];
+      
       controlValues[3] = octControl;
 
       octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
@@ -685,55 +706,10 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
 size_t FAST_MEM msgCt=0;
 volatile bool FAST_MEM adcReadyFlag = false;
 
-// static size_t __scratch_x("adc") adcCount = 0;
-// static size_t __scratch_x("adc") adcAccumulator[4] = {0,0,0,0};
-// static size_t __scratch_x("adc") adcAccumulator0=0;
-// static size_t __scratch_x("adc") adcAccumulator1=0;
-// static size_t __scratch_x("adc") adcAccumulator2=0;
-// static size_t __scratch_x("adc") adcAccumulator3=0;
-
-// bool __not_in_flash_func(adcProcessor)(__unused struct repeating_timer *t) {
-//   adcAccumulator0 += capture_buf[0];
-//   adcAccumulator1 += capture_buf[1];
-//   adcAccumulator2 += capture_buf[2];
-//   adcAccumulator3 += capture_buf[3];
-//   if (adcCount == accumulatorCount-1) {
-//     adcCount=0;
-//     // adcAccumulator0 = adcAccumulator0 >> accumulatorBits;
-//     // adcAccumulator1 = adcAccumulator1 >> accumulatorBits;
-//     // adcAccumulator2 = adcAccumulator2 >> accumulatorBits;
-//     // adcAccumulator3 = adcAccumulator3 >> accumulatorBits;
-//     // controlValues[0] = adcRsFilters[0].process(adcAccumulator[0]);
-//     // controlValues[1] = adcRsFilters[1].process(adcAccumulator[1]);
-//     // controlValues[2] = adcRsFilters[2].process(adcAccumulator[2]);
-//     // controlValues[3] = adcRsFilters[3].process(adcAccumulator[3]);
-//     uint32_t save = spin_lock_blocking(adcSpinlock);  
-//     controlValues[0] = adcAccumulator0 >> adcDivisor;
-//     controlValues[1] = adcAccumulator1 >> adcDivisor;
-//     controlValues[2] = adcAccumulator2 >> adcDivisor;
-//     controlValues[3] = adcAccumulator3 >> adcDivisor;
-//     adcReadyFlag = true;
-//     spin_unlock(adcSpinlock, save);
-
-//     adcAccumulator0=0;
-//     adcAccumulator1=0;
-//     adcAccumulator2=0;
-//     adcAccumulator3=0;
-
-//   }
-//   adcCount++;
+// inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
+//   display.update();
 //   return true;
 // }
-
-
-
-inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
-  display.update();
-  return true;
-}
-
-
-
 
 int8_t __not_in_flash_func(read_rotary)(uint8_t &prevNextCode, uint16_t &store, int a_pin, int b_pin) {
   static int8_t FAST_MEM rot_enc_table[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0 };
@@ -1257,6 +1233,14 @@ void __isr encoder2_switch_callback() {
         display.setTuningBypass(TuningSettings::bypass);
         break;
       }
+      case CONTROLMODES::CALIBRATEMODE:
+      {
+        //assume 1v/oct input is grounded
+        Serial.println("Calibrate pitch");
+        CalibrationSettings::setADC0Mid(controlValues[0]);
+        pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
+        break;
+      }
     }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
@@ -1407,6 +1391,7 @@ void setup() {
 
 
   CalibrationSettings::load();
+  pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
   // CalibrationSettings::init();
   TuningSettings::load();
   MyriadState::load();
@@ -1508,7 +1493,7 @@ void setup() {
   display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
   display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
 
-  display.update();
+  display.setDisplayWavelengths({0,0,0,0,0,0,0,0,0});
 
   //start processing
   setup_adcs();  
@@ -1526,6 +1511,8 @@ size_t FAST_MEM ctrlTS = 0;
 size_t FAST_MEM detuneTS = 0;
 size_t FAST_MEM freqTS=0;
 size_t FAST_MEM metaModSendIdx=0;
+
+size_t FAST_MEM dotTS;
 
 
 void __not_in_flash_func(loop)() {
@@ -1602,8 +1589,7 @@ void __not_in_flash_func(loop)() {
 
 
   if (now - displayTS >= 39000) {
-    uint32_t save = spin_lock_blocking(displaySpinlock);  
-    if (controlMode == CONTROLMODES::OSCMODE) {
+    if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
       float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
       float new_wavelen4 = (new_wavelen3 - detune);
@@ -1617,18 +1603,21 @@ void __not_in_flash_func(loop)() {
       new_wavelen6 = new_wavelen6 * currentOctaves[6];
       new_wavelen7 = new_wavelen7 * currentOctaves[7];
       new_wavelen8 = new_wavelen8 * currentOctaves[8];
-
+      uint32_t save = spin_lock_blocking(displaySpinlock);  
 
       display.setDisplayWavelengths({new_wavelen0,new_wavelen1,new_wavelen2,
                                     new_wavelen3,new_wavelen4,new_wavelen5,
                                     new_wavelen6,new_wavelen7,new_wavelen8 });
+      spin_unlock(displaySpinlock, save);
     }
 
+    uint32_t save = spin_lock_blocking(displaySpinlock);  
     display.update();
-    displayTS = now;
-  
     spin_unlock(displaySpinlock, save);
 
+    displayTS = now;
+
+    // Serial.printf("%f %d %f\n", new_wavelen0, (CalibrationSettings::adcMins[2]), CalibrationSettings::adcRangesInv[2]);
   }
 
   if (now - ocmTS >= 31000) {
@@ -1640,10 +1629,11 @@ void __not_in_flash_func(loop)() {
 
     for(size_t i=0; i < 4; i++) {
       uint32_t save = spin_lock_blocking(adcSpinlock);  
+      bool calcOK=false;
       if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
         CalibrationSettings::adcMins[i] = controlValues[i];
       }
-      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < adcScaleMax) {
+      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
         CalibrationSettings::adcMaxs[i] = controlValues[i];
       }
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
@@ -1656,7 +1646,10 @@ void __not_in_flash_func(loop)() {
     display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
   }
 
-
+  // if (now - dotTS > 50000) {
+  //   Serial.print(".");
+  //   dotTS = now;
+  // }
   // delayMicroseconds(100);
 }
 
