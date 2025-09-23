@@ -76,22 +76,20 @@ std::array<float, 102> arpNotes =
 
 // constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
 //initial guess
-constexpr int cal_12bit_bipolar[11] = {
-    10,    // -5V
-    420,   // -4V
-    835,   // -3V
-    1250,  // -2V
-    1665,  // -1V
-    2048,  //  0V
-    2430,  //  1V
-    2845,  //  2V
-    3260,  //  3V
-    3675,  //  4V
-    4090   //  5V
+constexpr int cal_12bit_bipolar[9] = {
+  0,  //-5V C-1
+  512, //-3.75V DNL peak 1, d#0
+  1024, //-2.5V f#1
+  1536, //-1.25V DNL peak 2 A2
+  2048, //C3
+  2560, //1.25V, DNL peak 3 d#4
+  3072, //2.5V f#5
+  3584, //3.75V, DNL peak 4, a6
+  4095 //5V, C8
 };
 
 #define FRAC_BITS 16
-using ADCCalibType = ADCCalibrator<12,11, int32_t, FRAC_BITS>;
+using ADCCalibType = ADCCalibrator<12,9, int32_t, FRAC_BITS>;
 ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(cal_12bit_bipolar);
 
 
