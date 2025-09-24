@@ -1673,6 +1673,13 @@ void __not_in_flash_func(loop)() {
     }else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
     {
         display.setPitchCalibReading(controlValues[0]);
+        static size_t FAST_MEM lastPitchADC = 0;
+        int diff = controlValues[0] - lastPitchADC;
+        Serial.println(diff);
+        if (diff >20) {
+          Serial.println("change");
+          lastPitchADC = controlValues[0];
+        }
     }
 
     uint32_t save = spin_lock_blocking(displaySpinlock);  
@@ -1690,11 +1697,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 50000) {
-  //   Serial.print(".");
-  //   dotTS = now;
-  // }
-  // delayMicroseconds(100);
+  if (now - dotTS > 50000) {
+    Serial.print(".");
+    dotTS = now;
+  }
 }
 
 
