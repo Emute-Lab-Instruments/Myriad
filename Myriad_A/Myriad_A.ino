@@ -1400,6 +1400,8 @@ void calibrate_button_callback() {
           break;
         }
         case CONTROLMODES::CALIBRATEPITCHMODE: {
+          PITCHCALSCREEEN::calRunning = false;
+          display.setPitchCalibRunning(false);          
           CalibrationSettings::save();
           switchToOSCMode();
           break;
@@ -1437,10 +1439,10 @@ struct repeating_timer timerAdcProcessor;
 void setup() {
 
   // This will show if you're in an exception/interrupt
-  exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
-      Serial.println("HARD FAULT in interrupt!");
-      while(1);
-  });
+  // exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
+  //     Serial.println("HARD FAULT in interrupt!");
+  //     while(1);
+  // });
 
   init_exp2_table();
 
@@ -1456,6 +1458,8 @@ void setup() {
   CalibrationSettings::load();
   // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
   // CalibrationSettings::init();
+  pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+
   TuningSettings::load();
   MyriadState::load();
 
@@ -1728,10 +1732,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 50000) {
-    Serial.print(".");
-    dotTS = now;
-  }
+  // if (now - dotTS > 50000) {
+  //   Serial.print(".");
+  //   dotTS = now;
+  // }
 }
 
 
