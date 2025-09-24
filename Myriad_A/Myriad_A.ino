@@ -1439,10 +1439,10 @@ struct repeating_timer timerAdcProcessor;
 void setup() {
 
   // This will show if you're in an exception/interrupt
-  // exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
-  //     Serial.println("HARD FAULT in interrupt!");
-  //     while(1);
-  // });
+  exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
+      Serial.println("HARD FAULT in interrupt!");
+      while(1);
+  });
 
   init_exp2_table();
 
