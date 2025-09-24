@@ -76,21 +76,11 @@ std::array<float, 102> arpNotes =
 
 // constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
 //initial guess
-constexpr int cal_12bit_bipolar[9] = {
-  0,  //-5V C-1
-  512, //-3.75V DNL peak 1, d#0
-  1024, //-2.5V f#1
-  1536, //-1.25V DNL peak 2 A2
-  2048, //C3
-  2560, //1.25V, DNL peak 3 d#4
-  3072, //2.5V f#5
-  3584, //3.75V, DNL peak 4, a6
-  4095 //5V, C8
-};
+
 
 #define FRAC_BITS 16
 using ADCCalibType = ADCCalibrator<12,9, int32_t, FRAC_BITS>;
-ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(cal_12bit_bipolar);
+ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(CalibrationSettings::pitchCalPoints);
 
 
 bool core1_separate_stack = true;
@@ -102,7 +92,7 @@ using portal = displayPortal<N_OSCILLATORS,N_OSC_BANKS,N_OSCILLATOR_MODELS>;
 
 portal FAST_MEM display;
 
-enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, TUNINGMODE, UTILITYMODE, QUANTISESETTINGSMODE} controlMode = CONTROLMODES::OSCMODE;
+enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, CALIBRATEPITCHMODE, TUNINGMODE, UTILITYMODE, QUANTISESETTINGSMODE} controlMode = CONTROLMODES::OSCMODE;
 
 #define RUN_OSCS
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
@@ -290,7 +280,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<18,4> FAST_MEM adcLpf0;
+FixedLpf<18,2> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
@@ -329,7 +319,7 @@ volatile bool __scratch_x("adc") newFrequenciesReady = false;
 static size_t __scratch_x("adc") adcCount = 0;
 static size_t __scratch_x("adc") adcAccumulator0=0;
 static size_t __scratch_x("adc") adc0Oversample=0;
-#define oversampleBits 4
+#define oversampleBits 6
 #define oversampleFactor (1<<oversampleBits)
 
 float __scratch_x("adc") octMul0=1;
@@ -955,6 +945,16 @@ void __isr encoder1_callback() {
 
         break;
       }
+      case CONTROLMODES::CALIBRATEPITCHMODE: 
+      {
+        int newVal = CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] + change;
+        if (newVal >=0 && newVal < 5050) {
+          CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = newVal;
+          display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+        }
+        break;
+      }
+
     }
   }
 }
@@ -986,6 +986,7 @@ float __not_in_flash_func(calcAcceleration)(const int change, encAccelData &data
   return changeWithAcc;
 }
 
+//left encoder
 void __isr encoder2_callback() {
     auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[1];
     if (!controls::encoderSwitches[1] && timeSinceSwitchUp > postSwitchUpPause) {
@@ -1049,6 +1050,16 @@ void __isr encoder2_callback() {
           TuningSettings::updateQuant();
           display.setQuant(TuningSettings::quantPull, TuningSettings::quantNotesPerOct);
 
+          break;
+        }
+        case CONTROLMODES::CALIBRATEPITCHMODE: 
+        {
+          int newVal = PITCHCALSCREEEN::pointIndex + change;
+          if (newVal >=0 && newVal < pitchADCMap.NPoints) {
+            PITCHCALSCREEEN::pointIndex = newVal;
+            display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+            display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+          }
           break;
         }
 
@@ -1135,7 +1146,7 @@ bool __not_in_flash_func(processSwitchEvent)(size_t encoderIdx, debouncer &encDe
       switchDownEvent = true;
     }else{
       controls::encoderSwitchUPTS[encoderIdx] = millis();
-      Serial.printf("enc %d switch up ts %d\n", encoderIdx, controls::encoderSwitchUPTS[encoderIdx]);
+      // Serial.printf("enc %d switch up ts %d\n", encoderIdx, controls::encoderSwitchUPTS[encoderIdx]);
     }
   }
   return switchDownEvent;
@@ -1239,6 +1250,13 @@ void __isr encoder2_switch_callback() {
         pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
         break;
       }
+      case CONTROLMODES::CALIBRATEPITCHMODE:
+      {
+        //rebuild pitch table
+        Serial.println("rebuild pitchadc table");
+        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        break;
+      }
     }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
@@ -1339,25 +1357,56 @@ std::shared_ptr<metaOscMLP<N_OSCILLATORS>> isCurrentMetaOscMLP() {
     return nullptr;    
 }
 
+bool FAST_MEM calibButtonState = false;
+
 void calibrate_button_callback() {
   controls::calibrateButton = 1 - calibrateButtonDebouncer.debounce(CALIBRATE_BUTTON); 
-
-  if (controls::calibrateButton == 1) {
+  auto currentState = calibButtonState;
+  //gpio pull-up, so the value is inverted
+  auto newState = controls::calibrateButton;
+  bool switchDownEvent = false;
+  if (newState != currentState) {
+    calibButtonState = newState;
+    if (newState == 1) {
+      switchDownEvent = true;
+    } 
+  }  
+  if (switchDownEvent) {
     auto mlpPtr = isCurrentMetaOscMLP();
     if (mlpPtr != nullptr) {
       mlpPtr->randomise();
       Serial.println("Randomise");
     }else{
-      if (controlMode != CONTROLMODES::CALIBRATEMODE) {
-        controlMode = CONTROLMODES::CALIBRATEMODE;
-        //get free memory
-        int freeMem = rp2040.getFreeHeap();  
-        display.setFreeHeap(freeMem);
-        display.setScreen(portal::SCREENMODES::CALIBRATE);
-      }else{
-        CalibrationSettings::save();
-        switchToOSCMode();
+      switch(controlMode) {
+        case CONTROLMODES::CALIBRATEMODE: {
+          controlMode = CONTROLMODES::CALIBRATEPITCHMODE;
+          display.setScreen(portal::SCREENMODES::PITCHCALIBRATE);
+          break;
+        }
+        case CONTROLMODES::CALIBRATEPITCHMODE: {
+          CalibrationSettings::save();
+          switchToOSCMode();
+          break;
+        }
+        default: {
+          controlMode = CONTROLMODES::CALIBRATEMODE;
+          //get free memory
+          int freeMem = rp2040.getFreeHeap();  
+          display.setFreeHeap(freeMem);
+          display.setScreen(portal::SCREENMODES::CALIBRATE);
+        }
       }
+
+      // if (controlMode != CONTROLMODES::CALIBRATEMODE) {
+      //   controlMode = CONTROLMODES::CALIBRATEMODE;
+      //   //get free memory
+      //   int freeMem = rp2040.getFreeHeap();  
+      //   display.setFreeHeap(freeMem);
+      //   display.setScreen(portal::SCREENMODES::CALIBRATE);
+      // }else{
+      //   CalibrationSettings::save();
+      //   switchToOSCMode();
+      // }
     }
   }
 }
@@ -1517,16 +1566,6 @@ void __not_in_flash_func(loop)() {
 
   auto now = micros();
 
-  // if (now - adcTS >= 20) {
-  //   adcProcessor();
-  //   adcTS = now;
-  //   Serial.println(".");
-  // }
-  // if (adcReadyFlag) {
-  //   processAdc();
-  //   adcReadyFlag = false;
-  // }
-
   if (newFrequenciesReady && now - freqTS >= 400) {
 
     sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
@@ -1607,6 +1646,28 @@ void __not_in_flash_func(loop)() {
                                     new_wavelen3,new_wavelen4,new_wavelen5,
                                     new_wavelen6,new_wavelen7,new_wavelen8 });
       spin_unlock(displaySpinlock, save);
+    }else if (controlMode == CONTROLMODES::CALIBRATEMODE) {
+
+      for(size_t i=0; i < 4; i++) {
+        uint32_t save = spin_lock_blocking(adcSpinlock);  
+        bool calcOK=false;
+        if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
+          CalibrationSettings::adcMins[i] = controlValues[i];
+        }
+        if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
+          CalibrationSettings::adcMaxs[i] = controlValues[i];
+        }
+        CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+        CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+        spin_unlock(adcSpinlock, save);
+      }
+      // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
+      display.setCalibADCValues(0,0,0,0);
+      display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+      display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
+    }else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
+    {
+        display.setPitchCalibReading(controlValues[0]);
     }
 
     uint32_t save = spin_lock_blocking(displaySpinlock);  
@@ -1623,26 +1684,6 @@ void __not_in_flash_func(loop)() {
     ocmTS = now;
   }
 
-  if (controlMode == CONTROLMODES::CALIBRATEMODE) {
-
-    for(size_t i=0; i < 4; i++) {
-      uint32_t save = spin_lock_blocking(adcSpinlock);  
-      bool calcOK=false;
-      if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
-        CalibrationSettings::adcMins[i] = controlValues[i];
-      }
-      if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
-        CalibrationSettings::adcMaxs[i] = controlValues[i];
-      }
-      CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
-      CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
-      spin_unlock(adcSpinlock, save);
-    }
-    // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
-    display.setCalibADCValues(0,0,0,0);
-    display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
-    display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
-  }
 
   // if (now - dotTS > 50000) {
   //   Serial.print(".");

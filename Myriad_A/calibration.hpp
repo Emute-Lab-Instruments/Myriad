@@ -26,6 +26,10 @@ constexpr size_t adcInitMax = adcScaleMax * 0.9;
 
 #include <type_traits>
 
+namespace PITCHCALSCREEEN {
+  int pointIndex=5;
+}
+
 // Template parameters:
 // - BitDepth: ADC bit resolution (e.g., 12 for 12-bit ADC)
 // - CalPoints: Number of calibration points
@@ -112,6 +116,10 @@ public:
       buildLookupTable(calReadings);
   }
 
+  void rebuildLookupTable(const std::array<int, CalPoints>& calReadings) {
+    buildLookupTable(calReadings);
+  }
+  
     // O(1) lookup - returns fixed-point integer
     inline FixedPointT convertFixed(int adcReading) const {
         if (adcReading < 0) return lookupTable[0];
@@ -129,6 +137,7 @@ public:
         return convertFixed(adcReading);
     }
     
+    const int NPoints = CalPoints;
     // Static conversion utilities - C++14 compatible
 private:
     // Pre-computed reciprocal for faster division
@@ -360,6 +369,18 @@ namespace CalibrationSettings {
   static CALIBMEM size_t adc0Mid = 2047;
   static CALIBMEM size_t adcRanges[4];
   static CALIBMEM float adcRangesInv[4];
+
+  static __not_in_flash("calib") std::array<int,9> pitchCalPoints = {
+    0,  //-5V C-1
+    512, //-3.75V DNL peak 1, d#0
+    1024, //-2.5V f#1
+    1536, //-1.25V DNL peak 2 A2
+    2048, //C3
+    2560, //1.25V, DNL peak 3 d#4
+    3072, //2.5V f#5
+    3584, //3.75V, DNL peak 4, a6
+    4095 //5V, C8
+  };
 
   const char* CALIB_FILE = "/calibration.json";
 

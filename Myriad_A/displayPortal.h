@@ -16,7 +16,7 @@ TFT_eSPI __not_in_flash("display") tft = TFT_eSPI();  // Invoke custom library
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY, QUANTISE};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY, QUANTISE, PITCHCALIBRATE};
 
   // std::vector<oscDisplayModes*> oscvis;
 
@@ -62,6 +62,12 @@ public:
     int heapSize;
   };
 
+  struct PitchCalibrationStates {
+    size_t point;
+    size_t value;
+    size_t reading;
+  };
+
   struct displayStates {
     SCREENMODES screenMode;
     OscBankScreenStates oscBankScreenState;
@@ -70,6 +76,7 @@ public:
     TuningScreenStates tuningState;
     UtilScreenStates utilityState;
     QuantiseScreenStates quantiseState;
+    PitchCalibrationStates pitchCalibState;
     bool redraw=false; //override and redraw anyway
   };
 
@@ -313,6 +320,11 @@ public:
         drawUtilityScreen(currState.utilityState, nextState.utilityState, redraw);
         break;
       }
+      case SCREENMODES::PITCHCALIBRATE:
+      {
+        drawPitchCalibScreen(currState.pitchCalibState, nextState.pitchCalibState, redraw);
+        break;
+      }
 
     }
     currState = nextState;
@@ -407,6 +419,16 @@ public:
 
   void setFreeHeap(int freeMem) {
     nextState.calibrationScreenState.heapSize = freeMem;
+  }
+
+  void setPitchCalibPoint(size_t point) {
+    nextState.pitchCalibState.point = point;
+  }
+  void setPitchCalibValue(size_t value) {
+    nextState.pitchCalibState.value = value;
+  }
+  void setPitchCalibReading(size_t reading) {
+    nextState.pitchCalibState.reading = reading;
   }
 
 private:
@@ -926,6 +948,58 @@ private:
 
 
     }
+  }
+
+  void drawPitchCalibScreen(const PitchCalibrationStates &currState, const PitchCalibrationStates &nextState, const bool fullRedraw) {
+    if (fullRedraw) {
+      tft.fillRect(0,0,240,240,ELI_BLUE);
+      tft.setFreeFont(&FreeMono9pt7b);
+      tft.setTextDatum(CC_DATUM);
+      tft.drawString("1V/Oct Cal", 120,20);
+      // tft.drawString("Save State", 120,100);
+      // tft.drawString("Exit", 120,140);
+
+      // iconZPush.pushSprite(114,82);
+      // iconXPush.pushSprite(114,122);
+      // tft.drawString("0010", 180, 100);
+      // tft.drawString("0015", 180, 150);
+
+    }
+    if (fullRedraw || currState.point != nextState.point)
+    {
+      static const std::array<String,9> pointDescriptions = {"-5V", "-3.75V", "-2.5V", "-1.25V", "0V", "1.25V", "2.5V", "3.75V", "5V"};
+      TFT_eSprite textSprite(&tft);
+      textSprite.createSprite(100, 20);
+      textSprite.setTextFont(2);
+      textSprite.setTextDatum(TL_DATUM);
+      textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+      textSprite.fillSprite(ELI_BLUE);
+      textSprite.drawString(pointDescriptions.at(nextState.point), 0,0);
+      textSprite.pushSprite(40,100);
+    }
+    if (fullRedraw || currState.value != nextState.value)
+    {
+      TFT_eSprite textSprite(&tft);
+      textSprite.createSprite(60, 20);
+      textSprite.setTextFont(2);
+      textSprite.setTextDatum(TL_DATUM);
+      textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+      textSprite.fillSprite(ELI_BLUE);
+      textSprite.drawString(String(nextState.value).c_str(), 0,0);
+      textSprite.pushSprite(140,100);
+    }
+    if (fullRedraw || currState.reading != nextState.reading)
+    {
+      TFT_eSprite textSprite(&tft);
+      textSprite.createSprite(60, 20);
+      textSprite.setTextFont(2);
+      textSprite.setTextDatum(TL_DATUM);
+      textSprite.setTextColor(TFT_SILVER, ELI_BLUE);      
+      textSprite.fillSprite(ELI_BLUE);
+      textSprite.drawString(String(nextState.reading).c_str(), 0,0);
+      textSprite.pushSprite(140,140);
+    }
+    
   }
 
 
