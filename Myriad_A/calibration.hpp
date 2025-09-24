@@ -27,7 +27,10 @@ constexpr size_t adcInitMax = adcScaleMax * 0.9;
 #include <type_traits>
 
 namespace PITCHCALSCREEEN {
-  int pointIndex=5;
+  int pointIndex=0;
+  bool calRunning = false;
+  size_t lastPitchADC = 0;
+
 }
 
 // Template parameters:
@@ -370,18 +373,20 @@ namespace CalibrationSettings {
   static CALIBMEM size_t adcRanges[4];
   static CALIBMEM float adcRangesInv[4];
 
-  static __not_in_flash("calib") std::array<int,9> pitchCalPoints = {
-    0,  //-5V C-1
-    512, //-3.75V DNL peak 1, d#0
-    1024, //-2.5V f#1
-    1536, //-1.25V DNL peak 2 A2
-    2048, //C3
-    2560, //1.25V, DNL peak 3 d#4
-    3072, //2.5V f#5
-    3584, //3.75V, DNL peak 4, a6
-    4095 //5V, C8
-  };
+  // static __not_in_flash("calib") std::array<int,9> pitchCalPoints = {
+  //   0,  //-5V C-1
+  //   512, //-3.75V DNL peak 1, d#0
+  //   1024, //-2.5V f#1
+  //   1536, //-1.25V DNL peak 2 A2
+  //   2048, //C3
+  //   2560, //1.25V, DNL peak 3 d#4
+  //   3072, //2.5V f#5
+  //   3584, //3.75V, DNL peak 4, a6
+  //   4095 //5V, C8
+  // };
 
+  static __not_in_flash("calib") std::array<int,121> pitchCalPoints = {10, 44, 78, 112, 146, 180, 214, 248, 282, 316, 350, 384, 418, 452, 486, 520, 554, 588, 622, 656, 690, 724, 758, 792, 826, 860, 894, 928, 962, 996, 1030, 1064, 1098, 1132, 1166, 1200, 1234, 1268, 1302, 1336, 1370, 1404, 1438, 1472, 1506, 1540, 1574, 1608, 1642, 1676, 1710, 1744, 1778, 1812, 1846, 1880, 1914, 1948, 1982, 2016, 2050, 2084, 2118, 2152, 2186, 2220, 2254, 2288, 2322, 2356, 2390, 2424, 2458, 2492, 2526, 2560, 2594, 2628, 2662, 2696, 2730, 2764, 2798, 2832, 2866, 2900, 2934, 2968, 3002, 3036, 3070, 3104, 3138, 3172, 3206, 3240, 3274, 3308, 3342, 3376, 3410, 3444, 3478, 3512, 3546, 3580, 3614, 3648, 3682, 3716, 3750, 3784, 3818, 3852, 3886, 3920, 3954, 3988, 4022, 4056, 4090};
+  
   const char* CALIB_FILE = "/calibration.json";
 
   void init() {

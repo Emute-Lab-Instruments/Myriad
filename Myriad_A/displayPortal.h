@@ -66,6 +66,7 @@ public:
     size_t point;
     size_t value;
     size_t reading;
+    bool pcalRunning=false;
   };
 
   struct displayStates {
@@ -102,6 +103,8 @@ public:
   static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
   using iconDrawFunction = std::function<void(eSpritePtr&, int)>;
   std::map<String, iconDrawFunction> iconDrawFunctions;
+
+  std::array<String, 121> pcalpoints = {"C-5 (0.00V)", "C#-5 (0.08V)", "D-5 (0.17V)", "D#-5 (0.25V)", "E-5 (0.33V)", "F-5 (0.42V)", "F#-5 (0.50V)", "G-5 (0.58V)", "G#-5 (0.67V)", "A-5 (0.75V)", "A#-5 (0.83V)", "B-5 (0.92V)", "C-4 (1.00V)", "C#-4 (1.08V)", "D-4 (1.17V)", "D#-4 (1.25V)", "E-4 (1.33V)", "F-4 (1.42V)", "F#-4 (1.50V)", "G-4 (1.58V)", "G#-4 (1.67V)", "A-4 (1.75V)", "A#-4 (1.83V)", "B-4 (1.92V)", "C-3 (2.00V)", "C#-3 (2.08V)", "D-3 (2.17V)", "D#-3 (2.25V)", "E-3 (2.33V)", "F-3 (2.42V)", "F#-3 (2.50V)", "G-3 (2.58V)", "G#-3 (2.67V)", "A-3 (2.75V)", "A#-3 (2.83V)", "B-3 (2.92V)", "C-2 (3.00V)", "C#-2 (3.08V)", "D-2 (3.17V)", "D#-2 (3.25V)", "E-2 (3.33V)", "F-2 (3.42V)", "F#-2 (3.50V)", "G-2 (3.58V)", "G#-2 (3.67V)", "A-2 (3.75V)", "A#-2 (3.83V)", "B-2 (3.92V)", "C-1 (4.00V)", "C#-1 (4.08V)", "D-1 (4.17V)", "D#-1 (4.25V)", "E-1 (4.33V)", "F-1 (4.42V)", "F#-1 (4.50V)", "G-1 (4.58V)", "G#-1 (4.67V)", "A-1 (4.75V)", "A#-1 (4.83V)", "B-1 (4.92V)", "C0 (5.00V)", "C#0 (5.08V)", "D0 (5.17V)", "D#0 (5.25V)", "E0 (5.33V)", "F0 (5.42V)", "F#0 (5.50V)", "G0 (5.58V)", "G#0 (5.67V)", "A0 (5.75V)", "A#0 (5.83V)", "B0 (5.92V)", "C1 (6.00V)", "C#1 (6.08V)", "D1 (6.17V)", "D#1 (6.25V)", "E1 (6.33V)", "F1 (6.42V)", "F#1 (6.50V)", "G1 (6.58V)", "G#1 (6.67V)", "A1 (6.75V)", "A#1 (6.83V)", "B1 (6.92V)", "C2 (7.00V)", "C#2 (7.08V)", "D2 (7.17V)", "D#2 (7.25V)", "E2 (7.33V)", "F2 (7.42V)", "F#2 (7.50V)", "G2 (7.58V)", "G#2 (7.67V)", "A2 (7.75V)", "A#2 (7.83V)", "B2 (7.92V)", "C3 (8.00V)", "C#3 (8.08V)", "D3 (8.17V)", "D#3 (8.25V)", "E3 (8.33V)", "F3 (8.42V)", "F#3 (8.50V)", "G3 (8.58V)", "G#3 (8.67V)", "A3 (8.75V)", "A#3 (8.83V)", "B3 (8.92V)", "C4 (9.00V)", "C#4 (9.08V)", "D4 (9.17V)", "D#4 (9.25V)", "E4 (9.33V)", "F4 (9.42V)", "F#4 (9.50V)", "G4 (9.58V)", "G#4 (9.67V)", "A4 (9.75V)", "A#4 (9.83V)", "B4 (9.92V)", "C5 (10.00V)"};
 
 
   displayPortal() {
@@ -429,6 +432,9 @@ public:
   }
   void setPitchCalibReading(size_t reading) {
     nextState.pitchCalibState.reading = reading;
+  }
+  void setPitchCalibRunning(bool v) {
+    nextState.pitchCalibState.pcalRunning = v;
   }
 
 private:
@@ -965,16 +971,19 @@ private:
       // tft.drawString("0015", 180, 150);
 
     }
-    if (fullRedraw || currState.point != nextState.point)
+    if (fullRedraw || currState.point != nextState.point || currState.pcalRunning != nextState.pcalRunning)
     {
-      static const std::array<String,9> pointDescriptions = {"-5V", "-3.75V", "-2.5V", "-1.25V", "0V", "1.25V", "2.5V", "3.75V", "5V"};
       TFT_eSprite textSprite(&tft);
       textSprite.createSprite(100, 20);
       textSprite.setTextFont(2);
       textSprite.setTextDatum(TL_DATUM);
-      textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+      if (nextState.pcalRunning) {
+        textSprite.setTextColor(TFT_GREEN, ELI_BLUE);      
+      }else{
+        textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+      }
       textSprite.fillSprite(ELI_BLUE);
-      textSprite.drawString(pointDescriptions.at(nextState.point), 0,0);
+      textSprite.drawString(pcalpoints.at(nextState.point), 0,0);
       textSprite.pushSprite(40,100);
     }
     if (fullRedraw || currState.value != nextState.value)

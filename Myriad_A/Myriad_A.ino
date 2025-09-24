@@ -79,7 +79,7 @@ std::array<float, 102> arpNotes =
 
 
 #define FRAC_BITS 16
-using ADCCalibType = ADCCalibrator<12,9, int32_t, FRAC_BITS>;
+using ADCCalibType = ADCCalibrator<12,121, int32_t, FRAC_BITS>;
 ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(CalibrationSettings::pitchCalPoints);
 
 
@@ -280,7 +280,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<18,2> FAST_MEM adcLpf0;
+FixedLpf<18,3> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
@@ -951,7 +951,7 @@ void __isr encoder1_callback() {
       case CONTROLMODES::CALIBRATEPITCHMODE: 
       {
         int newVal = CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] + change;
-        if (newVal >=0 && newVal < 5050) {
+        if (newVal >=0 && newVal < 5000) {
           CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = newVal;
           display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
         }
@@ -1333,7 +1333,18 @@ void __isr encoder3_switch_callback() {
       case CONTROLMODES::CALIBRATEPITCHMODE:
       {
         //rebuild pitch table
-        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        if (!PITCHCALSCREEEN::calRunning) {
+          PITCHCALSCREEEN::calRunning = true;
+          PITCHCALSCREEEN::lastPitchADC = controlValues[0];
+          //store current reading
+          CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
+          display.setPitchCalibValue(controlValues[0]);
+
+        }else{
+          PITCHCALSCREEEN::calRunning = false;
+          pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        }
+        display.setPitchCalibRunning(PITCHCALSCREEEN::calRunning);
         break;
       }
 
@@ -1443,7 +1454,7 @@ void setup() {
 
 
   CalibrationSettings::load();
-  pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
+  // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
   // CalibrationSettings::init();
   TuningSettings::load();
   MyriadState::load();
@@ -1670,16 +1681,36 @@ void __not_in_flash_func(loop)() {
       display.setCalibADCValues(0,0,0,0);
       display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
       display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
-    }else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
+    }
+    else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
     {
         display.setPitchCalibReading(controlValues[0]);
-        static size_t FAST_MEM lastPitchADC = 0;
-        int diff = controlValues[0] - lastPitchADC;
-        Serial.println(diff);
-        if (diff >20) {
-          Serial.println("change");
-          lastPitchADC = controlValues[0];
+        int diff = controlValues[0] - PITCHCALSCREEEN::lastPitchADC;
+        bool change=false;
+
+        if (diff >14) {
+          PITCHCALSCREEEN::lastPitchADC = controlValues[0];
+          change=true;
         }
+
+        if (PITCHCALSCREEEN::calRunning) {
+          if (change) {
+            int newVal = PITCHCALSCREEEN::pointIndex+1;
+            if (newVal < pitchADCMap.NPoints) {
+              PITCHCALSCREEEN::pointIndex = newVal;
+              //set display
+              display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+              display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+
+              //record calibration
+              CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
+            }else{
+              // PITCHCALSCREEEN::calRunning = false;
+              // display.setPitchCalibRunning(false);
+            }
+          }
+        }
+
     }
 
     uint32_t save = spin_lock_blocking(displaySpinlock);  
