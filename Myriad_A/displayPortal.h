@@ -740,13 +740,13 @@ private:
     }
     //----------
     const int minColX = 100;
-    if (fullRedraw || currState.adcMin0 != nextState.adcMin0) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMin0,3);
-      tft.drawString(str.c_str(), minColX, adcy1);
-    }
+    // if (fullRedraw || currState.adcMin0 != nextState.adcMin0) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMin0,3);
+    //   tft.drawString(str.c_str(), minColX, adcy1);
+    // }
     if (fullRedraw || currState.adcMin1 != nextState.adcMin1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);
@@ -771,13 +771,13 @@ private:
 
     //-------------
     const int maxColX = 140;
-    if (fullRedraw || currState.adcMax0 != nextState.adcMax0) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMax0,5);
-      tft.drawString(str.c_str(), maxColX, adcy1);
-    }
+    // if (fullRedraw || currState.adcMax0 != nextState.adcMax0) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMax0,5);
+    //   tft.drawString(str.c_str(), maxColX, adcy1);
+    // }
     if (fullRedraw || currState.adcMax1 != nextState.adcMax1) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);

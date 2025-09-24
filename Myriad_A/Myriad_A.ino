@@ -253,7 +253,7 @@ namespace controls {
 
 // MovingAverageFilter<float> FAST_MEM adcFilters[4];
 // MedianFilter<float> FAST_MEM adcMedians[4];
-ResponsiveFilter FAST_MEM adcRsFilters[4];
+// ResponsiveFilter FAST_MEM adcRsFilters[4];
 
 static float __scratch_x("adc") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
@@ -352,7 +352,7 @@ void adc_dma_irq_handler() {
   }
   if (adcReadings) {
     //oversampling pitch
-    const int filteredADC0 = adcLpf0.play(adcReadings[0]); 
+    int filteredADC0 = adcLpf0.play(adcReadings[0]); 
 
     // adcAccumulator0 += adcReadings[0];
     adcCount++;
@@ -410,6 +410,9 @@ void adc_dma_irq_handler() {
     // size_t filteredADC0 = median_filter_3pt_update_fast(&pitchMedian, adcReadings[0]);
     // size_t filteredADC0 = adcReadings[0];
     // const size_t filteredPitch = adcLpf0b.play(pitchADCMap.convertFixed(filteredADC0));
+    if (filteredADC0<0) filteredADC0=0;
+    if (filteredADC0>4095) filteredADC0=4095;
+
     float pitchCV = pitchADCMap.convertFloat(filteredADC0);
     controlValues[0] = filteredADC0;
     // Serial.printf("Pitch ADC: %d, CV: %f\n", filteredADC0, pitchCV);
@@ -456,7 +459,7 @@ void adc_dma_irq_handler() {
     // if (detuneControl > 1.0f) detuneControl = 1.0f;
     // if (detuneControl < 0.0f) detuneControl = 0.0f;
 
-    detune = (detuneControl * 0.016f) * new_wavelen0;    
+    detune = (detuneControl * 0.016f) * new_wavelen0;  
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
 
@@ -669,18 +672,18 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, size_t 
   sendMessage(msg);
 }
 
-inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  //get the value
-  uint32_t save = spin_lock_blocking(adcSpinlock);  
-  const float val = controlValues[adcIndex];
-  spin_unlock(adcSpinlock, save);
+// inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
+//   //get the value
+//   uint32_t save = spin_lock_blocking(adcSpinlock);  
+//   const float val = controlValues[adcIndex];
+//   spin_unlock(adcSpinlock, save);
 
-  //mapping
-  float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
-  if (mappedVal < 0.f) mappedVal = 0.f;
+//   //mapping
+//   float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
+//   if (mappedVal < 0.f) mappedVal = 0.f;
 
-  return mappedVal;
-}
+//   return mappedVal;
+// }
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   if (currMetaMod > 0) {
@@ -1244,17 +1247,10 @@ void __isr encoder2_switch_callback() {
       }
       case CONTROLMODES::CALIBRATEMODE:
       {
-        //assume 1v/oct input is grounded
-        Serial.println("Calibrate pitch");
-        CalibrationSettings::setADC0Mid(controlValues[0]);
-        pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
-        break;
-      }
-      case CONTROLMODES::CALIBRATEPITCHMODE:
-      {
-        //rebuild pitch table
-        Serial.println("rebuild pitchadc table");
-        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        // //assume 1v/oct input is grounded
+        // Serial.println("Calibrate pitch");
+        // CalibrationSettings::setADC0Mid(controlValues[0]);
+        // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
         break;
       }
     }
@@ -1334,6 +1330,12 @@ void __isr encoder3_switch_callback() {
         spin_unlock(displaySpinlock, save);
         break;
       }
+      case CONTROLMODES::CALIBRATEPITCHMODE:
+      {
+        //rebuild pitch table
+        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        break;
+      }
 
     }
   }
@@ -1381,6 +1383,9 @@ void calibrate_button_callback() {
         case CONTROLMODES::CALIBRATEMODE: {
           controlMode = CONTROLMODES::CALIBRATEPITCHMODE;
           display.setScreen(portal::SCREENMODES::PITCHCALIBRATE);
+          display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+          display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+
           break;
         }
         case CONTROLMODES::CALIBRATEPITCHMODE: {
@@ -1647,10 +1652,9 @@ void __not_in_flash_func(loop)() {
                                     new_wavelen6,new_wavelen7,new_wavelen8 });
       spin_unlock(displaySpinlock, save);
     }else if (controlMode == CONTROLMODES::CALIBRATEMODE) {
-
-      for(size_t i=0; i < 4; i++) {
+      //pitch is done on next screen
+      for(size_t i=1; i < 4; i++) {
         uint32_t save = spin_lock_blocking(adcSpinlock);  
-        bool calcOK=false;
         if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
           CalibrationSettings::adcMins[i] = controlValues[i];
         }
@@ -1658,6 +1662,7 @@ void __not_in_flash_func(loop)() {
           CalibrationSettings::adcMaxs[i] = controlValues[i];
         }
         CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+        if (CalibrationSettings::adcRanges[i]==0) CalibrationSettings::adcRanges[i]=1;
         CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
         spin_unlock(adcSpinlock, save);
       }

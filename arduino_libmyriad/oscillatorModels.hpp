@@ -597,7 +597,7 @@ class triOscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const float v) override {
-      const size_t index = static_cast<size_t>(v * 999.f + 0.5f);
+      const size_t index = static_cast<size_t>(v * 900.f + 0.5f);
       if (index != lastPW || wavelen != lastWavelen) {
         lastPW = index;
         lastWavelen = wavelen;

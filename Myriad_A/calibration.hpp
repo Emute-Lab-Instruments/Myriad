@@ -119,7 +119,7 @@ public:
   void rebuildLookupTable(const std::array<int, CalPoints>& calReadings) {
     buildLookupTable(calReadings);
   }
-  
+
     // O(1) lookup - returns fixed-point integer
     inline FixedPointT convertFixed(int adcReading) const {
         if (adcReading < 0) return lookupTable[0];
@@ -398,9 +398,9 @@ namespace CalibrationSettings {
     init();
   }
 
-  void setADC0Mid(size_t mid) {
-    adc0Mid = mid;
-  }
+  // void setADC0Mid(size_t mid) {
+  //   adc0Mid = mid;
+  // }
 
   bool load() {
     if (!LittleFS.begin()) {
@@ -439,9 +439,15 @@ namespace CalibrationSettings {
     // Load values from JSON, using defaults if keys don't exist
     JsonArray mins = doc["adcMins"];
     JsonArray maxs = doc["adcMaxs"];
+    JsonArray pitchcal = doc["pcal"];
 
-    adc0Mid = doc["adc0Mid"] | adc0Mid;
+    // adc0Mid = doc["adc0Mid"] | adc0Mid;
 
+    if (pitchcal.size() == pitchCalPoints.size()) {
+      for(size_t i =0; i < pitchCalPoints.size(); i++) {
+        pitchCalPoints[i] = pitchcal[i] | pitchCalPoints[i];
+      }
+    }
 
     if (mins.size() == 4 && maxs.size() == 4) {
       for (size_t i = 0; i < 4; i++) {
@@ -470,6 +476,7 @@ namespace CalibrationSettings {
     // Create arrays for mins and maxs
     JsonArray mins = doc["adcMins"].to<JsonArray>();
     JsonArray maxs = doc["adcMaxs"].to<JsonArray>();
+    JsonArray pitchcal = doc["pcal"].to<JsonArray>();
 
     // Populate arrays
     for (size_t i = 0; i < 4; i++) {
@@ -477,7 +484,11 @@ namespace CalibrationSettings {
       maxs.add(adcMaxs[i]);
     }
 
-    doc["adc0Mid"] = adc0Mid;
+    for(size_t i=0; i < pitchCalPoints.size(); i++) {
+      pitchcal.add(pitchCalPoints[i]);
+    }
+
+    // doc["adc0Mid"] = adc0Mid;
 
     // Open file for writing
     File file = LittleFS.open(CALIB_FILE, "w");
