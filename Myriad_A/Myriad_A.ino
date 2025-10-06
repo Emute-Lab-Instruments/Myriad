@@ -388,28 +388,6 @@ void adc_dma_irq_handler() {
       // size_t pitchCV = pitchADCMap[adcReadings[0]];
     #endif
 
-      // //quantise?
-      // // constexpr float step = 0.1f / 5.f;
-      // // constexpr float stepinv = 1.f/step;
-      // if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
-      //   // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
-      //   // float quantStepInv = 1.f/quantStep;
-      //   float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
-      //   // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
-      //   float diff = quantCV - pitchCV;
-      //   pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
-      // }
-
-    //exponential conversion
-    // Serial.printf("Pitch CV: %d\n", pitchCV);
-      // Serial.println(pitchCV>>FRAC_BITS);
-    // float freq = powf(2.f, (pitchCV>>FRAC_BITS)); 
-    // float freq = 0.5f;
-
-    // const size_t filteredADC0 = adcLpf0.play(adc0Oversample); 
-    // size_t filteredADC0 = median_filter_3pt_update_fast(&pitchMedian, adcReadings[0]);
-    // size_t filteredADC0 = adcReadings[0];
-    // const size_t filteredPitch = adcLpf0b.play(pitchADCMap.convertFixed(filteredADC0));
     if (filteredADC0<0) filteredADC0=0;
     if (filteredADC0>4095) filteredADC0=4095;
 
@@ -464,10 +442,10 @@ void adc_dma_irq_handler() {
     new_wavelen2 = (new_wavelen1 - detune);
 
     int filteredADC2 = adcLpf2.play(adcReadings[2]);
+    controlValues[2] = filteredADC2;
     filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
     if (filteredADC2<0) filteredADC2=0;
     if (filteredADC2>4095) filteredADC2=4095;
-    controlValues[2] = filteredADC2;
     ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
 
 
@@ -1253,6 +1231,12 @@ void __isr encoder2_switch_callback() {
         // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
         break;
       }
+      case CONTROLMODES::CALIBRATEPITCHMODE:
+      {
+        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+        break;
+      }
+
     }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
@@ -1692,7 +1676,7 @@ void __not_in_flash_func(loop)() {
         int diff = controlValues[0] - PITCHCALSCREEEN::lastPitchADC;
         bool change=false;
 
-        if (diff >14) {
+        if (diff >15) {
           PITCHCALSCREEEN::lastPitchADC = controlValues[0];
           change=true;
         }
