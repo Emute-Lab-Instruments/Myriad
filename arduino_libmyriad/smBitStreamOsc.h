@@ -5,8 +5,6 @@
 #include "hardware/pio.h"
 #include "hardware/irq.h"
 
-//TODO: pass in pio_sm_config when initialising
-
 
 class smBitStreamOsc {
 public:
@@ -35,9 +33,9 @@ public:
     // Configure PIO SM with pin_ctrl program
     // pio_sm_config c = pin_ctrl_program_get_default_config(offset);
     pio_sm_config c = cfg;
-    Serial.println("cfg");
-    Serial.println(c.execctrl);
-    Serial.println(c.pinctrl);
+//    Serial.println("cfg");
+//    Serial.println(c.execctrl);
+//    Serial.println(c.pinctrl);
     sm_config_set_out_pins(&c, pin, 1);
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_clkdiv(&c, clockdiv);

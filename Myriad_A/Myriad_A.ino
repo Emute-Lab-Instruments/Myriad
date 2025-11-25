@@ -46,36 +46,16 @@
 
 #include "exp2Table.hpp"
 
+#include "perf.hpp"
+
+#include "streamMessaging.hpp"
+
 // #define SINGLEOSCILLATOR
 
-// #define TEST_ARPEGGIATOR
-#ifdef TEST_ARPEGGIATOR
-float arpCount=0;
-float arpIndex= 0;
-// std::array<float, 4> arpNotes = {0.2,0.4,0.6, 0.8}; //1, 3, 5
-std::array<float, 102> arpNotes = 
-{
-  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
-  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
-  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
-  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
-  0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,0.462696,
-
-  0.520930,
-
-  0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
-0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
-0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
-0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
-0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,0.537597,
-0.482853
-
-};
-#endif
 
 
-// constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
-//initial guess
+constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
+// initial guess
 
 
 #define FRAC_BITS 16
@@ -210,25 +190,6 @@ void startOscBankA() {
   oscsRunning = true;
 }
 
-void __not_in_flash_func(stopOscBankA)() {
-//   uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
-//   if (oscsRunning) {
-//     oscsRunning = false;
-//     smOsc0.stop();
-// #ifndef SINGLEOSCILLATOR
-//     smOsc1.stop();
-//     smOsc2.stop();
-// #endif
-//   }
-//   bufSent0 = false;
-//   bufSent1 = false;
-//   bufSent2 = false;  
-//   spin_unlock(calcOscsSpinlock, save);
-//   delayMicroseconds(100);
-}
-
-// #define SCREEN_WIDTH tft.width()    //
-// #define SCREEN_HEIGHT tft.height()  // Taille de l'écran
 
 #define ENCODER1_A_PIN 9
 #define ENCODER1_B_PIN 14
@@ -329,28 +290,11 @@ bool __scratch_x("adc") octMul0Down=false;
 bool __scratch_x("adc") octMul1Down=false;
 bool __scratch_x("adc") octMul2Down=false;
 
+PERF_DECLARE(ADC);
+PERF_DECLARE(METAMODS);
 
-void adc_dma_irq_handler() {
-  uint16_t *adcReadings = nullptr;
-  if (dma_channel_get_irq0_status(dma_chan)) {
-      dma_channel_acknowledge_irq0(dma_chan);
-      adcReadings = capture_buf_a;      
-      // Your buffer is full or at the ring boundary
-      // Process data in capture_buf here
-      // Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
-      // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-      // dma_channel_set_trans_count(dma_chan, 4, true);        
-  }
-  if (dma_channel_get_irq0_status(dma_chan2)) {
-      dma_channel_acknowledge_irq0(dma_chan2);
-      adcReadings = capture_buf_b;      
-      // Your buffer is full or at the ring boundary
-      // Process data in capture_buf here
-      // Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
-      // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-      // dma_channel_set_trans_count(dma_chan, 4, true);        
-  }
-  if (adcReadings) {
+    
+void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //oversampling pitch
     int filteredADC0 = adcLpf0.play(adcReadings[0]); 
 
@@ -366,6 +310,7 @@ void adc_dma_irq_handler() {
     }
 
     
+    PERF_BEGIN(ADC);
     
     // Serial.printf("%d %d %d %d\n",adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
     #ifdef TEST_ARPEGGIATOR
@@ -402,7 +347,7 @@ void adc_dma_irq_handler() {
       // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
       // float quantStepInv = 1.f/quantStep;
       const float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
-      // float TuningSettings::quantAlpha = TuningSettings::quantPull * 0.01f;
+
       const float diff = quantCV - pitchCV;
       pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
     }
@@ -527,8 +472,73 @@ void adc_dma_irq_handler() {
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
-  }
+    PERF_END(ADC);
 }
+
+
+
+// void __not_in_flash_func(dma_irq_handler)() {
+//   uint16_t *adcReadings = nullptr;
+//   if (dma_channel_get_irq0_status(dma_chan)) {
+//       dma_channel_acknowledge_irq0(dma_chan);
+//       adcReadings = capture_buf_a;      
+//       // Your buffer is full or at the ring boundary
+//       // Process data in capture_buf here
+//       // Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
+//       // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+//       // dma_channel_set_trans_count(dma_chan, 4, true);        
+//   }
+//   if (dma_channel_get_irq0_status(dma_chan2)) {
+//       dma_channel_acknowledge_irq0(dma_chan2);
+//       adcReadings = capture_buf_b;      
+//       // Your buffer is full or at the ring boundary
+//       // Process data in capture_buf here
+//       // Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
+//       // dma_channel_set_write_addr(dma_chan, capture_buf, false);
+//       // dma_channel_set_trans_count(dma_chan, 4, true);        
+//   }
+//   if (adcReadings) {
+//     adcProcessor(adcReadings);
+//   }
+//   if (streamMessaging::dma_channel_tx >= 0 && dma_irqn_get_channel_status(0, streamMessaging::dma_channel_tx)) {
+//     dma_irqn_acknowledge_channel(0, streamMessaging::dma_channel_tx);
+//     // Serial.printf("dma_tx done\n");
+//   }
+
+// }
+
+__attribute__((hot, flatten))
+void __not_in_flash_func(dma_irq_handler)() {
+    // Check both channels in one go - likely to be compiled to efficient bit ops
+    uint32_t irq_status = dma_hw->ints0;
+    
+    uint16_t *adcReadings = nullptr;
+    
+    // Branch 1: Check and handle dma_chan
+    if (irq_status & (1u << dma_chan)) {
+        dma_hw->ints0 = (1u << dma_chan);  // Clear IRQ directly
+        adcReadings = capture_buf_a;
+    }
+    
+    // Branch 2: Check and handle dma_chan2  
+    if (irq_status & (1u << dma_chan2)) {
+        dma_hw->ints0 = (1u << dma_chan2);  // Clear IRQ directly
+        adcReadings = capture_buf_b;  // Will overwrite if both fired
+    }
+    
+    // Process if either fired
+    if (__builtin_expect(adcReadings != nullptr, 1)) {  // Likely hint
+        adcProcessor(adcReadings);
+    }
+    
+    // Stream messaging check - separate hardware
+    if (__builtin_expect(streamMessaging::dma_channel_tx >= 0, 0)) {  // Unlikely
+        if (irq_status & (1u << streamMessaging::dma_channel_tx)) {
+            dma_hw->ints0 = (1u << streamMessaging::dma_channel_tx);
+        }
+    }
+}
+
 void setup_adcs() {
   adc_init();
   adc_gpio_init(26);
@@ -615,7 +625,7 @@ void setup_adcs() {
   //set up interrupts
   dma_channel_set_irq0_enabled(dma_chan, true);
   dma_channel_set_irq0_enabled(dma_chan2, true);
-  irq_set_exclusive_handler(DMA_IRQ_0, adc_dma_irq_handler);
+  irq_add_shared_handler(DMA_IRQ_0, dma_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
   irq_set_enabled(DMA_IRQ_0, true);  
 
   adc_run(true);
@@ -627,46 +637,55 @@ void setup_adcs() {
 }
 
 
-void __force_inline __not_in_flash_func(sendMessage) (spiMessage &msg) {
-  static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
-  unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-  // if (Serial1.availableForWrite() >= slipSize) {
-    // Serial.printf("Send to B: %d\n", msgType);
-  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-  // }
-}
+// void __force_inline __not_in_flash_func(sendMessage) (spiMessage &msg) {
+//  static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
+//  unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
+//   if (Serial1.availableForWrite() >= slipSize) {
+//     Serial.printf("Send to B: %d\n", msgType);
+//  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
+//   }
 
-void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, float value) {
-  spiMessage msg;
-  msg.msg = msgType;
-  msg.value = value;
-  sendMessage(msg);
-}
-
-void __force_inline __not_in_flash_func(sendToMyriadB) (uint8_t msgType, size_t value) {
-  spiMessage msg;
-  msg.msg = msgType;
-  msg.ivalue = value;
-  sendMessage(msg);
-}
-
-// inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-//   //get the value
-//   uint32_t save = spin_lock_blocking(adcSpinlock);  
-//   const float val = controlValues[adcIndex];
-//   spin_unlock(adcSpinlock, save);
-
-//   //mapping
-//   float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
-//   if (mappedVal < 0.f) mappedVal = 0.f;
-
-//   return mappedVal;
 // }
+
+static __scratch_x("msg") streamMessaging::msgpacket msg;
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
+   // Wait for previous DMA transfer to complete before reusing buffer
+   while (dma_channel_is_busy(streamMessaging::dma_channel_tx)) {
+     tight_loop_contents();
+   }
+   streamMessaging::createMessage(msg, value, msgType);
+   streamMessaging::sendMessageWithDMA(msg);
+}
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, size_t value) {
+   // Wait for previous DMA transfer to complete before reusing buffer
+   while (dma_channel_is_busy(streamMessaging::dma_channel_tx)) {
+     tight_loop_contents();
+   }
+   streamMessaging::createMessage(msg, value, msgType);
+   streamMessaging::sendMessageWithDMA(msg);
+}
+
+inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
+  //get the value
+  uint32_t save = spin_lock_blocking(adcSpinlock);  
+  const float val = controlValues[adcIndex];
+  spin_unlock(adcSpinlock, save);
+
+  //mapping
+  float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
+  if (mappedVal < 0.f) mappedVal = 0.f;
+
+  return mappedVal;
+}
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   if (currMetaMod > 0) {
     uint32_t save = spin_lock_blocking(adcSpinlock);  
+    PERF_BEGIN(METAMODS);
     auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    PERF_END(METAMODS);
     spin_unlock(adcSpinlock, save);
   }
   return true;
@@ -761,7 +780,6 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
           bufSent1 = false;
           bufSent2 = false;  
         // delayMicroseconds(100);
-          // stopOscBankA();
 
           while (dma_channel_is_busy(smOsc0_dma_chan) || 
                 dma_channel_is_busy(smOsc1_dma_chan) || 
@@ -818,7 +836,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
 
         } else {
 
-          sendToMyriadB(bank == 1 ? messageTypes::BANK1 : messageTypes::BANK0, oscBankTypes[bank]);
+          sendToMyriadB(bank == 1 ? streamMessaging::messageTypes::BANK1 : streamMessaging::messageTypes::BANK0, oscBankTypes[bank]);
           // MyriadState::setOscBank(bank, oscBankTypes[bank]);
         
         }
@@ -1413,24 +1431,21 @@ void calibrate_button_callback() {
   }
 }
 
-struct repeating_timer timerAdcProcessor;
-// struct repeating_timer timerDisplay;
-//struct repeating_timer timerFreqReceiver;
-// struct repeating_timer timerOscModeChangeMonitor;
+// struct repeating_timer timerAdcProcessor;
 
 
 
 void setup() {
 
   // This will show if you're in an exception/interrupt
-  exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
-      Serial.println("HARD FAULT in interrupt!");
-      while(1);
-  });
+  // exception_set_exclusive_handler(HARDFAULT_EXCEPTION, []() {
+  //     Serial.println("HARD FAULT in interrupt!");
+  //     while(1);
+  // });
 
   init_exp2_table();
 
-  //USB Serial
+  // //USB Serial
   Serial.begin();
   // while(!Serial) {}
 
@@ -1438,10 +1453,16 @@ void setup() {
   displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
   adcSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
+  //set up serial tx to Myriad B
+  bool serialTXOK = streamMessaging::setupTX(pio0, dma_irq_handler, 13, 12);
+  if (!serialTXOK) {
+    Serial.println("Error creating serial tx");
+  }
 
   CalibrationSettings::load();
+
   // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
-  // CalibrationSettings::init();
+  CalibrationSettings::init();
   pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
 
   TuningSettings::load();
@@ -1469,9 +1490,9 @@ void setup() {
   gpio_set_drive_strength(12, GPIO_DRIVE_STRENGTH_12MA);
   gpio_set_slew_rate(12, GPIO_SLEW_RATE_FAST);
   // comms to Myriad B
-  Serial1.setRX(13);
-  Serial1.setTX(12);
-  Serial1.begin(SERIAL_CX_BAUD);
+  // Serial1.setRX(13);
+  // Serial1.setTX(12);
+  // Serial1.begin(SERIAL_CX_BAUD);
 
   //show on board LED
   pinMode(LED_PIN, OUTPUT);
@@ -1514,9 +1535,6 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(CALIBRATE_BUTTON), calibrate_button_callback,
                     CHANGE);
 
-  // add_repeating_timer_us(adcProcessorDiv, adcProcessor, NULL, &timerAdcProcessor);
-  // add_repeating_timer_ms(39, displayUpdate, NULL, &timerDisplay);
-  // add_repeating_timer_ms(31, oscModeChangeMonitor, NULL, &timerOscModeChangeMonitor);
 
   //load stored state
   oscBankTypes[0] = MyriadState::getOscBank(0);
@@ -1528,8 +1546,8 @@ void setup() {
   assignOscModels(oscBankTypes[2]);
 
   //on unit B
-  sendToMyriadB(0, oscBankTypes[0]);
-  sendToMyriadB(1, oscBankTypes[1]);
+  sendToMyriadB(streamMessaging::messageTypes::BANK0, oscBankTypes[0]);
+  sendToMyriadB(streamMessaging::messageTypes::BANK1, oscBankTypes[1]);
 
 
   display.setOscBankModel(0, oscBankTypes[0]);
@@ -1565,19 +1583,20 @@ size_t FAST_MEM metaModSendIdx=0;
 
 size_t FAST_MEM dotTS;
 
-
+PERF_DECLARE(SERIALTX);
+PERF_DECLARE(CALCOSCS);
+size_t vu;
 void __not_in_flash_func(loop)() {
+    // sendToMyriadB(streamMessaging::messageTypes::CTRL, 17U);
+    // delay(1);
 
   auto now = micros();
 
   if (newFrequenciesReady && now - freqTS >= 400) {
 
-    sendToMyriadB(messageTypes::WAVELEN0, new_wavelen0);
-    // sendToMyriadB(messageTypes::WAVELEN1, new_wavelen4);
-    // sendToMyriadB(messageTypes::WAVELEN2, new_wavelen5);
-    // sendToMyriadB(messageTypes::WAVELEN3, new_wavelen6);
-    // sendToMyriadB(messageTypes::WAVELEN4, new_wavelen7);
-    // sendToMyriadB(messageTypes::WAVELEN5, new_wavelen8);
+    PERF_BEGIN(SERIALTX);
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
+    PERF_END(SERIALTX);
 
     newFrequenciesReady = false;
     freqTS = now;
@@ -1586,43 +1605,43 @@ void __not_in_flash_func(loop)() {
     switch(metaModSendIdx) {
       case 5:
       metaModSendIdx = 4;
-      sendToMyriadB(messageTypes::METAMOD3, metaModWavelenMul3);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3);
       break;
       case 4:
       metaModSendIdx = 3;
-      sendToMyriadB(messageTypes::METAMOD4, metaModWavelenMul4);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4);
       break;
       case 3:
       metaModSendIdx = 2;
-      sendToMyriadB(messageTypes::METAMOD5, metaModWavelenMul5);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5);
       break;
       case 2:
       metaModSendIdx = 1;
-      sendToMyriadB(messageTypes::METAMOD6, metaModWavelenMul6);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6);
       break;
       case 1:
       metaModSendIdx = 0;
-      sendToMyriadB(messageTypes::METAMOD7, metaModWavelenMul7);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7);
       break;
     }
     if (metaModReady) {
-      sendToMyriadB(messageTypes::METAMOD8, metaModWavelenMul8);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8);
       metaModSendIdx=5;
       metaModReady=false;
     }
     
 
     if (now - ctrlTS >= 10000) {
-      sendToMyriadB(messageTypes::CTRL0, ctrlVal);
+      sendToMyriadB(streamMessaging::messageTypes::CTRL0, ctrlVal);
       ctrlTS = now;
     }
     if (now - detuneTS >= 9800) {
-      sendToMyriadB(messageTypes::DETUNE, detune);
+      sendToMyriadB(streamMessaging::messageTypes::DETUNE, detune);
       detuneTS = now;
     }
 
     if (octReady) {
-      sendToMyriadB(messageTypes::OCTSPREAD, octaveIdx);
+      sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
       octReady = false;
     }  
 
@@ -1716,10 +1735,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 50000) {
-  //   Serial.print(".");
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 200000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS));
+    dotTS = now;
+  }
 }
 
 
@@ -1740,11 +1759,12 @@ void setup1() {
 
 }
 
-
 void __not_in_flash_func(loop1)() {
   uint32_t save = spin_lock_blocking(calcOscsSpinlock);  
   if (oscsRunning) {
+    PERF_BEGIN(CALCOSCS);
     calculateOscBuffers();
+    PERF_END(CALCOSCS);
   }
   spin_unlock(calcOscsSpinlock, save);
 }

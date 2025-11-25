@@ -15,7 +15,11 @@ public:
   size_t loopLength;
   virtual ~oscillatorModel() = default;  
   uint loadProg(PIO pioUnit) {
-    return pio_add_program(pioUnit, &prog);
+    return pio_add_program_at_offset(pioUnit, &prog, 0);
+  }
+
+  void unloadProg(PIO pioUnit) {
+    pio_remove_program(pioUnit, &prog, 0);
   }
 
   // oscDisplayModes vis;
