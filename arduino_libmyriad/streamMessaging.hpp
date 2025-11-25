@@ -1,6 +1,7 @@
 #ifndef __STREAMMESSAGING_H__
 #define __STREAMMESSAGING_H__
 
+#include <cstring>
 #include "hardware/pio.h"
 #include "hardware/dma.h"
 
@@ -168,9 +169,10 @@ namespace streamMessaging {
 
   static uint dma_channel_rx_a, dma_channel_rx_b, current_rx_dma;
   dma_channel_config config_rx_a,  config_rx_b;
+  volatile bool receiver_paused = false;
 
   //also need RX_DATA_PIN+1 available for the packet frame signal
-  bool setupRX(PIO pioNum, uint offset, int RX_DATA_PIN) {
+  bool setupRX(PIO pioNum, uint offset, int RX_DATA_PIN, uint dmaChA, uint dmaChB) {
     while(!Serial) {};
     // bool success = pio_claim_free_sm_and_add_program_for_gpio_range(&stream_rx_program, &pioRx, &smRx, &offsetRx, RX_DATA_PIN, 2, true);
     
@@ -207,14 +209,14 @@ namespace streamMessaging {
 	  stream_rx_program_init(pioRx, smRx, offsetRx, RX_DATA_PIN, streamMessaging::BIT_RATE);
     Serial.printf("Rx prog: %d %d %d\n", pioRx==pio0 ? 0 : 1, smRx, offsetRx);
 
-    dma_channel_rx_a = dma_claim_unused_channel(false);
-    if (dma_channel_rx_a < 0) {
-        panic("No free dma channels");
-    }
-    dma_channel_rx_b = dma_claim_unused_channel(false);
-    if (dma_channel_rx_b < 0) {
-        panic("No free dma channels");
-    }
+    dma_channel_rx_a = dmaChA; //dma_claim_unused_channel(false);
+    // if (dma_channel_rx_a < 0) {
+    //     panic("No free dma channels");
+    // }
+    dma_channel_rx_b = dmaChB; // dma_claim_unused_channel(false);
+    // if (dma_channel_rx_b < 0) {
+    //     panic("No free dma channels");
+    // }
 
     config_rx_a = dma_channel_get_default_config(dma_channel_rx_a);
     channel_config_set_transfer_data_size(&config_rx_a, DMA_SIZE_32);
@@ -276,70 +278,147 @@ namespace streamMessaging {
   inline RxStatus& operator|=(RxStatus& a, RxStatus b) {
       return a = a | b;
   }
-
-  // void receiveWithDMA() {
-  //   uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
-  //   uint32_t current_dma_pos = (RX_BUFFER_SIZE_WORDS - remaining);
-
-    
-  //       // Process new data
-  //   while (current_dma_pos - last_dma_pos == 2) {
-  //       streamMessaging::msgpacket *msg = reinterpret_cast<streamMessaging::msgpacket*>(&curr_rx_buffer[last_dma_pos]);
-        
-  //       if (!streamMessaging::checksumIsOk(msg) || !streamMessaging::magicByteOk(msg) || !msg->value.uintValue==17) {
-  //           errorCount++;
-  //       }
-  //       totalMessagesReceived++;
-  //       last_dma_pos = last_dma_pos + 2;
-  //       if (counter++ == checkevery) {
-  //           Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
-  //           counter=0;
-  //           errorCount=0;
-  //       }
-  //       // Serial.printf("%d %d %d %d\n", current_rx_dma, remaining, current_dma_pos, last_dma_pos);
-  //       if (!remaining) {
-  //           //move to the other channel
-  //           current_rx_dma = current_rx_dma == dma_channel_rx_a ? dma_channel_rx_b : dma_channel_rx_a;
-  //           curr_rx_buffer = current_rx_dma == dma_channel_rx_a ? rx_buffer_a_word : rx_buffer_b_word;
-  //           last_dma_pos = 0;
-  //       }
-  //   }
-
-  // }
-
   inline RxStatus receiveWithDMA(streamMessaging::msgpacket** msg_out) {
+      // Determine which DMA channel is currently active (being written to)
+      bool channel_a_busy = dma_channel_is_busy(dma_channel_rx_a);
+      bool channel_b_busy = dma_channel_is_busy(dma_channel_rx_b);
+
+      uint active_dma_channel;
+      size_t* active_buffer;
+
+      // Determine active channel and read from the INACTIVE buffer
+      if (channel_a_busy && !channel_b_busy) {
+          // Channel A is writing, read from buffer B
+          active_dma_channel = dma_channel_rx_a;
+          active_buffer = rx_buffer_a_word;
+      } else if (channel_b_busy && !channel_a_busy) {
+          // Channel B is writing, read from buffer A
+          active_dma_channel = dma_channel_rx_b;
+          active_buffer = rx_buffer_b_word;
+      } else {
+          // Both busy or both idle - use current tracking
+          active_dma_channel = current_rx_dma;
+          active_buffer = curr_rx_buffer;
+      }
+
+      // Check if we need to switch to the other buffer
+      if (active_dma_channel != current_rx_dma) {
+          // DMA switched buffers - switch our read buffer to the old one
+          current_rx_dma = active_dma_channel;
+          // Read from the NON-active buffer
+          curr_rx_buffer = (active_dma_channel == dma_channel_rx_a) ? rx_buffer_b_word : rx_buffer_a_word;
+          last_dma_pos = 0;
+      }
+
       uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
       uint32_t current_dma_pos = RX_BUFFER_SIZE_WORDS - remaining;
-      
+
+      // Check if we've read all messages in current buffer
+      if (last_dma_pos >= RX_BUFFER_SIZE_WORDS) {
+          // Wrapped past end of buffer - try to switch
+          last_dma_pos = 0;
+          // Force re-check on next call
+          return RxStatus::NO_MESSAGE;
+      }
+
       // Fast path: no message available
       if (current_dma_pos - last_dma_pos < 2) {
           return RxStatus::NO_MESSAGE;
       }
-      
+
       // Point directly to message in DMA buffer (zero-copy)
       *msg_out = reinterpret_cast<streamMessaging::msgpacket*>(&curr_rx_buffer[last_dma_pos]);
-      
+
       // Validate and combine errors into single status byte
       uint8_t status = static_cast<uint8_t>(RxStatus::MESSAGE_OK);
-      
+
       if (!streamMessaging::checksumIsOk(*msg_out)) {
           status |= static_cast<uint8_t>(RxStatus::CHECKSUM_ERROR);
       }
       if (!streamMessaging::magicByteOk(*msg_out)) {
           status |= static_cast<uint8_t>(RxStatus::MAGIC_ERROR);
       }
-      
+
       // Advance position
       last_dma_pos += 2;
-      
-      // Handle buffer wrap
-      if (last_dma_pos >= current_dma_pos && !remaining) {
-          current_rx_dma = (current_rx_dma == dma_channel_rx_a) ? dma_channel_rx_b : dma_channel_rx_a;
-          curr_rx_buffer = (current_rx_dma == dma_channel_rx_a) ? rx_buffer_a_word : rx_buffer_b_word;
-          last_dma_pos = 0;
-      }
-      
+
       return static_cast<RxStatus>(status);
+  }
+
+  // Pause the receiver - stops DMA and PIO but preserves buffer state
+  void pauseReceiver() {
+      if (receiver_paused) return; // Already paused
+
+      // Abort both DMA channels to stop new data transfer
+      dma_channel_abort(dma_channel_rx_a);
+      dma_channel_abort(dma_channel_rx_b);
+
+      // Disable the PIO state machine to stop hardware reception
+      pio_sm_set_enabled(pioRx, smRx, false);
+
+      receiver_paused = true;
+  }
+
+  // Resume the receiver - restarts DMA and PIO from current position
+  void resumeReceiver() {
+      if (!receiver_paused) return; // Not paused
+
+      // Re-enable the PIO state machine
+      pio_sm_set_enabled(pioRx, smRx, true);
+
+      // Restart the current DMA channel
+      dma_channel_start(current_rx_dma);
+
+      receiver_paused = false;
+  }
+
+  // Clear both receive buffers - zeros out all data
+  void clearBuffers() {
+      memset(rx_buffer_a, 0, RX_BUFFER_SIZE);
+      memset(rx_buffer_b, 0, RX_BUFFER_SIZE);
+  }
+
+  // Complete reset of receiver - stops everything, clears buffers, and restarts from initial state
+  void resetReceiver() {
+      // Stop DMA and PIO
+      dma_channel_abort(dma_channel_rx_a);
+      dma_channel_abort(dma_channel_rx_b);
+      pio_sm_set_enabled(pioRx, smRx, false);
+
+      // Drain PIO RX FIFO to clear any stale data
+      pio_sm_clear_fifos(pioRx, smRx);
+
+      // Clear both buffers
+      clearBuffers();
+
+      // Reset position tracking to initial state
+      last_dma_pos = 0;
+      current_rx_dma = dma_channel_rx_a;
+      curr_rx_buffer = rx_buffer_a_word;
+
+      // Reconfigure both DMA channels
+      dma_channel_configure(dma_channel_rx_a, &config_rx_a,
+                           rx_buffer_a,
+                           &pioRx->rxf[smRx],
+                           RX_BUFFER_SIZE_WORDS, false);
+
+      dma_channel_configure(dma_channel_rx_b, &config_rx_b,
+                           rx_buffer_b,
+                           &pioRx->rxf[smRx],
+                           RX_BUFFER_SIZE_WORDS, false);
+
+      // Re-enable PIO state machine
+      pio_sm_set_enabled(pioRx, smRx, true);
+
+      // Start DMA channel A
+      dma_channel_start(dma_channel_rx_a);
+
+      receiver_paused = false;
+  }
+
+  // Query receiver status
+  inline bool isReceiverPaused() {
+      return receiver_paused;
   }
 };
 

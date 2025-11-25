@@ -10,7 +10,7 @@ class smBitStreamOsc {
 public:
   smBitStreamOsc() {}
   
-  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, pio_sm_config &cfg, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0) {
+  uint32_t init(PIO pio_, uint sm_, uint pin_, uint offset_, pio_sm_config &cfg, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaIrq=DMA_IRQ_0, uint dmaChannel = 0) {
     pio = pio_;
     sm = sm_;
     pin = pin_;
@@ -18,7 +18,7 @@ public:
     dmaIrqNum = dmaIrq;
 
     // Run the pin_ctrl program
-    return pin_ctrl_prepare(pio, sm, offset, cfg, pin, firstTimingBuffer, dma_irq_handler, clockdiv, transferCount);
+    return pin_ctrl_prepare(pio, sm, offset, cfg, pin, firstTimingBuffer, dma_irq_handler, clockdiv, transferCount, dmaChannel);
   }
 
 
@@ -48,9 +48,10 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
-  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount) {
+  uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, io_rw_32 firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaChannel ) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
-    pio_dma_chan = dma_claim_unused_channel(true);
+    // pio_dma_chan = dma_claim_unused_channel(true);
+    pio_dma_chan = dmaChannel;
 
     dma_channel_config pio_dma_chan_config = dma_channel_get_default_config(pio_dma_chan);
     // Transfer 32 bits each time
@@ -110,24 +111,36 @@ public:
       
     dma_channel_abort(pio_dma_chan);  // Ensure the DMA is aborted
 
+    if (dmaIrqNum == DMA_IRQ_0) {
+      dma_channel_acknowledge_irq0(pio_dma_chan);
+    }else{
+      dma_channel_acknowledge_irq1(pio_dma_chan);
+    }
+    // size_t waitCount = 0;
+    // while (dma_channel_is_busy(pio_dma_chan)) {
+    //   tight_loop_contents();
+    //   waitCount++;
+    //   if (waitCount % 1000000 == 0) {
+    //     Serial.println("Waiting for DMA to abort...");
+    //   }
+    // }
+
     pio_sm_set_enabled(pio, sm, false);
 
     // pio_sm_init(pio, sm, 0, NULL);    
     pio_sm_clear_fifos(pio, sm);
 
-    pio_sm_restart(pio, sm);
+    // dma_channel_unclaim(pio_dma_chan);
+    
+    // pio_sm_restart(pio, sm);
 
-    pio_interrupt_clear(pio, sm); 
-
-    dma_channel_cleanup(pio_dma_chan);
-    dma_channel_unclaim(pio_dma_chan);
-
-
+    // pio_interrupt_clear(pio, sm); 
   }
 
   void release() {
-    dma_channel_abort(pio_dma_chan);
-    dma_channel_unclaim(pio_dma_chan);
+    // dma_channel_abort(pio_dma_chan);
+    // dma_channel_cleanup(pio_dma_chan);
+    // dma_channel_unclaim(pio_dma_chan);
   }
 
   uint32_t pio_dma_chan;

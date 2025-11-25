@@ -25,6 +25,15 @@ bool core1_separate_stack = true;
 #define CORE0_FAST_MEM __scratch_x("myriad")
 #define CORE1_FAST_MEM __scratch_y("myriad")
 
+#define DMACH_CORE0_OSC0 0
+#define DMACH_CORE0_OSC1 2
+#define DMACH_CORE0_OSC2 4
+#define DMACH_CORE1_OSC0 1
+#define DMACH_CORE1_OSC1 3
+#define DMACH_CORE1_OSC2 5
+#define DMACH_SERIAL_RX_A 6
+#define DMACH_SERIAL_RX_B 7
+
 
 // oscModelPtr FAST_MEM currOscModelBank0;
 // oscModelPtr FAST_MEM currOscModelBank1;
@@ -167,10 +176,21 @@ void restart_sm(PIO pio, uint sm) {
 }
 
 void assignOscModels0(size_t modelIdx) {
-  for(auto &model: currOscModels0) {
-    model = oscModelFactories[modelIdx](); 
+  Serial.printf("assignOscModels0: modelIdx=%d\n", modelIdx);
+  Serial.flush();
 
+  for(size_t i = 0; i < currOscModels0.size(); i++) {
+    Serial.printf("  Creating model %d...\n", i);
+    Serial.flush();
+
+    currOscModels0[i] = oscModelFactories[modelIdx]();
+
+    Serial.printf("  Model %d created\n", i);
+    Serial.flush();
   }
+
+  Serial.println("assignOscModels0 complete");
+  Serial.flush();
 }
 void assignOscModels1(size_t modelIdx) {
   for(auto &model: currOscModels1) {
@@ -464,35 +484,30 @@ volatile bool FAST_MEM newCtrlReady = false;
 
 void startOscBankA() {
 
-  Serial.println("StartoscbankA");
-
-  // Don't clear entire PIO - this would destroy the RX program
-  // The oscillator loadProg() will add its program without clearing others
-  // pio_clear_instruction_memory(pio0);
-
   uint programOffset = currOscModels0[0]->loadProg(pio0);
+
+  Serial.printf("PIO_off=%d\n", programOffset);
+  Serial.flush();
+
   pio_sm_config baseConfig = currOscModels0[0]->getBaseConfig(programOffset);
-
   const size_t modelClockDiv = currOscModels0[0]->getClockDiv();
-  Serial.printf("clockdiv: %d", modelClockDiv);
 
-  // Monitor PIO program placement
-  // Check how much PIO memory is used (32 instructions max)
-  Serial.printf(" PIO0_offset=%d", programOffset);
-
-  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, modelClockDiv, currOscModels0[0]->loopLength, DMA_IRQ_0);
-  Serial.println("init");
+  Serial.println("Before init0");
+  Serial.flush();
+  smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, modelClockDiv, currOscModels0[0]->loopLength, DMA_IRQ_0, DMACH_CORE0_OSC0);
+  Serial.printf("After init0, chan=%d\n", smOsc0_dma_chan);
+  Serial.flush();
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
   }
   smOsc0_dma_chan_bit = 1u << smOsc0_dma_chan;
   smOsc0.go();
 
-  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, modelClockDiv, currOscModels0[1]->loopLength, DMA_IRQ_0);
+  smOsc1_dma_chan = smOsc1.init(pio0, 1, OSC2_PIN, programOffset, baseConfig, nextTimingBuffer1, dma_irh, modelClockDiv, currOscModels0[1]->loopLength, DMA_IRQ_0,DMACH_CORE0_OSC1);
   smOsc1_dma_chan_bit = 1u << smOsc1_dma_chan;
   smOsc1.go();
 
-  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, modelClockDiv, currOscModels0[2]->loopLength, DMA_IRQ_0);
+  smOsc2_dma_chan = smOsc2.init(pio0, 2, OSC3_PIN, programOffset, baseConfig, nextTimingBuffer2, dma_irh, modelClockDiv, currOscModels0[2]->loopLength, DMA_IRQ_0, DMACH_CORE0_OSC2);
   smOsc2_dma_chan_bit = 1u << smOsc2_dma_chan;
   smOsc2.go();
 
@@ -500,14 +515,24 @@ void startOscBankA() {
 }
 
 void stopOscBankA() {
+  Serial.println("stopOscBankA START");
+  Serial.flush();
+
   oscsRunning0 = false;
 
   // Wait for any pending DMA transfers to complete
-  while (dma_channel_is_busy(smOsc0_dma_chan) || 
-         dma_channel_is_busy(smOsc1_dma_chan) || 
-         dma_channel_is_busy(smOsc2_dma_chan)) {
-    tight_loop_contents();
-  }
+  // uint32_t timeout_counter = 0;
+  // while (dma_channel_is_busy(smOsc0_dma_chan) ||
+  //        dma_channel_is_busy(smOsc1_dma_chan) ||
+  //        dma_channel_is_busy(smOsc2_dma_chan)) {
+  //   tight_loop_contents();
+  //   timeout_counter++;
+  //   if (timeout_counter > 1000000) {
+  //     Serial.printf("DMA TIMEOUT!\n");
+  //     Serial.flush();
+  //     timeout_counter = 0;
+  //   }
+  // }
 
   smOsc0.stop();
   smOsc1.stop();
@@ -515,7 +540,7 @@ void stopOscBankA() {
 
   currOscModels0[0]->unloadProg(pio0);
 
-    // Clear the buffers explicitly
+  // Clear the buffers explicitly
   memset(timing_swapbuffer_0_A, 0, sizeof(timing_swapbuffer_0_A));
   memset(timing_swapbuffer_0_B, 0, sizeof(timing_swapbuffer_0_B));
   memset(timing_swapbuffer_1_A, 0, sizeof(timing_swapbuffer_1_A));
@@ -526,11 +551,14 @@ void stopOscBankA() {
   // Reset buffer pointers to A buffers
   nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
   nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
-  nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;  
+  nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;
 
   bufSent0 = false;
   bufSent1 = false;
   bufSent2 = false;
+
+  Serial.println("stopOscBankA END");
+  Serial.flush();
 }
 
 void startOscBankB() {
@@ -551,15 +579,15 @@ void startOscBankB() {
   // Check how much PIO memory is used (32 instructions max)
   Serial.printf(" PIO1_offset=%d\n", programOffset);
 
-  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, modelClockDiv, currOscModels1[0]->loopLength, DMA_IRQ_1);
+  smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, modelClockDiv, currOscModels1[0]->loopLength, DMA_IRQ_1, DMACH_CORE1_OSC0);
   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
   smOsc3.go();
 
-  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, baseConfig, nextTimingBuffer4, dma_irh1, modelClockDiv, currOscModels1[1]->loopLength, DMA_IRQ_1);
+  smOsc4_dma_chan = smOsc4.init(pio1, 1, OSC5_PIN, programOffset, baseConfig, nextTimingBuffer4, dma_irh1, modelClockDiv, currOscModels1[1]->loopLength, DMA_IRQ_1, DMACH_CORE1_OSC1);
   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, modelClockDiv, currOscModels1[2]->loopLength, DMA_IRQ_1);
+  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, modelClockDiv, currOscModels1[2]->loopLength, DMA_IRQ_1), DMACH_CORE1_OSC2;
   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
   smOsc5.go();
   oscsRunning1 = true;
@@ -693,41 +721,46 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
         break;
       }
 
-      Serial.printf("bank0: changing %d -> %d\n", currentBank0Type, requestedBank);
+      Serial.printf("BANK0 CHANGE: %d->%d\n", currentBank0Type, requestedBank);
 
-      // STOP DMA receiver - prevents buffer overflow during bank change
-      // dma_channel_abort(streamMessaging::dma_channel_rx_a);
-      // dma_channel_abort(streamMessaging::dma_channel_rx_b);
-
-      uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
+      // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
 
       stopOscBankA();
-
-      busy_wait_us(100);
-
       dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
       auto w1 = currOscModels0[0]->getWavelen();
       auto w2 = currOscModels0[1]->getWavelen();
       auto w3 = currOscModels0[2]->getWavelen();
 
+      Serial.println("Before assignOscModels0");
+
       assignOscModels0(requestedBank);
 
+      Serial.println("After assignOscModels0");
+
+      Serial.println("reset");
       currOscModels0[0]->reset();
       currOscModels0[1]->reset();
       currOscModels0[2]->reset();
 
+      Serial.println("setWavelen");
       currOscModels0[0]->setWavelen(w1);
       currOscModels0[1]->setWavelen(w2);
       currOscModels0[2]->setWavelen(w3);
 
+      Serial.println("setCtrl");
       setCtrl();
 
+      Serial.println("calcBuf");
       calculateOscBuffers0();
 
+      Serial.println("Before startOscBankA");
 
       startOscBankA();
-      spin_unlock(calcOscsSpinlock0, save);
+
+      Serial.println("After startOscBankA");
+
+      // spin_unlock(calcOscsSpinlock0, save);
 
       // Update current bank type
       currentBank0Type = requestedBank;
@@ -740,6 +773,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       // dma_channel_start(streamMessaging::dma_channel_rx_a);
 
       Serial.println("Bank0 changed, RX restarted");
+      // streamMessaging::resumeReceiver();
 
     }
     break;
@@ -791,14 +825,6 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       // Update current bank type
       currentBank1Type = requestedBank;
 
-      // RESTART DMA receiver - reuse existing PIO/DMA configuration
-      // Reset read position and restart DMA channels
-      // streamMessaging::last_dma_pos = 0;
-      // streamMessaging::current_rx_dma = streamMessaging::dma_channel_rx_a;
-      // streamMessaging::curr_rx_buffer = streamMessaging::rx_buffer_a_word;
-      // dma_channel_start(streamMessaging::dma_channel_rx_a);
-
-      Serial.println("Bank1 changed, RX restarted");
 
     }
     break;
@@ -835,7 +861,7 @@ void setup() {
 
     // while(!Serial) {}
     pinMode(22,OUTPUT);
-    streamMessaging::setupRX(pio1, 22, 12);
+    streamMessaging::setupRX(pio1, 22, 12, DMACH_SERIAL_RX_A, DMACH_SERIAL_RX_B);
 
 
 
@@ -862,24 +888,29 @@ size_t totalMessagesReceived=0;
 
 size_t serialts=0;
 void __not_in_flash_func(loop)() {
-  // readUart();
   digitalWrite(22,0);
-  streamMessaging::msgpacket* msg;
-  streamMessaging::RxStatus status = streamMessaging::receiveWithDMA(&msg);
 
-  if (status != streamMessaging::RxStatus::NO_MESSAGE) {
-      if (status == streamMessaging::RxStatus::MESSAGE_OK) {
-          totalMessagesReceived++;
-          digitalWrite(22,1);
-          processSerialMessage(*msg);
-      } else {
-          errorCount++;
-      }
-      if (counter++ == checkevery) {
-          Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
-          counter=0;
-          errorCount=0;
-      }
+  for(size_t i=0; i < 3; i++) {
+    streamMessaging::msgpacket* msg;
+    streamMessaging::RxStatus status = streamMessaging::receiveWithDMA(&msg);
+
+    if (status != streamMessaging::RxStatus::NO_MESSAGE) {
+        if (status == streamMessaging::RxStatus::MESSAGE_OK) {
+            totalMessagesReceived++;
+            digitalWrite(22,1);
+            processSerialMessage(*msg);
+        } else {
+            errorCount++;
+        }
+        if (counter++ == checkevery) {
+            Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
+            counter=0;
+            errorCount=0;
+        }
+    }
+    else{
+        break;
+    }
   }
   if (waitingForFirstFrequency0 == false && oscsStartedAfterFirstFrequency0 == false) {
     startOscBankA();
@@ -902,13 +933,13 @@ void __not_in_flash_func(loop)() {
       newFrequenciesReady0 = false;
     }
     
-    uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+    // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
     calculateOscBuffers0();
-    spin_unlock(calcOscsSpinlock0, save);
+    // spin_unlock(calcOscsSpinlock0, save);
   }
 
   auto now = millis();
-  if (now - serialts > 100) {
+  if (now - serialts > 500) {
     Serial.print(".");
     serialts=now;
   }
