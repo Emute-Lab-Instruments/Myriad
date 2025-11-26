@@ -7,10 +7,13 @@ class FixedLpf {
   FixedLpf() { }
   ~FixedLpf() { }
   
-  inline size_t play(const size_t value) {
+  inline void play(const size_t value) {
     const size_t v = value << bitdepth;
     const int32_t delta = v - state;
     state += (delta >> alpha);
+  }
+
+  inline size_t value() {
     return state >> bitdepth;
   }
   

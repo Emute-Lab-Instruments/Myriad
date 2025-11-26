@@ -82,7 +82,7 @@ public:
 
     virtual MetaOscType getType() const = 0;
 
-    virtual std::array<float, N> update(const float (adcs)[4]) =0;    
+    virtual std::array<float, N> update(const size_t (adcs)[4]) =0;    
 
     void setDepth(float delta) {
         moddepth.update(delta);
@@ -137,7 +137,7 @@ public:
     MetaOscType getType() const override { return MetaOscType::NONE; }
 
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
         return vals;
     }
 
@@ -171,7 +171,7 @@ public:
 
     MetaOscType getType() const override { return MetaOscType::SINES; }
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
             sines[i] = sinf(phasors[i]) * this->moddepth.getValue();
             phasors[i] += this->modspeed.getValue();
@@ -224,7 +224,7 @@ public:
 
     MetaOscType getType() const override { return MetaOscType::SINES_F_MULTIPLE; }
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
         for(size_t i=0; i < N; i++) {
             sines[i] = sinf(phasors[i] * (i+1)) * this->moddepth.getValue();
             phasors[i] += this->modspeed.getValue();
@@ -278,7 +278,7 @@ public:
 
     String getName() override {return "neural net";}
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
       // Serial.printf("nn ph %f %d\n",phasor, clockCount);
       if (clockCount == 0) {
         //send controls and phasor into the neural network
@@ -376,7 +376,7 @@ public:
 
 
 
-    std::array<float, N> update(const float adcs[4]) override {
+    std::array<float, N> update(const size_t adcs[4]) override {
         for(size_t i=0; i < N; i++) {
 
           //random walk
@@ -483,7 +483,7 @@ public:
       dt = (this->modspeed.getValue()*0.07f) + 0.001f;
     }
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
       // sigma = 10.0 + (this->modspeed.getValue()*50.f);
       // rho = 27 + (this->modspeed.getValue()*10.f);
       // dt = (this->modspeed.getValue()*0.2) + 0.001;
@@ -940,7 +940,7 @@ public:
         return fixed_sqrt(dx2 + dy2);
     }
 
-    std::array<float, N> update(const float (adcs)[4]) override {
+    std::array<float, N> update(const size_t (adcs)[4]) override {
         // Calculate center of mass
         int64_t sumX = 0, sumY = 0;
         for(auto &v: boids) {

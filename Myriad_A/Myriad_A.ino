@@ -222,7 +222,7 @@ namespace controls {
 // MedianFilter<float> FAST_MEM adcMedians[4];
 // ResponsiveFilter FAST_MEM adcRsFilters[4];
 
-static float __scratch_x("adc") controlValues[4] = {0,0,0,0};
+static size_t __scratch_x("adc") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
@@ -251,7 +251,7 @@ FixedLpf<18,3> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
-FixedLpf<12,6> FAST_MEM adcLpf3;
+// FixedLpf<12,6> FAST_MEM adcLpf3;
 
 float __scratch_x("adc") new_wavelen0 = 0;
 float __scratch_x("adc") new_wavelen1 = 0;
@@ -302,15 +302,12 @@ PERF_DECLARE(METAMODS);
     
 void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //oversampling pitch
-    int filteredADC0 = adcLpf0.play(adcReadings[0]); 
+    adcLpf0.play(adcReadings[0]); 
 
-    // adcAccumulator0 += adcReadings[0];
     adcCount++;
 
     if (adcCount == oversampleFactor) {
       adcCount=0;
-      // adc0Oversample = adcAccumulator0 >> oversampleBits;
-      // adcAccumulator0=0;
     }else{
       return;
     }
@@ -339,6 +336,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       // size_t pitchCV = pitchADCMap[adcReadings[0]];
     #endif
 
+    int filteredADC0 = adcLpf0.value();    
     if (filteredADC0<0) filteredADC0=0;
     if (filteredADC0>4095) filteredADC0=4095;
 
@@ -370,7 +368,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //   Serial.printf("%f %f %f %f\n", pitchCV, freq, sampleClock/new_wavelen0, TuningSettings::baseFrequency);
     //   printts = now;
     // }
-    int filteredADC1 = adcLpf1.play(adcReadings[1]);
+    adcLpf1.play(adcReadings[1]);
+    int filteredADC1 = adcLpf1.value();
     controlValues[1] = filteredADC1;
     filteredADC1 = filteredADC1 - (CalibrationSettings::adcMins[1]);
     if (filteredADC1<0) filteredADC1=0;
@@ -386,8 +385,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     detune = (detuneControl * 0.016f) * new_wavelen0;  
     new_wavelen1 = (new_wavelen0 - detune);
     new_wavelen2 = (new_wavelen1 - detune);
-
-    int filteredADC2 = adcLpf2.play(adcReadings[2]);
+    adcLpf2.play(adcReadings[2]);
+    int filteredADC2 = adcLpf2.value();
     controlValues[2] = filteredADC2;
     filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
     if (filteredADC2<0) filteredADC2=0;
