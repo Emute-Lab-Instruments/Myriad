@@ -20,7 +20,7 @@ namespace streamMessaging {
   // constexpr size_t RX_DATA_PIN = 12;
   // constexpr size_t RX_FRAME_PIN = 13;
 
-  constexpr float BIT_RATE = 1000000.0f;
+  constexpr float BIT_RATE = 20000000.0f;
 
   #define DMA_IRQ_PRIORITY PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY
   #define PIO_IRQ_PRIORITY PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY
@@ -137,7 +137,9 @@ namespace streamMessaging {
     calcCheckSum(msg);
   };
   __always_inline void sendMessageWithDMA(msgpacket &msg) {
-      while (dma_channel_is_busy(dma_channel_tx)) {}
+      while (dma_channel_is_busy(dma_channel_tx)) {
+        tight_loop_contents();
+      }
       dma_channel_configure(dma_channel_tx, &config_tx, &pioTx->txf[smTx], &msg, 2, true); // dma started    
   }
 

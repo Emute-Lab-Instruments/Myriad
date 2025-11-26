@@ -119,6 +119,21 @@ volatile bool FAST_MEM bufSent2 = false;
 
 struct repeating_timer FAST_MEM timerMetaModUpdate;
 
+/////////////////// messaging to Myriad B ///////////////////////
+
+static __scratch_x("msg") streamMessaging::msgpacket msg;
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
+   streamMessaging::createMessage(msg, value, msgType);
+   streamMessaging::sendMessageWithDMA(msg);
+}
+
+void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, size_t value) {
+   streamMessaging::createMessage(msg, value, msgType);
+   streamMessaging::sendMessageWithDMA(msg);
+}
+
+
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
 void __isr dma_irh() {
@@ -298,6 +313,7 @@ bool __scratch_x("adc") octMul2Down=false;
 
 PERF_DECLARE(ADC);
 PERF_DECLARE(METAMODS);
+PERF_DECLARE(SERIALTX);
 
     
 void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
@@ -473,6 +489,11 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     oscsReadyToStart = true;
     newFrequenciesReady = true;
     PERF_END(ADC);
+
+    PERF_BEGIN(SERIALTX);
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
+    PERF_END(SERIALTX);
+
 }
 
 
@@ -637,35 +658,8 @@ void setup_adcs() {
 }
 
 
-// void __force_inline __not_in_flash_func(sendMessage) (spiMessage &msg) {
-//  static uint8_t __not_in_flash("sendToMyriadData") slipBuffer[64];
-//  unsigned int slipSize = SLIP::encode(reinterpret_cast<uint8_t*>(&msg), sizeof(spiMessage), &slipBuffer[0]);
-//   if (Serial1.availableForWrite() >= slipSize) {
-//     Serial.printf("Send to B: %d\n", msgType);
-//  int res = Serial1.write(reinterpret_cast<uint8_t*>(&slipBuffer), slipSize);
-//   }
 
-// }
 
-static __scratch_x("msg") streamMessaging::msgpacket msg;
-
-void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
-   // Wait for previous DMA transfer to complete before reusing buffer
-   while (dma_channel_is_busy(streamMessaging::dma_channel_tx)) {
-     tight_loop_contents();
-   }
-   streamMessaging::createMessage(msg, value, msgType);
-   streamMessaging::sendMessageWithDMA(msg);
-}
-
-void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, size_t value) {
-   // Wait for previous DMA transfer to complete before reusing buffer
-   while (dma_channel_is_busy(streamMessaging::dma_channel_tx)) {
-     tight_loop_contents();
-   }
-   streamMessaging::createMessage(msg, value, msgType);
-   streamMessaging::sendMessageWithDMA(msg);
-}
 
 inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
   //get the value
@@ -1518,7 +1512,6 @@ size_t FAST_MEM metaModSendIdx=0;
 
 size_t FAST_MEM dotTS;
 
-PERF_DECLARE(SERIALTX);
 PERF_DECLARE(CALCOSCS);
 size_t vu;
 void __not_in_flash_func(loop)() {
@@ -1529,9 +1522,9 @@ void __not_in_flash_func(loop)() {
 
   if (newFrequenciesReady && now - freqTS >= 125) {
 
-    PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
-    PERF_END(SERIALTX);
+    // PERF_BEGIN(SERIALTX);
+    // sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
+    // PERF_END(SERIALTX);
 
     newFrequenciesReady = false;
     freqTS = now;
