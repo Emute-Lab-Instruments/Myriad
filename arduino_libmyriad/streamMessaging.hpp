@@ -137,6 +137,7 @@ namespace streamMessaging {
     calcCheckSum(msg);
   };
   __always_inline void sendMessageWithDMA(msgpacket &msg) {
+      while (dma_channel_is_busy(dma_channel_tx)) {}
       dma_channel_configure(dma_channel_tx, &config_tx, &pioTx->txf[smTx], &msg, 2, true); // dma started    
   }
 

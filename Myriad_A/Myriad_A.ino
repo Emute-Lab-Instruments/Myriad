@@ -1528,7 +1528,7 @@ void __not_in_flash_func(loop)() {
 
   auto now = micros();
 
-  if (newFrequenciesReady && now - freqTS >= 400) {
+  if (newFrequenciesReady && now - freqTS >= 125) {
 
     PERF_BEGIN(SERIALTX);
     sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
