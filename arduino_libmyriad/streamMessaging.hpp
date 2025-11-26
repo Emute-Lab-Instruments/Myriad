@@ -86,10 +86,11 @@ namespace streamMessaging {
     stream_tx_program_init(pioTx, smTx, offsetTx, TX_DATA_PIN, TX_FRAME_PIN, BIT_RATE); 
     Serial.printf("Tx prog: %d\n", sm);
     
-    irq_add_shared_handler(dma_get_irq_num(0), dma_handler,
-                          DMA_IRQ_PRIORITY);
-    irq_set_enabled(dma_get_irq_num(0), true);
-
+    if (dma_handler != nullptr) {
+      irq_add_shared_handler(dma_get_irq_num(0), dma_handler,
+                            DMA_IRQ_PRIORITY);
+      irq_set_enabled(dma_get_irq_num(0), true);
+    }
     // setup dma for write
     dma_channel_tx = dmaChannel; // dma_claim_unused_channel(false);
     // if (dma_channel_tx < 0) {

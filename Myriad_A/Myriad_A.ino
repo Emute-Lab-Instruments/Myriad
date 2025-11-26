@@ -1390,7 +1390,7 @@ void setup() {
   adcSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
   //set up serial tx to Myriad B
-  bool serialTXOK = streamMessaging::setupTX(pio0, dma_irq_handler, 13, 12, DMACH_SERIAL_TX);
+  bool serialTXOK = streamMessaging::setupTX(pio0, nullptr, 13, 12, DMACH_SERIAL_TX);
   if (!serialTXOK) {
     Serial.println("Error creating serial tx");
   }
