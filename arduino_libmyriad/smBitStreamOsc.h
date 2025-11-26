@@ -109,7 +109,8 @@ public:
     
     // dma_channel_wait_for_finish_blocking(pio_dma_chan);
       
-    dma_channel_abort(pio_dma_chan);  // Ensure the DMA is aborted
+    // dma_channel_abort(pio_dma_chan);  // Ensure the DMA is aborted
+    dma_channel_cleanup(pio_dma_chan);
 
     if (dmaIrqNum == DMA_IRQ_0) {
       dma_channel_acknowledge_irq0(pio_dma_chan);

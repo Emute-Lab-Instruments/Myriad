@@ -341,11 +341,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // Serial.printf("Pitch ADC: %d, CV: %f\n", filteredADC0, pitchCV);
 
     //quantise?
-    // constexpr float step = 0.1f / 5.f;
-    // constexpr float stepinv = 1.f/step;
     if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
-      // float quantStep = 0.1f / TuningSettings::quantNotesPerOct;    
-      // float quantStepInv = 1.f/quantStep;
       const float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
 
       const float diff = quantCV - pitchCV;
@@ -353,7 +349,6 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     }
     
     float freq = fast_exp2f(pitchCV);
-    // float freq = expf(pitchCV);
     
     // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
       
