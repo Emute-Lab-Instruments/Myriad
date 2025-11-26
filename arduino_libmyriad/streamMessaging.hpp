@@ -59,7 +59,7 @@ namespace streamMessaging {
 
   // }
 
-  bool setupTX(PIO pioNum, irq_handler_t dma_handler, int TX_DATA_PIN, int TX_FRAME_PIN) {
+  bool setupTX(PIO pioNum, irq_handler_t dma_handler, int TX_DATA_PIN, int TX_FRAME_PIN, uint dmaChannel) {
 
     // bool success =
     // pio_claim_free_sm_and_add_program_for_gpio_range(&stream_tx_program,
@@ -91,10 +91,10 @@ namespace streamMessaging {
     irq_set_enabled(dma_get_irq_num(0), true);
 
     // setup dma for write
-    dma_channel_tx = dma_claim_unused_channel(false);
-    if (dma_channel_tx < 0) {
-      panic("No free dma channels");
-    }
+    dma_channel_tx = dmaChannel; // dma_claim_unused_channel(false);
+    // if (dma_channel_tx < 0) {
+    //   panic("No free dma channels");
+    // }
     config_tx = dma_channel_get_default_config(dma_channel_tx);
     channel_config_set_transfer_data_size(&config_tx, DMA_SIZE_32);
     channel_config_set_read_increment(&config_tx, true);
@@ -105,7 +105,7 @@ namespace streamMessaging {
     // connect DMA with PIO Rx
     channel_config_set_dreq(&config_tx, pio_get_dreq(pioTx, smTx, true));
     //
-      return true;
+    return true;
   }
 
   struct __attribute__((packed)) msgpacket {
