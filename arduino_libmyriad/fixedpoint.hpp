@@ -1,0 +1,624 @@
+#ifndef FIXEDPOINT_HPP
+#define FIXEDPOINT_HPP
+
+#pragma once
+
+#include <cstdint>
+#include <concepts>
+#include <type_traits>
+#include <limits>
+
+#ifdef PICO_SDK_VERSION_MAJOR
+#include "hardware/interp.h"
+#endif
+
+// ============================================================================
+// COMPLETE FIXED POINT LIBRARY FOR RP2040
+// ============================================================================
+
+namespace FixedPoint {
+
+// ============================================================================
+// CONCEPTS
+// ============================================================================
+
+template<typename T>
+concept IntegerStorage = std::is_integral_v<T> && std::is_signed_v<T>;
+
+template<typename T>
+concept FixedPointType = requires {
+    typename T::storage_type;
+    { T::INTEGER_BITS } -> std::convertible_to<int>;
+    { T::FRACTIONAL_BITS } -> std::convertible_to<int>;
+};
+
+// ============================================================================
+// MAIN FIXED POINT CLASS
+// ============================================================================
+
+template<int IntBits, int FracBits, IntegerStorage StorageT = int32_t>
+class Fixed {
+public:
+    using storage_type = StorageT;
+    static constexpr int INTEGER_BITS = IntBits;
+    static constexpr int FRACTIONAL_BITS = FracBits;
+    static constexpr int TOTAL_BITS = IntBits + FracBits;
+    static constexpr StorageT ONE = StorageT(1) << FRACTIONAL_BITS;
+    static constexpr StorageT HALF = ONE >> 1;
+    
+    static_assert(std::is_integral<StorageT>::value, "Storage type must be integral");
+    static_assert(TOTAL_BITS <= sizeof(StorageT) * 8, "Total bits exceeds storage size");
+    static_assert(sizeof(StorageT) <= 4, "Only 32-bit or smaller storage supported");
+    
+    storage_type value;
+    
+    // ========================================================================
+    // CONSTRUCTORS
+    // ========================================================================
+    
+    constexpr Fixed() : value(0) {}
+    
+    constexpr explicit Fixed(storage_type raw_value) : value(raw_value) {}
+    
+    template<std::integral T>
+    constexpr explicit Fixed(T integer_value) 
+        : value(static_cast<storage_type>(integer_value) << FRACTIONAL_BITS) {}
+    
+    constexpr explicit Fixed(float f) 
+        : value(static_cast<storage_type>(f * ONE + (f >= 0.0f ? 0.5f : -0.5f))) {}
+    
+    constexpr explicit Fixed(double d) 
+        : value(static_cast<storage_type>(d * ONE + (d >= 0.0 ? 0.5 : -0.5))) {}
+    
+    // ========================================================================
+    // STATIC FACTORY METHODS
+    // ========================================================================
+    
+    static constexpr Fixed from_int(int32_t i) {
+        return Fixed(static_cast<storage_type>(i) << FRACTIONAL_BITS);
+    }
+    
+    static constexpr Fixed from_raw(storage_type raw) {
+        return Fixed(raw);
+    }
+    
+    static constexpr Fixed from_fraction(int32_t num, int32_t den) {
+        return Fixed((static_cast<int64_t>(num) << FRACTIONAL_BITS) / den);
+    }
+    
+    static consteval Fixed from_float_ct(double f) {
+        return Fixed(static_cast<storage_type>(f * ONE + (f >= 0.0 ? 0.5 : -0.5)));
+    }
+    
+    // ========================================================================
+    // CONVERSIONS
+    // ========================================================================
+    
+    constexpr int32_t to_int() const {
+        return static_cast<int32_t>(value >> FRACTIONAL_BITS);
+    }
+    
+    constexpr int32_t to_int_round() const {
+        return static_cast<int32_t>((value + HALF) >> FRACTIONAL_BITS);
+    }
+    
+    constexpr float to_float() const {
+        return static_cast<float>(value) / ONE;
+    }
+    
+    constexpr double to_double() const {
+        return static_cast<double>(value) / ONE;
+    }
+    
+    constexpr storage_type raw() const {
+        return value;
+    }
+    
+    // ========================================================================
+    // SAFE ARITHMETIC OPERATORS (USE 64-BIT INTERMEDIATE)
+    // ========================================================================
+    
+    constexpr Fixed operator-() const {
+        return Fixed(-value);
+    }
+    
+    constexpr Fixed operator+(const Fixed& other) const {
+        return Fixed(value + other.value);
+    }
+    
+    constexpr Fixed operator-(const Fixed& other) const {
+        return Fixed(value - other.value);
+    }
+    
+    constexpr Fixed operator*(const Fixed& other) const {
+        int64_t result = static_cast<int64_t>(value) * other.value;
+        return Fixed(static_cast<storage_type>(result >> FRACTIONAL_BITS));
+    }
+    
+    constexpr Fixed operator/(const Fixed& other) const {
+        int64_t result = (static_cast<int64_t>(value) << FRACTIONAL_BITS) / other.value;
+        return Fixed(static_cast<storage_type>(result));
+    }
+    
+    constexpr Fixed& operator+=(const Fixed& other) {
+        value += other.value;
+        return *this;
+    }
+    
+    constexpr Fixed& operator-=(const Fixed& other) {
+        value -= other.value;
+        return *this;
+    }
+    
+    constexpr Fixed& operator*=(const Fixed& other) {
+        *this = *this * other;
+        return *this;
+    }
+    
+    constexpr Fixed& operator/=(const Fixed& other) {
+        *this = *this / other;
+        return *this;
+    }
+    
+    // ========================================================================
+    // COMPARISON OPERATORS
+    // ========================================================================
+    
+    constexpr bool operator==(const Fixed& other) const { return value == other.value; }
+    constexpr bool operator!=(const Fixed& other) const { return value != other.value; }
+    constexpr bool operator<(const Fixed& other) const { return value < other.value; }
+    constexpr bool operator<=(const Fixed& other) const { return value <= other.value; }
+    constexpr bool operator>(const Fixed& other) const { return value > other.value; }
+    constexpr bool operator>=(const Fixed& other) const { return value >= other.value; }
+    
+    // ========================================================================
+    // BIT SHIFT OPERATORS
+    // ========================================================================
+    
+    constexpr Fixed operator<<(int shift) const {
+        return Fixed(value << shift);
+    }
+    
+    constexpr Fixed operator>>(int shift) const {
+        return Fixed(value >> shift);
+    }
+    
+    constexpr Fixed& operator<<=(int shift) {
+        value <<= shift;
+        return *this;
+    }
+    
+    constexpr Fixed& operator>>=(int shift) {
+        value >>= shift;
+        return *this;
+    }
+    
+    // ========================================================================
+    // FAST ARITHMETIC (NO OVERFLOW PROTECTION)
+    // ========================================================================
+    
+    constexpr Fixed mul_fast(const Fixed& other) const {
+        return Fixed((value * other.value) >> FRACTIONAL_BITS);
+    }
+    
+    constexpr Fixed div_fast(const Fixed& other) const {
+        return Fixed((value << FRACTIONAL_BITS) / other.value);
+    }
+    
+    constexpr Fixed mul_fast_shift(const Fixed& other, int result_shift) const {
+        return Fixed((value * other.value) >> result_shift);
+    }
+    
+    constexpr Fixed mul_int(int32_t i) const {
+        return Fixed(value * i);
+    }
+    
+    constexpr Fixed div_int(int32_t i) const {
+        return Fixed(value / i);
+    }
+    
+    constexpr Fixed mul_pow2(int shift) const {
+        return Fixed(value << shift);
+    }
+    
+    constexpr Fixed div_pow2(int shift) const {
+        return Fixed(value >> shift);
+    }
+
+    // Multiply with another Fixed type, keeping this format
+    template<int IntBits2, int FracBits2, typename StorageT2>
+    constexpr Fixed<IntBits, FracBits, StorageT> mulWith(
+        const Fixed<IntBits2, FracBits2, StorageT2>& other
+    ) const {
+        // Always use int64_t for 32-bit storage multiplication
+        using WideT = int64_t;
+        
+        // Perform multiplication in wider type
+        WideT temp = static_cast<WideT>(value) * static_cast<WideT>(other.raw());
+        
+        // Shift by other's fractional bits
+        WideT shifted = temp >> FracBits2;
+                
+        return Fixed<IntBits, FracBits, StorageT>::from_raw(
+            static_cast<StorageT>(shifted)
+        );
+    }
+
+    
+    // ========================================================================
+    // SATURATING ARITHMETIC
+    // ========================================================================
+    
+    constexpr Fixed add_sat(const Fixed& other) const {
+        int64_t result = static_cast<int64_t>(value) + other.value;
+        constexpr int64_t max_val = std::numeric_limits<storage_type>::max();
+        constexpr int64_t min_val = std::numeric_limits<storage_type>::min();
+        if (result > max_val) return Fixed(static_cast<storage_type>(max_val));
+        if (result < min_val) return Fixed(static_cast<storage_type>(min_val));
+        return Fixed(static_cast<storage_type>(result));
+    }
+    
+    constexpr Fixed sub_sat(const Fixed& other) const {
+        int64_t result = static_cast<int64_t>(value) - other.value;
+        constexpr int64_t max_val = std::numeric_limits<storage_type>::max();
+        constexpr int64_t min_val = std::numeric_limits<storage_type>::min();
+        if (result > max_val) return Fixed(static_cast<storage_type>(max_val));
+        if (result < min_val) return Fixed(static_cast<storage_type>(min_val));
+        return Fixed(static_cast<storage_type>(result));
+    }
+    
+    constexpr Fixed mul_sat(const Fixed& other) const {
+        int64_t result = (static_cast<int64_t>(value) * other.value) >> FRACTIONAL_BITS;
+        constexpr int64_t max_val = std::numeric_limits<storage_type>::max();
+        constexpr int64_t min_val = std::numeric_limits<storage_type>::min();
+        if (result > max_val) return Fixed(static_cast<storage_type>(max_val));
+        if (result < min_val) return Fixed(static_cast<storage_type>(min_val));
+        return Fixed(static_cast<storage_type>(result));
+    }
+    
+    // ========================================================================
+    // RECIPROCAL APPROXIMATION
+    // ========================================================================
+    
+    inline Fixed reciprocal_fast() const {
+        if (value == 0) return Fixed::from_int(0);
+        
+        storage_type x = value;
+        storage_type sign = x >> 31;
+        if (sign) x = -x;
+        
+        int lz = __builtin_clz(x);
+        storage_type guess = (storage_type(1) << (31 - lz)) >> (FRACTIONAL_BITS - lz);
+        
+        // Newton-Raphson iterations
+        for (int i = 0; i < 3; i++) {
+            storage_type temp = (static_cast<int64_t>(x) * guess) >> FRACTIONAL_BITS;
+            temp = (ONE << 1) - temp;
+            guess = (static_cast<int64_t>(guess) * temp) >> FRACTIONAL_BITS;
+        }
+        
+        return Fixed(sign ? -guess : guess);
+    }
+    
+    inline Fixed div_by_recip_fast(const Fixed& denominator) const {
+        Fixed recip = denominator.reciprocal_fast();
+        return mul_fast(recip);
+    }
+    
+    // ========================================================================
+    // RP2040 HARDWARE ACCELERATED OPERATIONS
+    // ========================================================================
+    
+    #ifdef PICO_SDK_VERSION_MAJOR
+    
+    inline Fixed mul_hw_interp(const Fixed& other) const {
+        interp_config cfg = interp_default_config();
+        interp_config_set_shift(&cfg, FRACTIONAL_BITS);
+        interp_config_set_signed(&cfg, true);
+        interp_set_config(interp0, 0, &cfg);
+        
+        interp0->accum[0] = value;
+        interp0->base[0] = other.value;
+        
+        return Fixed(static_cast<storage_type>(interp0->peek[0]));
+    }
+    
+    inline Fixed mul_add_hw(const Fixed& other, const Fixed& accum) const {
+        interp_config cfg = interp_default_config();
+        interp_config_set_shift(&cfg, FRACTIONAL_BITS);
+        interp_config_set_signed(&cfg, true);
+        interp_config_set_add_raw(&cfg, true);
+        interp_set_config(interp0, 0, &cfg);
+        
+        interp0->accum[0] = accum.value;
+        interp0->base[0] = other.value;
+        interp0->base[1] = value;
+        
+        return Fixed(static_cast<storage_type>(interp0->peek[0]));
+    }
+    
+    static void mul_batch_hw(const Fixed* a, const Fixed* b, Fixed* result, size_t count) {
+        interp_config cfg = interp_default_config();
+        interp_config_set_shift(&cfg, FRACTIONAL_BITS);
+        interp_config_set_signed(&cfg, true);
+        interp_set_config(interp0, 0, &cfg);
+        
+        for (size_t i = 0; i < count; i++) {
+            interp0->accum[0] = a[i].value;
+            interp0->base[0] = b[i].value;
+            result[i] = Fixed(static_cast<storage_type>(interp0->peek[0]));
+        }
+    }
+    
+    #endif // PICO_SDK_VERSION_MAJOR
+};
+
+// ============================================================================
+// TYPE ALIASES
+// ============================================================================
+
+using Q15_16 = Fixed<15, 16, int32_t>;
+using Q19_13 = Fixed<19, 13, int32_t>;
+using Q7_24  = Fixed<7, 24, int32_t>;
+using Q1_31  = Fixed<1, 31, int32_t>;
+using Q2_30  = Fixed<2, 30, int32_t>;
+using Q16_16 = Fixed<16, 16, int32_t>;
+using Q8_24  = Fixed<8, 24, int32_t>;
+using Q12_20 = Fixed<12, 20, int32_t>;
+
+// ============================================================================
+// FORMAT CONVERSION
+// ============================================================================
+
+template<int ToIntBits, int ToFracBits, typename ToStorage,
+         int FromIntBits, int FromFracBits, typename FromStorage>
+constexpr Fixed<ToIntBits, ToFracBits, ToStorage> 
+convert(const Fixed<FromIntBits, FromFracBits, FromStorage>& from) {
+    constexpr int shift_diff = ToFracBits - FromFracBits;
+    
+    if constexpr (shift_diff > 0) {
+        return Fixed<ToIntBits, ToFracBits, ToStorage>::from_raw(
+            static_cast<ToStorage>(from.raw()) << shift_diff
+        );
+    } else if constexpr (shift_diff < 0) {
+        constexpr auto round = FromStorage(1) << (-shift_diff - 1);
+        return Fixed<ToIntBits, ToFracBits, ToStorage>::from_raw(
+            static_cast<ToStorage>((from.raw() + round) >> -shift_diff)
+        );
+    } else {
+        return Fixed<ToIntBits, ToFracBits, ToStorage>::from_raw(
+            static_cast<ToStorage>(from.raw())
+        );
+    }
+}
+
+// ============================================================================
+// BASIC MATH FUNCTIONS
+// ============================================================================
+
+template<FixedPointType T>
+constexpr T abs(const T& x) {
+    return (x.value < 0) ? T::from_raw(-x.value) : x;
+}
+
+template<FixedPointType T>
+constexpr T min(const T& a, const T& b) {
+    return (a.value < b.value) ? a : b;
+}
+
+template<FixedPointType T>
+constexpr T max(const T& a, const T& b) {
+    return (a.value > b.value) ? a : b;
+}
+
+template<FixedPointType T>
+constexpr T clamp(const T& value, const T& min_val, const T& max_val) {
+    return min(max(value, min_val), max_val);
+}
+
+template<FixedPointType T>
+inline T sqrt(const T& x) {
+    if (x.value <= 0) return T::from_int(0);
+    
+    typename T::storage_type val = x.value;
+    typename T::storage_type guess = val >> 1;
+    
+    for (int i = 0; i < 8; i++) {
+        if (guess == 0) break;
+        typename T::storage_type div = (static_cast<int64_t>(val) << T::FRACTIONAL_BITS) / guess;
+        guess = (guess + div) >> 1;
+    }
+    
+    return T::from_raw(guess);
+}
+
+template<FixedPointType T>
+constexpr T lerp(const T& a, const T& b, const T& t) {
+    return a + (b - a) * t;
+}
+
+// ============================================================================
+// TRIGONOMETRY
+// ============================================================================
+
+template<FixedPointType T>
+inline T sin_fast(const T& x) {
+    constexpr auto FIXED_PI = T::from_float_ct(3.14159265359);
+    constexpr auto FIXED_TWO_PI = T::from_float_ct(6.28318530718);
+    
+    T norm = x;
+    while (norm > PI) norm -= FIXED_TWO_PI;
+    while (norm < -PI) norm += FIXED_TWO_PI;
+    
+    T x2 = norm * norm;
+    T num = norm * (T::from_float_ct(16.0) - T::from_float_ct(5.0) * x2);
+    T den = T::from_float_ct(16.0) + x2;
+    
+    return num / den;
+}
+
+template<FixedPointType T>
+inline T cos_fast(const T& x) {
+    constexpr auto FIXED_HALF_PI = T::from_float_ct(1.57079632679);
+    return sin_fast(x + FIXED_HALF_PI);
+}
+
+// ============================================================================
+// FAST MIXED-FORMAT OPERATIONS
+// ============================================================================
+
+template<int ResIntBits, int ResFracBits, typename ResStorage,
+         int AIntBits, int AFracBits, typename AStorage,
+         int BIntBits, int BFracBits, typename BStorage>
+constexpr Fixed<ResIntBits, ResFracBits, ResStorage>
+mul_fast_mixed(const Fixed<AIntBits, AFracBits, AStorage>& a,
+               const Fixed<BIntBits, BFracBits, BStorage>& b) {
+    constexpr int shift_amount = AFracBits + BFracBits - ResFracBits;
+    auto result = (static_cast<ResStorage>(a.raw()) * b.raw()) >> shift_amount;
+    return Fixed<ResIntBits, ResFracBits, ResStorage>::from_raw(result);
+}
+
+template<FixedPointType T>
+constexpr T madd_fast(const T& a, const T& b, const T& c) {
+    auto prod = (b.value * c.value) >> T::FRACTIONAL_BITS;
+    return T::from_raw(a.value + prod);
+}
+
+template<FixedPointType T>
+constexpr T msub_fast(const T& a, const T& b, const T& c) {
+    auto prod = (b.value * c.value) >> T::FRACTIONAL_BITS;
+    return T::from_raw(a.value - prod);
+}
+
+// ============================================================================
+// ARRAY/BATCH OPERATIONS
+// ============================================================================
+
+template<FixedPointType T>
+T dot_product_fast(const T* a, const T* b, size_t count) {
+    typename T::storage_type accum = 0;
+    for (size_t i = 0; i < count; i++) {
+        accum += (a[i].value * b[i].value) >> T::FRACTIONAL_BITS;
+    }
+    return T::from_raw(accum);
+}
+
+template<FixedPointType T>
+T poly_eval_fast(const T& x, const T* coeffs, size_t degree) {
+    T result = coeffs[degree];
+    for (int i = degree - 1; i >= 0; i--) {
+        result = result.mul_fast(x) + coeffs[i];
+    }
+    return result;
+}
+
+#ifdef PICO_SDK_VERSION_MAJOR
+
+template<FixedPointType T>
+void mul_array_hw(const T* a, const T* b, T* result, size_t count) {
+    T::mul_batch_hw(a, b, result, count);
+}
+
+template<FixedPointType T>
+void mul_scalar_hw(const T* input, const T& scalar, T* output, size_t count) {
+    interp_config cfg = interp_default_config();
+    interp_config_set_shift(&cfg, T::FRACTIONAL_BITS);
+    interp_config_set_signed(&cfg, true);
+    interp_set_config(interp0, 0, &cfg);
+    
+    interp0->base[0] = scalar.value;
+    
+    for (size_t i = 0; i < count; i++) {
+        interp0->accum[0] = input[i].value;
+        output[i] = T::from_raw(static_cast<typename T::storage_type>(interp0->peek[0]));
+    }
+}
+
+template<FixedPointType T>
+void fma_array_hw(const T* a, const T* b, const T* c, T* result, size_t count) {
+    interp_config cfg = interp_default_config();
+    interp_config_set_shift(&cfg, T::FRACTIONAL_BITS);
+    interp_config_set_signed(&cfg, true);
+    interp_config_set_add_raw(&cfg, true);
+    interp_set_config(interp0, 0, &cfg);
+    
+    for (size_t i = 0; i < count; i++) {
+        interp0->accum[0] = a[i].value;
+        interp0->base[0] = c[i].value;
+        interp0->base[1] = b[i].value;
+        result[i] = T::from_raw(static_cast<typename T::storage_type>(interp0->peek[0]));
+    }
+}
+
+#endif // PICO_SDK_VERSION_MAJOR
+
+// ============================================================================
+// USER-DEFINED LITERALS
+// ============================================================================
+
+namespace literals {
+    consteval Q15_16 operator""_q15(long double f) {
+        return Q15_16::from_float_ct(static_cast<double>(f));
+    }
+    
+    consteval Q19_13 operator""_q19(long double f) {
+        return Q19_13::from_float_ct(static_cast<double>(f));
+    }
+    
+    consteval Q7_24 operator""_q7(long double f) {
+        return Q7_24::from_float_ct(static_cast<double>(f));
+    }
+    
+    consteval Q1_31 operator""_q1(long double f) {
+        return Q1_31::from_float_ct(static_cast<double>(f));
+    }
+    
+    consteval Q16_16 operator""_q16(long double f) {
+        return Q16_16::from_float_ct(static_cast<double>(f));
+    }
+}
+
+// ============================================================================
+// DEBUG/PRINTING SUPPORT
+// ============================================================================
+
+#ifdef ARDUINO
+
+template<FixedPointType T>
+void print_fixed(const T& x) {
+    Serial.print(x.to_float(), 6);
+}
+
+template<FixedPointType T>
+void println_fixed(const T& x) {
+    Serial.println(x.to_float(), 6);
+}
+
+template<FixedPointType T>
+void print_fixed_raw(const T& x) {
+    Serial.print("Raw: 0x");
+    Serial.print(x.raw(), HEX);
+    Serial.print(" (");
+    Serial.print(x.raw());
+    Serial.print(") = ");
+    Serial.print(x.to_float(), 6);
+}
+
+template<FixedPointType T>
+void print_fixed_info(const T& x) {
+    Serial.print("Format: Q");
+    Serial.print(T::INTEGER_BITS);
+    Serial.print(".");
+    Serial.print(T::FRACTIONAL_BITS);
+    Serial.print(", Value: ");
+    Serial.print(x.to_float(), 6);
+    Serial.print(", Raw: 0x");
+    Serial.println(x.raw(), HEX);
+}
+
+#endif // ARDUINO
+
+
+} // namespace FixedPoint
+
+#endif // FIXEDPOINT_HPP

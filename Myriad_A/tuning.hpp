@@ -5,14 +5,20 @@
 
 #include "clockfreq.h"
 
+#include "fixedpoint.hpp"
+using namespace FixedPoint;
 
 namespace TuningSettings {
     constexpr float wavelen20hz = sampleClock/20.f;
     constexpr float freqC0 = 8.1759375f;
     constexpr float freqC1 = freqC0*2.f;
     constexpr float wavelenC1 = sampleClock/freqC1; //start from C1
-    constexpr float wavelenC1Inv = 1.f/freqC1; //start from C1
+    constexpr float wavelenC1Inv = 1.f/freqC1; //inverse for fast calculations
     constexpr float wavelenC2 = wavelenC1 * 0.5f;
+
+    constexpr Fixed<20,12> wavelenC1Fixed = Fixed<20,12>(wavelenC1);
+    constexpr Fixed<20,12> wavelenC1InvFixed(wavelenC1Inv); 
+
 
     static TUNING_MEM int octaves=0;
     static TUNING_MEM int semitones=0;

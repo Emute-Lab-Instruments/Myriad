@@ -17,8 +17,12 @@ class FixedLpf {
     return state >> bitdepth;
   }
   
+  inline size_t raw() {
+    return state;
+  }
+  
  private:
-  int32_t state=0;
+  size_t state=0;
   
 };
 

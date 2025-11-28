@@ -3,6 +3,9 @@
 
 #define CALIBMEM __scratch_x("calib")
 
+#include "fixedpoint.hpp"
+
+using namespace FixedPoint;
 
 //adc setup
 //oversampling by 3 bits
@@ -18,6 +21,8 @@
 constexpr size_t adcScaleMax = 4096;
 constexpr size_t adcInitMin = adcScaleMax * 0.1;
 constexpr size_t adcInitMax = adcScaleMax * 0.9;
+constexpr Fixed<16,16> adcInitMinFP(adcInitMin);
+constexpr Fixed<16,16> adcInitMaxFP(adcInitMax);
 
 #include <array>
 #include <algorithm>
@@ -123,6 +128,163 @@ public:
     buildLookupTable(calReadings);
   }
 
+    // ========================================================================
+    // FIXED-POINT INTERPOLATED LOOKUP
+    // ========================================================================
+    
+    // Interpolated lookup with compile-time fixed-point format
+    template<FixedPointType InputFixed>
+    inline FixedPointT convertFixedInterpolated(const InputFixed& adcFixed) const {
+        using input_storage = typename InputFixed::storage_type;
+        
+        // Extract integer part (table index)
+        int32_t index = adcFixed.to_int();
+        
+        // Clamp to valid range
+        if (index < 0) return lookupTable[0];
+        if (index >= ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+        
+        // Get fractional part for interpolation (0.0 to 1.0 in fixed point)
+        // This is the remainder after extracting the integer part
+        input_storage frac = adcFixed.raw() - (static_cast<input_storage>(index) << InputFixed::FRACTIONAL_BITS);
+        
+        // Look up adjacent table entries
+        FixedPointT val0 = lookupTable[index];
+        FixedPointT val1 = lookupTable[index + 1];
+        
+        // Linear interpolation: result = val0 + (val1 - val0) * frac
+        // We need to multiply by frac and then shift back
+        int64_t diff = static_cast<int64_t>(val1) - val0;
+        int64_t scaled_diff = (diff * frac) >> InputFixed::FRACTIONAL_BITS;
+        
+        return val0 + static_cast<FixedPointT>(scaled_diff);
+    }
+    
+    // Specialized version for common Q19.13 format (optimized for your use case)
+    inline FixedPointT convertFixedInterpolated_Q19_13(Q19_13 adcFixed) const {
+        // Extract integer part
+        int32_t index = adcFixed.to_int();
+        
+        // Clamp to valid range
+        if (index < 0) return lookupTable[0];
+        if (index >= ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+        
+        // Extract fractional part (13 bits)
+        int32_t frac = adcFixed.raw() & ((1 << 13) - 1);  // Mask lower 13 bits
+        
+        // Look up adjacent entries
+        FixedPointT val0 = lookupTable[index];
+        FixedPointT val1 = lookupTable[index + 1];
+        
+        // Interpolate: val0 + (val1 - val0) * (frac / 8192)
+        int64_t diff = static_cast<int64_t>(val1) - val0;
+        int64_t interpolated = (diff * frac) >> 13;  // Divide by 2^13 = 8192
+        
+        return val0 + static_cast<FixedPointT>(interpolated);
+    }
+
+    // Specialized version for common Q14.18
+    inline FixedPointT convertFixedInterpolated_Q14_18(Fixed<14,18> adcFixed) const {
+        // Extract integer part
+        int32_t index = adcFixed.to_int();
+        
+        // Clamp to valid range
+        if (index < 0) return lookupTable[0];
+        if (index >= ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+        
+        // Extract fractional part (18 bits)
+        int32_t frac = adcFixed.raw() & ((1 << 18) - 1);  // Mask lower bits
+        
+        // Look up adjacent entries
+        FixedPointT val0 = lookupTable[index];
+        FixedPointT val1 = lookupTable[index + 1];
+        
+        // Interpolate: val0 + (val1 - val0) * (frac / x)
+        int64_t diff = static_cast<int64_t>(val1) - val0;
+        int64_t interpolated = (diff * frac) >> 18;  // 
+        
+        return val0 + static_cast<FixedPointT>(interpolated);
+    }
+    
+    // Ultra-optimized version for RP2040 with hardware interpolator
+    #ifdef PICO_SDK_VERSION_MAJOR
+    // inline FixedPointT convertFixedInterpolated_HW(Q19_13 adcFixed) const {
+    //     int32_t index = adcFixed.to_int();
+        
+    //     if (index < 0) return lookupTable[0];
+    //     if (index >= ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+        
+    //     int32_t frac = adcFixed.raw() & ((1 << 13) - 1);
+        
+    //     FixedPointT val0 = lookupTable[index];
+    //     FixedPointT val1 = lookupTable[index + 1];
+        
+    //     // Use RP2040 hardware interpolator for the lerp
+    //     interp_config cfg = interp_default_config();
+    //     interp_config_set_shift(&cfg, 13);  // Divide by 2^13
+    //     interp_config_set_signed(&cfg, true);
+    //     interp_set_config(interp0, 0, &cfg);
+        
+    //     int32_t diff = static_cast<int32_t>(val1 - val0);
+    //     interp0->accum[0] = diff;
+    //     interp0->base[0] = frac;
+        
+    //     return val0 + static_cast<FixedPointT>(interp0->peek[0]);
+    // }
+inline FixedPointT convertFixedInterpolated_Q14_18_HW(FixedPoint::Fixed<14, 18, int32_t> adcFixed) const {
+    int32_t index = adcFixed.to_int();
+    
+    if (index < 0) return lookupTable[0];
+    if (index >= ADC_MAX_VALUE) return lookupTable[ADC_MAX_VALUE];
+    
+    // Extract fractional part (18 bits) - this is our interpolation factor (0 to 1)
+    uint32_t frac = adcFixed.raw() & 0x3FFFF;
+    
+    FixedPointT val0 = lookupTable[index];
+    FixedPointT val1 = lookupTable[index + 1];
+    
+    // Calculate difference (can be negative)
+    int32_t diff = static_cast<int32_t>(val1) - static_cast<int32_t>(val0);
+    
+    // Configure hardware interpolator for: result = (diff * frac) >> 18
+    interp_config cfg = interp_default_config();
+    interp_config_set_shift(&cfg, 18);        // Shift right by 18 bits
+    interp_config_set_signed(&cfg, true);     // Handle signed arithmetic
+    interp_config_set_mask(&cfg, 0, 31);      // Use all 32 bits
+    interp_set_config(interp0, 0, &cfg);
+    
+    // Set base (multiplier) first, then accumulator
+    interp0->base[0] = frac;                  // Interpolation factor
+    interp0->accum[0] = diff;                 // Value to multiply
+    
+    // Read result: (diff * frac) >> 18
+    int32_t interpolated = static_cast<int32_t>(interp0->peek[0]);
+    
+    return val0 + static_cast<FixedPointT>(interpolated);
+}
+    #endif
+    
+    // ========================================================================
+    // CONVENIENCE FUNCTIONS FOR DIFFERENT FORMATS
+    // ========================================================================
+    inline float convertFixedInterpolatedToFloat_Q14_18(const Fixed<14,18>& adcFixed) const {
+        return fixedToFloat(convertFixedInterpolated_Q14_18(adcFixed));
+    }
+    
+    // Convert from any fixed-point format and return as float
+    template<FixedPointType InputFixed>
+    inline float convertFixedInterpolatedToFloat(const InputFixed& adcFixed) const {
+        return fixedToFloat(convertFixedInterpolated(adcFixed));
+    }
+    
+    // Convert with automatic format detection (returns same format as lookup table)
+    template<FixedPointType InputFixed>
+    inline auto convertAndMatchFormat(const InputFixed& adcFixed) const {
+        FixedPointT result = convertFixedInterpolated(adcFixed);
+        return Fixed<integer_bits, FracBits, FixedPointT>::from_raw(result);
+    }
+    
+    
     // O(1) lookup - returns fixed-point integer
     inline FixedPointT convertFixed(int adcReading) const {
         if (adcReading < 0) return lookupTable[0];
@@ -372,6 +534,11 @@ namespace CalibrationSettings {
   static CALIBMEM size_t adcRanges[4];
   static CALIBMEM float adcRangesInv[4];
 
+  static CALIBMEM Fixed<16,16> adcMinsFP[4] = {adcInitMinFP,adcInitMinFP,adcInitMinFP,adcInitMinFP};
+  static CALIBMEM Fixed<16,16> adcMaxsFP[4] = {adcInitMaxFP,adcInitMaxFP,adcInitMaxFP,adcInitMaxFP};
+  static CALIBMEM Fixed<16,16> adcRangesFP[4];
+  static CALIBMEM Fixed<0,16> adcRangesInvFP[4];
+
   // static __not_in_flash("calib") std::array<int,9> pitchCalPoints = {
   //   0,  //-5V C-1
   //   512, //-3.75V DNL peak 1, d#0
@@ -393,6 +560,9 @@ namespace CalibrationSettings {
     for(size_t i=0; i < 4; i++) {
       CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+      CalibrationSettings::adcMinsFP[i] = Fixed<16,16>(CalibrationSettings::adcMins[i]);
+      CalibrationSettings::adcRangesFP[i] = Fixed<16,16>(CalibrationSettings::adcRanges[i]);
+      CalibrationSettings::adcRangesInvFP[i] = Fixed<0,16>(CalibrationSettings::adcRangesInv[i]);
     }
   }
 
