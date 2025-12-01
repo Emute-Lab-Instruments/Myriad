@@ -1,0 +1,4 @@
+/home/ck84/Documents/docsRepos/research/EmuteLabInstruments/machines/Myriad/tests/build_rp2040/CMakeFiles/test_sinetable_fixed.dir
+/home/ck84/Documents/docsRepos/research/EmuteLabInstruments/machines/Myriad/tests/build_rp2040/CMakeFiles/test.dir
+/home/ck84/Documents/docsRepos/research/EmuteLabInstruments/machines/Myriad/tests/build_rp2040/CMakeFiles/edit_cache.dir
+/home/ck84/Documents/docsRepos/research/EmuteLabInstruments/machines/Myriad/tests/build_rp2040/CMakeFiles/rebuild_cache.dir

@@ -445,10 +445,10 @@ template<FixedPointType T>
 inline T sin_fast(const T& x) {
     constexpr auto FIXED_PI = T::from_float_ct(3.14159265359);
     constexpr auto FIXED_TWO_PI = T::from_float_ct(6.28318530718);
-    
+
     T norm = x;
-    while (norm > PI) norm -= FIXED_TWO_PI;
-    while (norm < -PI) norm += FIXED_TWO_PI;
+    while (norm > FIXED_PI) norm -= FIXED_TWO_PI;
+    while (norm < -FIXED_PI) norm += FIXED_TWO_PI;
     
     T x2 = norm * norm;
     T num = norm * (T::from_float_ct(16.0) - T::from_float_ct(5.0) * x2);
