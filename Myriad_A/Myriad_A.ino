@@ -293,16 +293,16 @@ float __scratch_x("adc") ctrlVal = 0;
 
 Fixed<20,12> __scratch_x("adc") detuneFixed;
 
-float __scratch_x("adc") metaModWavelenMul0 = 1.f;
-float __scratch_x("adc") metaModWavelenMul1 = 1.f;
-float __scratch_x("adc") metaModWavelenMul2 = 1.f;
-float __scratch_x("adc") metaModWavelenMul3 = 1.f;
-float __scratch_x("adc") metaModWavelenMul4 = 1.f;
-float __scratch_x("adc") metaModWavelenMul5 = 1.f;
-float __scratch_x("adc") metaModWavelenMul6 = 1.f;
-float __scratch_x("adc") metaModWavelenMul7 = 1.f;
-float __scratch_x("adc") metaModWavelenMul8 = 1.f;
-float __scratch_x("adc") metaModCtrlMul = 1.f;
+Q16_16 __scratch_x("adc") metaModWavelenMul0 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul1 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul2 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul3 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul4 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul5 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul6 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul7 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModWavelenMul8 = Q16_16(1);
+Q16_16 __scratch_x("adc") metaModCtrlMul = Q16_16(1);
 bool __scratch_x("adc") metaModReady = false;
 bool __scratch_x("adc") octReady = false;
 
@@ -454,24 +454,25 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     if (metaUpdateCounter++ >= metaUpdatePeriod) {
       metaUpdateCounter = 0;
 
-      // auto metamods = metaOscsList.at(currMetaMod)->getValues();
+      auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
 
-      // if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-      //     metaModWavelenMul0 = (1.f + (metamods[0]));
-      //     metaModWavelenMul1 = (1.f + (metamods[1]));
-      //     metaModWavelenMul2 = (1.f + (metamods[2]));
-      //     metaModWavelenMul3 = (1.f + (metamods[3]));
-      //     metaModWavelenMul4 = (1.f + (metamods[4]));
-      //     metaModWavelenMul5 = (1.f + (metamods[5]));
-      //     metaModWavelenMul6 = (1.f + (metamods[6]));
-      //     metaModWavelenMul7 = (1.f + (metamods[7]));
-      //     metaModWavelenMul8 = (1.f + (metamods[8]));
-      // }
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+          metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
+          metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
+          metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
+          metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
+          metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
+          metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
+          metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
+          metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
+          metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
+      }
 
-      // if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-      //     metaModCtrlMul = (1.f + (metamods[0] * 5.f));
-      // }
-      // metaModReady = true;
+      //TODO: many to one mapping?
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+          metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
+      }
+      metaModReady = true;
 
       size_t octControl = adcReadings[3];
       
@@ -505,11 +506,13 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //   new_wavelen1 = new_wavelen1 * octMul1;
     //   new_wavelen2 = new_wavelen2 * octMul2;
 
-    // new_wavelen0 *= metaModWavelenMul0;
-    // new_wavelen1 *= metaModWavelenMul1;
-    // new_wavelen2 *= metaModWavelenMul2;
+    //todo: need 64 bit overflow?
+    new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
+    new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
+    new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
 
-    // ctrlVal *= metaModCtrlMul;
+    //todo: change to fixed
+    ctrlVal *= metaModCtrlMul.to_float();
 
 
     // static size_t msgCt=0;
@@ -531,6 +534,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     newFrequenciesReady = true;
     PERF_END(ADC);
 
+    //todo: send wavelen2 so need fewer detunes on B?
     PERF_BEGIN(SERIALTX);
     sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0_fixed.to_float());
     PERF_END(SERIALTX);
@@ -1587,27 +1591,27 @@ void __not_in_flash_func(loop)() {
     switch(metaModSendIdx) {
       case 5:
       metaModSendIdx = 4;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3.to_float());
       break;
       case 4:
       metaModSendIdx = 3;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4.to_float());
       break;
       case 3:
       metaModSendIdx = 2;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5.to_float());
       break;
       case 2:
       metaModSendIdx = 1;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6.to_float());
       break;
       case 1:
       metaModSendIdx = 0;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7.to_float());
       break;
     }
     if (metaModReady) {
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8);
+      sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8.to_float());
       metaModSendIdx=5;
       metaModReady=false;
     }
