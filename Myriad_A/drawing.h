@@ -3,6 +3,9 @@
 
 #define GFX_MEM __not_in_flash("gfx")
 
+#include "fixedpoint.hpp"
+using namespace FixedPoint;
+
 constexpr uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b) {
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
@@ -18,6 +21,12 @@ constexpr size_t sqhalfwidth=80;
 constexpr size_t sqwidth = sqhalfwidth+sqhalfwidth; //dim of the largest square that fits in the circle
 constexpr size_t sqbound = (240 - sqwidth) / 2; //left/top of the largest square that fits in the circle
 constexpr size_t sqboundBR = sqbound + sqwidth; //right/bottom X of the largest square that fits in the circle
+
+
+constexpr Q16_16 sqhalfwidthFP=Q16_16(80);
+constexpr Q16_16 sqwidthFP = sqhalfwidthFP+sqhalfwidthFP; //dim of the largest square that fits in the circle
+constexpr Q16_16 sqboundFP = (Q16_16(240) - sqwidthFP) / Q16_16(2); //left/top of the largest square that fits in the circle
+constexpr Q16_16 sqboundBRFP = sqboundFP + sqwidthFP; //right/bottom X of the largest square that fits in the circle
 
 // 64-color gradient array from dark green to light pink
 // Using 16-bit RGB565 format for TFT_eSPI

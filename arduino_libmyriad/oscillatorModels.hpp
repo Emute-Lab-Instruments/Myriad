@@ -568,7 +568,7 @@ class triOscillatorModel : public virtual oscillatorModel {
       const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
       for (size_t i = 0; i < loopLength; ++i) {
-        register uint32_t word=0U;
+        uint32_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
           phase = phase >= wlen ? 0 : phase; // wrap around
           int32_t amp=0;

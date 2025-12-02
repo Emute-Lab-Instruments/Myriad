@@ -7,6 +7,9 @@
 #include "src/memlp/MLP.h"
 #include "drawing.h"
 #include <deque>
+#include "fixedpoint.hpp"
+#include "sinetable_fixed.hpp"
+using namespace FixedPoint;
 
 enum MODTARGETS {PITCH, EPSILON, PITCH_AND_EPSILON} modTarget = MODTARGETS::PITCH;
 
@@ -26,33 +29,37 @@ template <typename T>
 class BoundedEncoderValue {
 public:
   BoundedEncoderValue(T _min, T _max, T _scale) : maxVal(_max), minVal(_min), scaleVal(_scale), value(_min) {setMax(_max); setMin(_min);}
-  BoundedEncoderValue() : scaleVal(T(0.01)), value(T(0)) {setMax(0.9); setMin(0.0);}
+  BoundedEncoderValue() : scaleVal(T(0.01)), value(T(0)) {setMax(T(0.9)); setMin(T(0.0));}
 
 
-  void update(const float change) {
+  void update(const T change) {
     value += (change * scaleVal);
-    value = std::max(minVal, value);
-    value = std::min(maxVal, value);
+    value = value < minVal ? minVal : value; //std::max(minVal, value);
+    value = value > maxVal ? maxVal : value; //std::min(maxVal, value);
   }
 
   inline T getValue() {
     return value;
   }
 
-  inline void setValue(const float v) {
+  inline void setValue(const T v) {
     value = v;
-    value = std::max(minVal, value);
-    value = std::min(maxVal, value);    
+    value = value < minVal ? minVal : value; //std::max(minVal, value);
+    value = value > maxVal ? maxVal : value; //std::min(maxVal, value);
   }
 
   void setScale(T newScale) {scaleVal = newScale;}
+  
   void setMax(T newMax) {
-    maxVal = newMax; value = std::min(maxVal, value);
-    if (maxVal != 0) {
-      invMax = 1.0/maxVal;
+    maxVal = newMax;
+    value = value > maxVal ? maxVal : value; //std::min(maxVal, value);
+    if (maxVal != T(0)) {
+      invMax = T(1.0)/maxVal;
     }
   }
-  void setMin(T newMin) {minVal = newMin; value = std::max(minVal, value);
+  void setMin(T newMin) {
+    minVal = newMin; 
+    value = value < minVal ? minVal : value; //std::max(minVal, value);
   }
 
   T getNormalisedValue() {
@@ -123,6 +130,57 @@ protected:
   //add screen bounds
 };
 
+template<size_t N>
+class metaOscFP {
+public:
+    metaOscFP() {};
+    virtual ~metaOscFP() = default;
+    BoundedEncoderValue<Q16_16> moddepth;
+    BoundedEncoderValue<Q16_16> modspeed;
+
+    virtual MetaOscType getType() const = 0;
+
+    virtual std::array<Q16_16, N> update(const size_t (adcs)[4]) =0;    
+
+    void setDepth(Q16_16 delta) {
+        moddepth.update(delta);
+    }
+
+    Q16_16 getDepth() {
+      return moddepth.getValue();
+    }
+
+    void restoreDepth(const Q16_16 v) {
+      moddepth.setValue(v);
+    }
+
+    void setSpeed(Q16_16 delta) {
+        modspeed.update(delta);
+    }
+    
+    Q16_16 getSpeed() {
+      return modspeed.getValue();
+    }
+
+    void restoreSpeed(const Q16_16 v) {
+      modspeed.setValue(v);
+    }
+
+    virtual String getName() {return "";}
+
+    virtual void draw(TFT_eSPI &tft) {};
+
+    virtual std::array<Q16_16, N>& getValues() =0;
+
+    virtual size_t getTimerMS() {
+      return 20;
+    }
+
+
+protected:
+  //add screen bounds
+};
+
 constexpr float TWOPI  = PI * 2.f;
 
 template<size_t N>
@@ -151,6 +209,31 @@ private:
   std::array<float, N> vals;
 };
 
+template<size_t N>
+class metaOscNoneFP : public metaOscFP<N> {
+public:
+    metaOscNoneFP() {
+      vals.fill(Q16_16(0));
+    }
+
+    String getName() override {return "no modulation";}
+
+    MetaOscType getType() const override { return MetaOscType::NONE; }
+
+
+    std::array<Q16_16, N> update(const size_t (adcs)[4]) override {
+        return vals;
+    }
+
+    std::array<Q16_16, N>& getValues() override {
+      return vals;
+    };
+
+
+
+private:
+  std::array<Q16_16, N> vals;
+};
 
 template<size_t N>
 class metaOscSines : public metaOsc<N> {
@@ -204,6 +287,116 @@ private:
     std::array<float, N> sines{0};
 
 };
+
+template<size_t N>
+class metaOscSinesFP : public metaOscFP<N>  {
+public:
+    using FixedType = Q16_16;
+
+    /**
+     * Constructor - Initializes N oscillators with equally spaced phases
+     */
+    metaOscSinesFP() {
+        // Two PI in fixed-point
+        constexpr FixedType TWOPI_FIXED = FixedType::from_float_ct(6.28318530718);
+
+        // Initialize with equally spread phases (0, 2π/N, 4π/N, ...)
+        const FixedType phaseGap = TWOPI_FIXED / FixedType(N);
+
+        for(size_t i = 0; i < N; i++) {
+            phasors[i] = phaseGap * FixedType(i);
+        }
+        this->modspeed.setMax(FixedType(0.1));
+        this->modspeed.setScale(FixedType(0.001));
+        this->moddepth.setMax(FixedType(0.1));
+        this->moddepth.setScale(FixedType(0.0009));
+
+    }
+
+    /**
+     * Update all oscillators and return sine wave values
+     *
+     * @param adcs Array of 4 ADC values (unused in sine version but kept for interface compatibility)
+     * @return Array of N sine wave values in Q16.16 format, range ≈ [-moddepth, +moddepth]
+     */
+    std::array<FixedType, N> update(const size_t adcs[4]) {
+        for(size_t i = 0; i < N; i++) {
+            // Lookup sine value using optimized table
+            sines[i] = sine_table.fast_sin_hw(phasors[i]) * this->moddepth.getValue();
+
+            // Advance phase
+            phasors[i] += this->modspeed.getValue();
+
+            // Wrap phase (optional - sine table handles wraparound, but keeping phase bounded is cleaner)
+            // The sine table supports -2π to 4π range, so we only wrap if way out of bounds
+            if (phasors[i] > FixedType(12.566f)) {  // 2π * 2
+                phasors[i] -= FixedType(6.283f);    // 2π
+            }
+        }
+
+        return sines;
+    }
+
+    void draw(TFT_eSPI &tft) override { 
+      const int32_t barwidth=4;
+      constexpr int step = sqwidth / N;
+      constexpr int stepoffset = (step+barwidth) / 2;
+      for(size_t i=0; i < N; i++) {
+        const int h = (sines[i] * sqhalfwidthFP * Q16_16(10)).to_int();
+        const int left = sqbound + (step*i) + stepoffset;
+        tft.fillRect(left,sqbound,barwidth, sqwidth, ELI_BLUE);
+        if (h <0) {
+          tft.fillRect(left,120+h,barwidth, -h, TFT_WHITE);
+        }else{
+          tft.fillRect(left,120,barwidth, std::max(h,1), TFT_WHITE);
+        }
+      }
+    }
+
+
+    /**
+     * Get current sine values without updating
+     */
+    std::array<FixedType, N>& getValues() override {
+        return sines;
+    }
+
+
+    /**
+     * Get name of oscillator type
+     */
+    String getName() override {
+        return "sines";
+    }
+
+    /**
+     * Get oscillator type
+     */
+    MetaOscType getType() const override {
+        return MetaOscType::SINES;
+    }
+
+    /**
+     * Get current phasor values (for debugging/visualization)
+     */
+    const std::array<FixedType, N>& getPhasors() const {
+        return phasors;
+    }
+
+private:
+
+    // Sine table instance (shared across all oscillators)
+    static SineTableQ16_16 sine_table;
+
+    // Oscillator state
+    std::array<FixedType, N> phasors;   // Current phase for each oscillator
+    std::array<FixedType, N> sines;     // Current sine values
+
+};
+
+// Define the static member
+template<size_t N>
+SineTableQ16_16 metaOscSinesFP<N>::sine_table;
 
 template<size_t N>
 class metaOscSinesFMultiple : public metaOsc<N> {
@@ -1111,4 +1304,7 @@ private:
 
 template <size_t N>
 using metaOscPtr = std::shared_ptr<metaOsc<N>>;
+
+template <size_t N>
+using metaOscFPPtr = std::shared_ptr<metaOscFP<N>>;
 

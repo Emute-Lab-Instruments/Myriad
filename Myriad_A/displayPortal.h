@@ -23,7 +23,7 @@ public:
   struct OscBankScreenStates {
     size_t oscModel[3];
     std::array<float, N_OSCS> oscWavelengths;
-    metaOscPtr<N_OSCS> ptr;
+    metaOscFPPtr<N_OSCS> ptr;
     std::array<float, N_OSCS> modLineX, modLineY, modLineXStart, modLineYStart;
   };
 
@@ -32,7 +32,7 @@ public:
     float moddepth;
     float modspeed;
     MODTARGETS modTarget;
-    metaOscPtr<N_OSCS> ptr;
+    metaOscFPPtr<N_OSCS> ptr;
   };
 
   struct TuningScreenStates {
@@ -347,21 +347,21 @@ public:
     nextState.oscBankScreenState.oscModel[newBank] = newOscModel;
   }
 
-  void setMetaOsc(size_t newIdx, metaOscPtr<N_OSCS> newPtr) {
+  void setMetaOsc(size_t newIdx, metaOscFPPtr<N_OSCS> newPtr) {
     nextState.metaOscVisScreenState.metaOsc = newIdx;
     nextState.metaOscVisScreenState.ptr = newPtr; 
     nextState.oscBankScreenState.ptr = newPtr; 
-    nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue();
-    nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue();
+    nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue().to_float();
+    nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue().to_float();
     nextState.redraw = true;   
   }
 
-  void setMetaModDepth(float newDepth) {
-    nextState.metaOscVisScreenState.moddepth = newDepth;
+  void setMetaModDepth(Q16_16 newDepth) {
+    nextState.metaOscVisScreenState.moddepth = newDepth.to_float();
   }
 
-  void setMetaModSpeed(float newSpeed) {
-    nextState.metaOscVisScreenState.modspeed = newSpeed;
+  void setMetaModSpeed(Q16_16 newSpeed) {
+    nextState.metaOscVisScreenState.modspeed = newSpeed.to_float();
   }
 
   void setCalibADCValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
@@ -488,22 +488,23 @@ private:
       const size_t cy2 = 120+ (linelen * sinpos);
       tft.drawLine(120,120, cx2,cy2, oscColArray[i] );
 
-      if (modVals[i] != 0.f) {
-        float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5f);
-        // if (i==0) {
-          // Serial.print(modv);
-          // Serial.print("\t");
-        // }
-        const size_t cx3start = 120+ (halflinelen * cospos);
-        const size_t cy3start = 120+ (halflinelen * sinpos);
-        const size_t cx3 = 120+ ((halflinelen + (modv * halflinelen)) * cospos);
-        const size_t cy3 = 120+ ((halflinelen + (modv * halflinelen)) * sinpos);
-        tft.drawLine(cx3start,cy3start, cx3,cy3, TFT_GREEN );
-        nextState.modLineX[i] = cx3;
-        nextState.modLineY[i] = cy3;
-        nextState.modLineXStart[i] = cx3start;
-        nextState.modLineYStart[i] = cy3start;
-      }
+      //TODO: restore
+      // if (modVals[i] != 0.f) {
+      //   float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5f);
+      //   // if (i==0) {
+      //     // Serial.print(modv);
+      //     // Serial.print("\t");
+      //   // }
+      //   const size_t cx3start = 120+ (halflinelen * cospos);
+      //   const size_t cy3start = 120+ (halflinelen * sinpos);
+      //   const size_t cx3 = 120+ ((halflinelen + (modv * halflinelen)) * cospos);
+      //   const size_t cy3 = 120+ ((halflinelen + (modv * halflinelen)) * sinpos);
+      //   tft.drawLine(cx3start,cy3start, cx3,cy3, TFT_GREEN );
+      //   nextState.modLineX[i] = cx3;
+      //   nextState.modLineY[i] = cy3;
+      //   nextState.modLineXStart[i] = cx3start;
+      //   nextState.modLineYStart[i] = cy3start;
+      // }
       
 
       tft.drawCircle(cx2, cy2, 5, oscColArray[i]);

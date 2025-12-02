@@ -4,6 +4,7 @@
 #define STATE_MEM __not_in_flash("state")
 
 #include "metaOscs.hpp"
+#include "fixedpoint.hpp"
 
 class MyriadState {
 public:
@@ -11,8 +12,8 @@ public:
     struct StateSnapshot {
         size_t oscBanks[3];
         size_t metaMod;
-        float metaModDepth;
-        float metaModSpeed;
+        Q16_16 metaModDepth;
+        Q16_16 metaModSpeed;
         MODTARGETS modTarget;
     };
 
@@ -22,8 +23,8 @@ public:
         MyriadState::oscBanks[1] = 0;
         MyriadState::oscBanks[2] = 0;
         MyriadState::metaMod = 0;
-        MyriadState::metaModDepth = 0.0f;
-        MyriadState::metaModSpeed = 0.0f;
+        MyriadState::metaModDepth = Q16_16(0.0f);
+        MyriadState::metaModSpeed = Q16_16(0.0f);
         MyriadState::modTarget = MODTARGETS::PITCH;
         MyriadState::changeFlag = false;
         MyriadState::loadFromFlash();
@@ -42,12 +43,12 @@ public:
         MyriadState::changeFlag = true;
     }
 
-    static inline void __not_in_flash_func(setMetaModDepth)(const float value) {
+    static inline void __not_in_flash_func(setMetaModDepth)(const Q16_16 value) {
         MyriadState::metaModDepth = value;
         MyriadState::changeFlag = true;
     }
 
-    static inline void __not_in_flash_func(setMetaModSpeed)(const float value) {
+    static inline void __not_in_flash_func(setMetaModSpeed)(const Q16_16 value) {
         MyriadState::metaModSpeed = value;
         MyriadState::changeFlag = true;
     }
@@ -72,11 +73,11 @@ public:
         return MyriadState::metaMod;
     }
 
-    static float __not_in_flash_func(getMetaModDepth)() {
+    static Q16_16 __not_in_flash_func(getMetaModDepth)() {
         return MyriadState::metaModDepth;
     }
 
-    static float __not_in_flash_func(getMetaModSpeed)() {
+    static Q16_16 __not_in_flash_func(getMetaModSpeed)() {
         return MyriadState::metaModSpeed;
     }
 
@@ -153,16 +154,16 @@ public:
     }
 
 private:
-    // Binary format structure - packed for minimal size
-    struct __attribute__((packed)) StateBinary {
+    // Binary format structure 
+    struct StateBinary {
         uint32_t magic;           // Magic number for validation
         uint16_t version;         // Format version
         size_t oscBank0;          // Individual oscillator banks
         size_t oscBank1;
         size_t oscBank2;
         size_t metaMod;           // Meta modulation
-        float metaModDepth;       // Meta mod depth
-        float metaModSpeed;       // Meta mod speed
+        Q16_16 metaModDepth;       // Meta mod depth
+        Q16_16 metaModSpeed;       // Meta mod speed
         uint8_t modTarget;        // Modulation target (stored as uint8_t)
         uint32_t checksum;        // Simple checksum
     };
@@ -175,8 +176,8 @@ private:
     static size_t STATE_MEM oscBanks[3];     // Hot data - accessed frequently
     static bool STATE_MEM changeFlag;        // Hot data - checked often
     static size_t STATE_MEM metaMod;         // Warm data
-    static float STATE_MEM metaModDepth;     // Cold data
-    static float STATE_MEM metaModSpeed;     // Cold data
+    static Q16_16 STATE_MEM metaModDepth;     // Cold data
+    static Q16_16 STATE_MEM metaModSpeed;     // Cold data
     static MODTARGETS STATE_MEM modTarget;   // Cold data
     static const char* STATE_FILE;
 
@@ -232,8 +233,8 @@ private:
 size_t MyriadState::oscBanks[3];
 bool MyriadState::changeFlag;
 size_t MyriadState::metaMod;
-float MyriadState::metaModDepth;
-float MyriadState::metaModSpeed;
+Q16_16 MyriadState::metaModDepth;
+Q16_16 MyriadState::metaModSpeed;
 MODTARGETS MyriadState::modTarget;
 const char* MyriadState::STATE_FILE = "/st.bin";
 

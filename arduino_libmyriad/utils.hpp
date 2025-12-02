@@ -18,4 +18,4 @@
         lastUpdate = now; \
         code; \
     } \
-}  
+}

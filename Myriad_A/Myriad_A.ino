@@ -90,16 +90,23 @@ volatile bool FAST_MEM restartOscsFlag=false;
 // std::array<oscModelPtr,N_OSCILLATOR_MODELS> FAST_MEM oscModelsDisplayRef;
 
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlank = std::make_shared<metaOscNone<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
 metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaBoids1 = std::make_shared<metaOscBoids<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaBoids1 = std::make_shared<metaOscBoids<N_OSCILLATORS>>();
 
 
-std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaBoids1, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+// std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaBoids1, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
+// std::array<metaOscPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaOscSines1};
+
+
+metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlankFP = std::make_shared<metaOscNoneFP<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
+metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1FP = std::make_shared<metaOscSinesFP<N_OSCILLATORS>>();
+std::array<metaOscFPPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsFPList = {metaOscBlankFP, metaOscSines1FP};
 
 size_t FAST_MEM currMetaMod = 0;
 
@@ -712,7 +719,7 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   if (currMetaMod > 0) {
     uint32_t save = spin_lock_blocking(adcSpinlock);  
     PERF_BEGIN(METAMODS);
-    auto metamods = metaOscsList.at(currMetaMod)->update(controlValues);
+    auto metamods = metaOscsFPList.at(currMetaMod)->update(controlValues);
     PERF_END(METAMODS);
     spin_unlock(adcSpinlock, save);
   }
@@ -813,25 +820,14 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
 
 void __not_in_flash_func(setMetaOscMode)(size_t mode) {
   currMetaMod = mode;
-  display.setMetaOsc(currMetaMod, metaOscsList[currMetaMod]);
+  display.setMetaOsc(currMetaMod, metaOscsFPList[currMetaMod]);
 
   cancel_repeating_timer(&timerMetaModUpdate);
-  add_repeating_timer_ms(metaOscsList[currMetaMod]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
+  add_repeating_timer_ms(metaOscsFPList[currMetaMod]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
 
   Serial.printf("meta mod mode change %d\n", currMetaMod);
 
 }
-
-// void __not_in_flash_func(updateMetaOscMode)(size_t &currMetaModMode, const int change) {
-//   int newMetaModMode = static_cast<int>(currMetaModMode) + change;
-//   //clip
-//   newMetaModMode = max(0, newMetaModMode);
-//   newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
-
-//   if (newMetaModMode != currMetaModMode) {
-//     setMetaOscMode(newMedaModMode);
-//   } 
-// }
 
 void updateTuning() {
   TuningSettings::update();
@@ -854,7 +850,7 @@ void __isr encoder1_callback() {
         int newMetaModMode = static_cast<int>(currMetaMod) + change;
         //clip
         newMetaModMode = max(0, newMetaModMode);
-        newMetaModMode = min(metaOscsList.size()-1, newMetaModMode);
+        newMetaModMode = min(metaOscsFPList.size()-1, newMetaModMode);
 
         if (newMetaModMode != currMetaMod) {
           setMetaOscMode(newMetaModMode);
@@ -922,32 +918,55 @@ void __isr encoder1_callback() {
 }
 
 //left
-struct encAccelData {
+// struct encAccelData {
+//   size_t prevChangeTS = 0;
+//   float acc = 0.f;
+// };
+
+struct encAccelDataFP {
   size_t prevChangeTS = 0;
-  float acc = 0.f;
+  Q16_16 acc = Q16_16(0);
 };
 
-encAccelData FAST_MEM enc2Accel;
+// encAccelData FAST_MEM enc2Accel;
+encAccelDataFP FAST_MEM enc2AccelFP;
 
-float __not_in_flash_func(calcAcceleration)(const int change, encAccelData &data) {
+// float __not_in_flash_func(calcAcceleration)(const int change, encAccelData &data) {
+//   auto now = millis();
+//   if (change != 0) {
+//     auto gap = millis() - data.prevChangeTS;
+//     data.acc += std::max(50.f-gap, -50.f)*0.012f;
+//   }
+//   data.acc *= 0.95f;
+//   data.prevChangeTS = now;
+//   float changeWithAcc = change * (1.f + data.acc);
+//   if (change == 1 && changeWithAcc < 0.f) {
+//     changeWithAcc = 0.f;
+//   }
+//   if (change == -1 && changeWithAcc > 0.f) {
+//     changeWithAcc = 0.f;
+//   }
+//   // Serial.printf("change %d acc %f -> %f\n", change, accEnc2, changeWithAcc);
+//   return changeWithAcc;
+// }
+
+Q16_16 __not_in_flash_func(calcAccelerationFP)(const int change, encAccelDataFP &data) {
   auto now = millis();
   if (change != 0) {
-    auto gap = millis() - data.prevChangeTS;
-    data.acc += std::max(50.f-gap, -50.f)*0.012f;
+    long gap = millis() - data.prevChangeTS;
+    data.acc += Q16_16(static_cast<int>(std::max(50L-gap, -50L)))*Q16_16(0.012f);
   }
-  data.acc *= 0.95f;
+  data.acc *= Q16_16(0.95f);
   data.prevChangeTS = now;
-  float changeWithAcc = change * (1.f + data.acc);
-  if (change == 1 && changeWithAcc < 0.f) {
-    changeWithAcc = 0.f;
+  Q16_16 changeWithAcc = Q16_16(change) * (Q16_16(1.f) + data.acc);
+  if (change == 1 && changeWithAcc < Q16_16(0)) {
+    changeWithAcc = Q16_16(0);
   }
-  if (change == -1 && changeWithAcc > 0.f) {
-    changeWithAcc = 0.f;
+  if (change == -1 && changeWithAcc > Q16_16(0)) {
+    changeWithAcc = Q16_16(0);
   }
-  // Serial.printf("change %d acc %f -> %f\n", change, accEnc2, changeWithAcc);
   return changeWithAcc;
 }
-
 //left encoder
 void __isr encoder2_callback() {
     auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[1];
@@ -960,9 +979,9 @@ void __isr encoder2_callback() {
         {
           controls::encoderAltValues[1] += change;
           if (currMetaMod > 0) {
-            const float changeWithAcc = calcAcceleration(change, enc2Accel);
-            metaOscsList.at(currMetaMod)->setSpeed(changeWithAcc);
-            display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
+            const Q16_16 changeWithAcc = calcAccelerationFP(change, enc2AccelFP);
+            metaOscsFPList.at(currMetaMod)->setSpeed(changeWithAcc);
+            display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
           }
           break;
         }
@@ -1030,7 +1049,8 @@ void __isr encoder2_callback() {
 }
 
 //right
-encAccelData FAST_MEM enc3Accel;
+// encAccelData FAST_MEM enc3Accel;
+encAccelDataFP FAST_MEM enc3AccelFP;
 
 void __isr encoder3_callback() {
   auto timeSinceSwitchUp = millis() - controls::encoderSwitchUPTS[2];
@@ -1043,9 +1063,9 @@ void __isr encoder3_callback() {
       {
         controls::encoderAltValues[2] += change;
         if (currMetaMod > 0) {
-          const float changeWithAcc = calcAcceleration(change, enc2Accel);
-          metaOscsList.at(currMetaMod)->setDepth(changeWithAcc);
-          display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
+          const Q16_16 changeWithAcc = calcAccelerationFP(change, enc3AccelFP);
+          metaOscsFPList.at(currMetaMod)->setDepth(changeWithAcc);
+          display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
         }
         break;
       }
@@ -1282,8 +1302,8 @@ void __isr encoder3_switch_callback() {
           MyriadState::setOscBank(i, oscBankTypes[i]);
         }
         MyriadState::setMetaMod(currMetaMod);
-        MyriadState::setMetaModDepth(metaOscsList.at(currMetaMod)->getDepth());
-        MyriadState::setMetaModSpeed(metaOscsList.at(currMetaMod)->getSpeed());        
+        MyriadState::setMetaModDepth(metaOscsFPList.at(currMetaMod)->getDepth());
+        MyriadState::setMetaModSpeed(metaOscsFPList.at(currMetaMod)->getSpeed());        
         MyriadState::setModTarget(modTarget);
         MyriadState::save();
 
@@ -1324,14 +1344,14 @@ void __isr encoder3_switch_callback() {
 }
 
 std::shared_ptr<metaOscMLP<N_OSCILLATORS>> isCurrentMetaOscMLP() {
-    if (currMetaMod >= metaOscsList.size()) {
+    if (currMetaMod >= metaOscsFPList.size()) {
         return nullptr;
     }
-    
-    auto ptr = metaOscsList.at(currMetaMod);
-    if (ptr->getType() == MetaOscType::MLP) {
-        return std::static_pointer_cast<metaOscMLP<N_OSCILLATORS>>(ptr);
-    }
+    //TODO: restore
+    // auto ptr = metaOscsFPList.at(currMetaMod);
+    // if (ptr->getType() == MetaOscType::MLP) {
+    //     return std::static_pointer_cast<metaOscMLP<N_OSCILLATORS>>(ptr);
+    // }
     return nullptr;    
 }
 
@@ -1518,12 +1538,12 @@ void setup() {
   display.setOscBankModel(2, oscBankTypes[2]);
 
   setMetaOscMode(MyriadState::getMetaMod());
-  metaOscsList.at(currMetaMod)->restoreDepth(MyriadState::getMetaModDepth());
-  metaOscsList.at(currMetaMod)->restoreSpeed(MyriadState::getMetaModSpeed());
+  metaOscsFPList.at(currMetaMod)->restoreDepth(MyriadState::getMetaModDepth());
+  metaOscsFPList.at(currMetaMod)->restoreSpeed(MyriadState::getMetaModSpeed());
   modTarget = MyriadState::getModTarget();
   display.setModTarget(modTarget);
-  display.setMetaModDepth(metaOscsList.at(currMetaMod)->moddepth.getNormalisedValue());
-  display.setMetaModSpeed(metaOscsList.at(currMetaMod)->modspeed.getNormalisedValue());
+  display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
+  display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
 
   display.setDisplayWavelengths({0,0,0,0,0,0,0,0,0});
 
