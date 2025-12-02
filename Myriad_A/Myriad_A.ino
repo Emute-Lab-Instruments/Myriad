@@ -542,37 +542,6 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 }
 
 
-
-// void __not_in_flash_func(dma_irq_handler)() {
-//   uint16_t *adcReadings = nullptr;
-//   if (dma_channel_get_irq0_status(dma_chan)) {
-//       dma_channel_acknowledge_irq0(dma_chan);
-//       adcReadings = capture_buf_a;      
-//       // Your buffer is full or at the ring boundary
-//       // Process data in capture_buf here
-//       // Serial.printf("%d %d %d %d\n",capture_buf_a[0],capture_buf_a[1],capture_buf_a[2],capture_buf_a[3]);
-//       // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-//       // dma_channel_set_trans_count(dma_chan, 4, true);        
-//   }
-//   if (dma_channel_get_irq0_status(dma_chan2)) {
-//       dma_channel_acknowledge_irq0(dma_chan2);
-//       adcReadings = capture_buf_b;      
-//       // Your buffer is full or at the ring boundary
-//       // Process data in capture_buf here
-//       // Serial.printf("%d %d %d %d\n",capture_buf_b[0],capture_buf_b[1],capture_buf_b[2],capture_buf_b[3]);
-//       // dma_channel_set_write_addr(dma_chan, capture_buf, false);
-//       // dma_channel_set_trans_count(dma_chan, 4, true);        
-//   }
-//   if (adcReadings) {
-//     adcProcessor(adcReadings);
-//   }
-//   if (streamMessaging::dma_channel_tx >= 0 && dma_irqn_get_channel_status(0, streamMessaging::dma_channel_tx)) {
-//     dma_irqn_acknowledge_channel(0, streamMessaging::dma_channel_tx);
-//     // Serial.printf("dma_tx done\n");
-//   }
-
-// }
-
 __attribute__((hot, flatten))
 void __not_in_flash_func(dma_irq_handler)() {
     // Check both channels in one go - likely to be compiled to efficient bit ops
