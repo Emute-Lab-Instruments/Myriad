@@ -917,11 +917,8 @@ void __not_in_flash_func(loop)() {
       new_wavelen4 = new_wavelen4 * currOct4;
       new_wavelen5 = new_wavelen5 * currOct5;
       currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
-      // currOscModels0[0]->reset();
       currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
-      // currOscModels0[1]->reset();
       currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
-      // currOscModels0[2]->reset();
       newFrequenciesReady0 = false;
     }
     

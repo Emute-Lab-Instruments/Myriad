@@ -2171,3 +2171,163 @@ using metaOscPtr = std::shared_ptr<metaOsc<N>>;
 template <size_t N>
 using metaOscFPPtr = std::shared_ptr<metaOscFP<N>>;
 
+// ============================================================================
+// COMPILE-TIME METAOSC VARIANT (eliminates heap allocation)
+// ============================================================================
+
+template<size_t N>
+using MetaOscFPVariant = std::variant<
+    metaOscNoneFP<N>,
+    metaOscSinesFP<N>
+>;
+
+// Visitor helper for accessing variant members without type-switching
+// Note: All FP oscillators use Q16_16 as their FixedType
+template<size_t N>
+struct MetaOscVisitor {
+    static auto& getValues(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) -> auto& {
+            return osc.getValues();
+        }, var);
+    }
+
+    static std::array<Q16_16, N> update(MetaOscFPVariant<N>& var, const size_t adcs[4]) {
+        return std::visit([&adcs](auto& osc) {
+            return osc.update(adcs);
+        }, var);
+    }
+
+    static void draw(MetaOscFPVariant<N>& var, const std::array<Q16_16, N>& vals) {
+        std::visit([&vals](auto& osc) {
+            osc.draw(vals);
+        }, var);
+    }
+
+    static const char* getName(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getName();
+        }, var);
+    }
+
+    static void setDepth(MetaOscFPVariant<N>& var, Q16_16 value) {
+        std::visit([value](auto& osc) {
+            osc.setDepth(value);
+        }, var);
+    }
+
+    static Q16_16 getDepth(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getDepth();
+        }, var);
+    }
+
+    static void setSpeed(MetaOscFPVariant<N>& var, Q16_16 value) {
+        std::visit([value](auto& osc) {
+            osc.setSpeed(value);
+        }, var);
+    }
+
+    static Q16_16 getSpeed(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getSpeed();
+        }, var);
+    }
+
+    static uint32_t getTimerMS(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getTimerMS();
+        }, var);
+    }
+
+    static float getNormalisedDepth(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getNormalisedDepth();
+        }, var);
+    }
+
+    static float getNormalisedSpeed(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) {
+            return osc.getNormalisedSpeed();
+        }, var);
+    }
+
+    static void restoreDepth(MetaOscFPVariant<N>& var, Q16_16 value) {
+        std::visit([value](auto& osc) {
+            osc.restoreDepth(value);
+        }, var);
+    }
+
+    static void restoreSpeed(MetaOscFPVariant<N>& var, Q16_16 value) {
+        std::visit([value](auto& osc) {
+            osc.restoreSpeed(value);
+        }, var);
+    }
+
+    // Direct access to moddepth/modspeed parameters
+    static auto& getModDepth(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) -> auto& {
+            return osc.moddepth;
+        }, var);
+    }
+
+    static auto& getModSpeed(MetaOscFPVariant<N>& var) {
+        return std::visit([](auto& osc) -> auto& {
+            return osc.modspeed;
+        }, var);
+    }
+};
+
+// ============================================================================
+// VARIANT STORAGE WRAPPER (deferred construction for RP2040 compatibility)
+// ============================================================================
+// Provides compile-time allocated storage for std::variant without triggering
+// global constructor crashes on ARM Cortex-M0+. The variant is constructed
+// in setup() after C++ runtime initialization completes.
+
+template<size_t N>
+class MetaOscFPVariantStorage {
+private:
+    using VariantType = MetaOscFPVariant<N>;
+    alignas(VariantType) std::byte storage[sizeof(VariantType)];
+    bool constructed = false;
+
+public:
+    // Trivial constructor - no variant construction at global init
+    constexpr MetaOscFPVariantStorage() : storage{}, constructed(false) {}
+
+    // Destructor - properly destroy variant if it was constructed
+    ~MetaOscFPVariantStorage() {
+        if (constructed) {
+            get()->~VariantType();
+        }
+    }
+
+    // Construct variant in-place using placement new
+    template<typename T, typename... Args>
+    void emplace(Args&&... args) {
+        if (constructed) {
+            get()->~VariantType();
+        }
+        new (storage) VariantType(std::in_place_type<T>, std::forward<Args>(args)...);
+        constructed = true;
+    }
+
+    // Access the variant (assumes constructed - caller must check)
+    VariantType* get() {
+        return reinterpret_cast<VariantType*>(storage);
+    }
+
+    const VariantType* get() const {
+        return reinterpret_cast<const VariantType*>(storage);
+    }
+
+    // Convenience operators
+    VariantType& operator*() { return *get(); }
+    const VariantType& operator*() const { return *get(); }
+    VariantType* operator->() { return get(); }
+    const VariantType* operator->() const { return get(); }
+
+    // Check if variant has been constructed
+    bool isConstructed() const { return constructed; }
+};
+

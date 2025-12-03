@@ -89,9 +89,9 @@ volatile bool FAST_MEM restartOscsFlag=false;
 //a list of reference models for display data
 // std::array<oscModelPtr,N_OSCILLATOR_MODELS> FAST_MEM oscModelsDisplayRef;
 
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlank = std::make_shared<metaOscNone<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlank = std::make_shared<metaOscNone<N_OSCILLATORS>>();
 // metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
-metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
+// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
 // metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
 // metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
 // metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
@@ -104,7 +104,6 @@ metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_sha
 
 
 metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlankFP = std::make_shared<metaOscNoneFP<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
 metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1FP = std::make_shared<metaOscSinesFP<N_OSCILLATORS>>();
 std::array<metaOscFPPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsFPList = {metaOscBlankFP, metaOscSines1FP};
 
@@ -690,7 +689,7 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   if (currMetaMod > 0) {
-    uint32_t save = spin_lock_blocking(adcSpinlock);  
+    uint32_t save = spin_lock_blocking(adcSpinlock);
     PERF_BEGIN(METAMODS);
     auto metamods = metaOscsFPList.at(currMetaMod)->update(controlValues);
     PERF_END(METAMODS);
@@ -1276,7 +1275,7 @@ void __isr encoder3_switch_callback() {
         }
         MyriadState::setMetaMod(currMetaMod);
         MyriadState::setMetaModDepth(metaOscsFPList.at(currMetaMod)->getDepth());
-        MyriadState::setMetaModSpeed(metaOscsFPList.at(currMetaMod)->getSpeed());        
+        MyriadState::setMetaModSpeed(metaOscsFPList.at(currMetaMod)->getSpeed());
         MyriadState::setModTarget(modTarget);
         MyriadState::save();
 
