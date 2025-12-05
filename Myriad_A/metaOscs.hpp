@@ -763,6 +763,12 @@ public:
         return 5;
     }
 
+    inline FixedType distL1(FixedType x1, FixedType y1, FixedType x2, FixedType y2) {
+        FixedType dx = x2 - x1;
+        FixedType dy = y2 - y1;
+        return FixedPoint::abs(dx) + FixedPoint::abs(dy);
+    } 
+
     std::array<Q16_16, N> update(const size_t adcs[4]) override {
         // Fixed-point constants for spatial bounds
         const FixedType sqboundFP = FixedType(sqbound);
@@ -798,13 +804,16 @@ public:
             }
 
             // Calculate distance from center
-            const FixedType dx = centerX - walkers[i].x;
-            const FixedType dy = centerY - walkers[i].y;
+            // const FixedType dx = centerX - walkers[i].x;
+            // const FixedType dy = centerY - walkers[i].y;
 
             // Distance = sqrt(dx^2 + dy^2)
-            const FixedType dx2 = dx * dx;
-            const FixedType dy2 = dy * dy;
-            const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
+            // const FixedType dx2 = dx * dx;
+            // const FixedType dy2 = dy * dy;
+
+            // const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
+            const FixedType distance = distL1(centerX, centerY, walkers[i].x, walkers[i].y);
+            
 
             // Modulation output: distance scaled by depth
              FixedType modVal = distance * FixedType(this->moddepth.getValue()) * depthScale;
