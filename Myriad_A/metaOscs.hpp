@@ -638,89 +638,89 @@ private:
   const float adcMul = 1/4096.0;
 };
 
-template<size_t N>
-class metaDrunkenWalkers : public metaOsc<N> {
-public:
+// template<size_t N>
+// class metaDrunkenWalkers : public metaOsc<N> {
+// public:
 
-    struct point {float x; float y;};
-    std::array<point, N> walkers;
-    std::vector<std::deque<point>> pastStates;
-    std::array<int, N> colours;
-
-
-    metaDrunkenWalkers() {
-        //init with equally spread phase
-        for(size_t i=0; i < N; i++) {
-            walkers[i].x=120;
-            walkers[i].y=120;
-            colours[i] = rgbTo565(i, 100 + (i * 10), i*3);
-        }
-        this->modspeed.setMax(0.1);
-        this->modspeed.setScale(0.001);
-        this->moddepth.setMax(0.1);
-        this->moddepth.setScale(0.0009);
-
-        pastStates.resize(N);
-    }
-
-    String getName() override {return "drunk walkers";}
-    MetaOscType getType() const override { return MetaOscType::DRUNKEN_WALKERS; }
-    size_t getTimerMS() override {
-      return 5;
-    }
+//     struct point {float x; float y;};
+//     std::array<point, N> walkers;
+//     std::vector<std::deque<point>> pastStates;
+//     std::array<int, N> colours;
 
 
+//     metaDrunkenWalkers() {
+//         //init with equally spread phase
+//         for(size_t i=0; i < N; i++) {
+//             walkers[i].x=120;
+//             walkers[i].y=120;
+//             colours[i] = rgbTo565(i, 100 + (i * 10), i*3);
+//         }
+//         this->modspeed.setMax(0.1);
+//         this->modspeed.setScale(0.001);
+//         this->moddepth.setMax(0.1);
+//         this->moddepth.setScale(0.0009);
 
-    std::array<float, N> update(const size_t adcs[4]) override {
-        for(size_t i=0; i < N; i++) {
+//         pastStates.resize(N);
+//     }
 
-          //random walk
-          walkers[i].x += (random(-2000,2000)/100.0) * this->modspeed.getValue();
-          walkers[i].y += (random(-2000,2000)/100.0) * this->modspeed.getValue();
-
-          //wrap
-          if (walkers[i].x < sqbound) {
-            walkers[i].x += sqwidth;
-          }else if (walkers[i].x > sqboundBR) {
-            walkers[i].x -= sqwidth;
-          }
-          if (walkers[i].y < sqbound) {
-            walkers[i].y += sqwidth;
-          }else if (walkers[i].y > sqboundBR) {
-            walkers[i].y -= sqwidth;
-          }
-
-
-          //distance from the centre
-          const float dx = 120 - walkers[i].x;
-          const float dy = 120 - walkers[i].y;
-          mods[i] = sqrtf((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
+//     String getName() override {return "drunk walkers";}
+//     MetaOscType getType() const override { return MetaOscType::DRUNKEN_WALKERS; }
+//     size_t getTimerMS() override {
+//       return 5;
+//     }
 
 
-        }
-        return mods;
-    }
 
-    void draw(TFT_eSPI &tft) override { 
+//     std::array<float, N> update(const size_t adcs[4]) override {
+//         for(size_t i=0; i < N; i++) {
 
-      for(size_t i=0; i < N; i++) {
-        while(pastStates[i].size() > 30) {
-          tft.fillRect(pastStates[i].front().x, pastStates[i].front().y, 2, 2, ELI_BLUE);
-          pastStates[i].pop_front();
-        }
-        tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, colours[i]);
-        pastStates[i].push_back(walkers[i]);
+//           //random walk
+//           walkers[i].x += (random(-2000,2000)/100.0) * this->modspeed.getValue();
+//           walkers[i].y += (random(-2000,2000)/100.0) * this->modspeed.getValue();
 
-      }
-    }
+//           //wrap
+//           if (walkers[i].x < sqbound) {
+//             walkers[i].x += sqwidth;
+//           }else if (walkers[i].x > sqboundBR) {
+//             walkers[i].x -= sqwidth;
+//           }
+//           if (walkers[i].y < sqbound) {
+//             walkers[i].y += sqwidth;
+//           }else if (walkers[i].y > sqboundBR) {
+//             walkers[i].y -= sqwidth;
+//           }
 
-    std::array<float, N>& getValues() override {
-      return mods;
-    };
 
-private:
-  std::array<float, N> mods;
-};
+//           //distance from the centre
+//           const float dx = 120 - walkers[i].x;
+//           const float dy = 120 - walkers[i].y;
+//           mods[i] = sqrtf((dx * dx) + (dy * dy)) * this->moddepth.getValue() * 0.01; 
+
+
+//         }
+//         return mods;
+//     }
+
+//     void draw(TFT_eSPI &tft) override { 
+
+//       for(size_t i=0; i < N; i++) {
+//         while(pastStates[i].size() > 30) {
+//           tft.fillRect(pastStates[i].front().x, pastStates[i].front().y, 2, 2, ELI_BLUE);
+//           pastStates[i].pop_front();
+//         }
+//         tft.fillRect(walkers[i].x, walkers[i].y, 2, 2, colours[i]);
+//         pastStates[i].push_back(walkers[i]);
+
+//       }
+//     }
+
+//     std::array<float, N>& getValues() override {
+//       return mods;
+//     };
+
+// private:
+//   std::array<float, N> mods;
+// };
 
 template<size_t N>
 class metaDrunkenWalkersFP : public metaOscFP<N> {
@@ -780,11 +780,6 @@ public:
 
             FixedType deltaX = randomDeltaX.mulWith(this->modspeed.getValue());
             FixedType deltaY = randomDeltaY.mulWith(this->modspeed.getValue());
-
-        static int debugCounter = 0;
-        if (debugCounter++ % 100 == 0 && i==0) {
-            Serial.printf("%f\t%f\n", randomDeltaX.to_float(), randomDeltaY.to_float());
-        }
 
             walkers[i].x += deltaX;
             walkers[i].y += deltaY;
@@ -1354,7 +1349,7 @@ public:
             ACTIVATION_FUNCTIONS::RELU,
             ACTIVATION_FUNCTIONS::LINEAR,
             ACTIVATION_FUNCTIONS::RELU,
-            ACTIVATION_FUNCTIONS::SIGMOID
+            ACTIVATION_FUNCTIONS::HARDSIGMOID
         });
         net->SetCachedLayerOutputs(true);
         net->DrawWeights();
@@ -1365,8 +1360,8 @@ public:
         // Fixed-point parameters
         this->modspeed.setMax(Q16_16(0.1));
         this->modspeed.setScale(Q16_16(0.001));
-        this->moddepth.setMax(Q16_16(0.1));
-        this->moddepth.setScale(Q16_16(0.0009));
+        this->moddepth.setMax(Q16_16(0.5));
+        this->moddepth.setScale(Q16_16(0.005));
     }
 
     ~metaOscMLPFP() {
@@ -1417,14 +1412,16 @@ public:
             // ================================================================
 
             // Post-process and convert to Q16_16
-            const Q16_16 half = Q16_16(0.5);
-            const Q16_16 scale = Q16_16(0.1);
+            const Q16_16 half = Q16_16(0.5f);
+            // const Q16_16 scale = Q16_16(2.f);
 
             for(size_t i = 0; i < N; i++) {
                 // Convert float output to Q16_16, center and scale
                 Q16_16 value = Q16_16(output[i]);
-                arrOutput[i] = (value - half) * scale;
+                arrOutput[i] = (value - half);// * scale;
+                // Serial.printf("%f %f\t", value.to_float(), arrOutput[i].to_float());
             }
+            // Serial.println();
 
             // ================================================================
             // UPDATE PHASOR (FIXED-POINT)
