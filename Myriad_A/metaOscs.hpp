@@ -1133,12 +1133,12 @@ public:
         boids = std::vector<boidFP>(N);
 
         for(auto &v: boids) {
-            v.x = Q16_16(random(sqbound, sqboundBR));
-            v.y = Q16_16(random(sqbound, sqboundBR));
+            v.x = Q16_16::random_hw(sqboundFP, sqboundBRFP);
+            v.y = Q16_16::random_hw(sqboundFP, sqboundBRFP);
             v.px = v.x;
             v.py = v.y;
-            v.vx = Q16_16(((random(1000) / 1000.f) - 0.5f) * 0.8f);
-            v.vy = Q16_16(((random(1000) / 1000.f) - 0.5f) * 0.8f);
+            v.vx = Q16_16::random_hw(Q16_16(-0.4), Q16_16(0.4));
+            v.vy = Q16_16::random_hw(Q16_16(-0.4), Q16_16(0.4));
             v.pvx = v.vx;
             v.pvy = v.vy;
         }
@@ -1165,6 +1165,12 @@ public:
         return FixedPoint::sqrt(dx * dx + dy * dy);
     }
 
+    inline Q16_16 distL1(Q16_16 x1, Q16_16 y1, Q16_16 x2, Q16_16 y2) {
+        Q16_16 dx = x2 - x1;
+        Q16_16 dy = y2 - y1;
+        return FixedPoint::abs(dx) + FixedPoint::abs(dy);
+    }    
+ 
     std::array<Q16_16, N> update(const size_t adcs[4]) override {
         // Calculate center of mass
         Q16_16 sumX = Q16_16(0);
@@ -1173,17 +1179,17 @@ public:
             sumX += v.x;
             sumY += v.y;
         }
-        centerX = sumX / Q16_16(N);
-        centerY = sumY / Q16_16(N);
+        centerX = sumX * Q16_16(1.f/N);
+        centerY = sumY * Q16_16(1.f/N);
 
         // Fixed-point constants
-        const Q16_16 cohesionRadius = Q16_16(45.0);
-        const Q16_16 separationRadius = Q16_16(30.0);
-        const Q16_16 alignmentRadius = Q16_16(40.0);
+        const Q16_16 cohesionRadius = Q16_16(60.0);
+        const Q16_16 separationRadius = Q16_16(45.0);
+        const Q16_16 alignmentRadius = Q16_16(55.0);
         const Q16_16 cohesionStrength = Q16_16(0.005);
         const Q16_16 separationMul = Q16_16(0.2);
         const Q16_16 alignmentStrength = Q16_16(0.05);
-        const Q16_16 maxSpeed = Q16_16(2.5);
+        const Q16_16 maxSpeed = Q16_16(1.5);
 
         const Q16_16 sqboundFP = Q16_16(sqbound);
         const Q16_16 sqboundBRFP = Q16_16(sqboundBR);
@@ -1204,15 +1210,15 @@ public:
             int neighborCount = 0;
             for(auto &other: boids) {
                 if (&v != &other) {
-                    neighbors[neighborCount].dist = distBetween(v.x, v.y, other.x, other.y);
+                    neighbors[neighborCount].dist = distL1(v.x, v.y, other.x, other.y);
                     neighbors[neighborCount].ptr = &other;
                     neighborCount++;
                 }
             }
 
             // Rule 1: Cohesion - move towards center of mass
-            Q16_16 dcxr1 = (centerX - v.x) * cohesionStrength;
-            Q16_16 dcyr1 = (centerY - v.y) * cohesionStrength;
+            Q16_16 dcxr1 = (centerX - v.x).mul_fast(cohesionStrength);
+            Q16_16 dcyr1 = (centerY - v.y).mul_fast(cohesionStrength);
 
             // Rule 2 & 3: Separation and Alignment
             Q16_16 dcxr2 = Q16_16(0);
@@ -1246,10 +1252,11 @@ public:
             dcyr2 = dcyr2 * separationMul;
 
             if (alignCount > 0) {
-                avgVx = avgVx / Q16_16(alignCount);
-                avgVy = avgVy / Q16_16(alignCount);
-                dcxr3 = (avgVx - v.vx) * alignmentStrength;
-                dcyr3 = (avgVy - v.vy) * alignmentStrength;
+                // auto alignCountInv =Q16_16(1.f) / Q16_16(alignCount);
+                avgVx = avgVx.div_int(alignCount);
+                avgVy = avgVy.div_int(alignCount);
+                dcxr3 = (avgVx - v.vx).mul_fast(alignmentStrength);
+                dcyr3 = (avgVy - v.vy).mul_fast(alignmentStrength);
             }
 
             // Update velocity
@@ -1257,7 +1264,7 @@ public:
             v.vy += dcyr1 + dcyr2 + dcyr3;
 
             // Speed limiting
-            Q16_16 speed = FixedPoint::sqrt(v.vx * v.vx + v.vy * v.vy);
+            Q16_16 speed = FixedPoint::sqrt(v.vx.mul_fast(v.vx) + v.vy.mul_fast(v.vy));
 
             if (speed > maxSpeed) {
                 v.vx = (v.vx / speed) * maxSpeed;
