@@ -70,6 +70,24 @@ public:
     constexpr explicit Fixed(double d) 
         : value(static_cast<storage_type>(d * ONE + (d >= 0.0 ? 0.5 : -0.5))) {}
     
+
+    // Constructor from another Fixed format
+    template<int IntBits2, int FracBits2, IntegerStorage StorageT2>
+    constexpr explicit Fixed(const Fixed<IntBits2, FracBits2, StorageT2>& other) {
+        constexpr int shift_diff = FRACTIONAL_BITS - FracBits2;
+        
+        if constexpr (shift_diff > 0) {
+            // Upscaling - shift left
+            value = static_cast<storage_type>(other.raw()) << shift_diff;
+        } else if constexpr (shift_diff < 0) {
+            // Downscaling - shift right with rounding
+            constexpr auto round = StorageT2(1) << (-shift_diff - 1);
+            value = static_cast<storage_type>((other.raw() + round) >> -shift_diff);
+        } else {
+            // Same fractional bits - just cast
+            value = static_cast<storage_type>(other.raw());
+        }
+    }        
     // ========================================================================
     // STATIC FACTORY METHODS
     // ========================================================================
@@ -304,6 +322,44 @@ public:
         Fixed recip = denominator.reciprocal_fast();
         return mul_fast(recip);
     }
+
+    // ========================================================================
+    // Random numbers
+    // ========================================================================
+
+    // Hardware RNG - optimized version
+    static Fixed random_hw(const Fixed& min_val, const Fixed& max_val) {
+        storage_type range = max_val.value - min_val.value;
+        
+        if (range == 0) return min_val;
+        
+        uint32_t r = get_rand_32();
+        
+        // For small ranges, avoid 64-bit math
+        // Safe if range * (r >> 16) fits in 32 bits
+        if (range < (1 << 15)) {
+            // Split r into high and low parts for better distribution
+            storage_type scaled = ((r >> 16) * range) >> 16;
+            return Fixed::from_raw(min_val.value + scaled);
+        } else {
+            // Need 64-bit for larger ranges
+            int64_t scaled = (static_cast<int64_t>(r) * range) >> 32;
+            return Fixed::from_raw(min_val.value + static_cast<storage_type>(scaled));
+        }
+    }
+
+    // Fast [0, 1) range using hardware RNG
+    static Fixed random_unit_hw() {
+        uint32_t r = get_rand_32();
+        // Shift to fit our fractional bits
+        return Fixed::from_raw(static_cast<storage_type>(r >> (32 - FRACTIONAL_BITS)));
+    }
+
+    // Fast [-1, 1) range using hardware RNG  
+    static Fixed random_bipolar_hw() {
+        int32_t r = static_cast<int32_t>(get_rand_32());
+        return Fixed::from_raw(r >> (32 - FRACTIONAL_BITS - 1));
+    }
     
     // ========================================================================
     // RP2040 HARDWARE ACCELERATED OPERATIONS
@@ -391,6 +447,8 @@ convert(const Fixed<FromIntBits, FromFracBits, FromStorage>& from) {
         );
     }
 }
+
+
 
 // ============================================================================
 // BASIC MATH FUNCTIONS

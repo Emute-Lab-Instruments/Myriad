@@ -725,7 +725,7 @@ private:
 template<size_t N>
 class metaDrunkenWalkersFP : public metaOscFP<N> {
 public:
-    using FixedType = Q16_16;
+    using FixedType = Fixed<10,22>;
 
     struct pointFP {
         FixedType x;
@@ -745,10 +745,10 @@ public:
         }
 
         // Set parameter limits (matching float version)
-        this->modspeed.setMax(FixedType(0.1));
-        this->modspeed.setScale(FixedType(0.001));
-        this->moddepth.setMax(FixedType(0.1));
-        this->moddepth.setScale(FixedType(0.0009));
+        this->modspeed.setMax(Q16_16(0.1));
+        this->modspeed.setScale(Q16_16(0.001));
+        this->moddepth.setMax(Q16_16(0.1));
+        this->moddepth.setScale(Q16_16(0.0009));
 
         pastStates.resize(N);
     }
@@ -763,23 +763,31 @@ public:
         return 5;
     }
 
-    std::array<FixedType, N> update(const size_t adcs[4]) override {
+    std::array<Q16_16, N> update(const size_t adcs[4]) override {
         // Fixed-point constants for spatial bounds
         const FixedType sqboundFP = FixedType(sqbound);
         const FixedType sqboundBRFP = FixedType(sqboundBR);
         const FixedType sqwidthFP = FixedType(sqwidth);
         const FixedType centerX = FixedType(120);
         const FixedType centerY = FixedType(120);
-        const FixedType depthScale = FixedType(0.01);
-        const FixedType randomScale = FixedType(0.01);  // 1/100 for random conversion
+        const FixedType depthScale = FixedType(0.01f);
+
 
         for(size_t i=0; i < N; i++) {
             // Random walk: convert random(-2000, 2000) to fixed-point range [-20, +20]
-            FixedType randomDeltaX = FixedType(random(-2000, 2000)) * randomScale;
-            FixedType randomDeltaY = FixedType(random(-2000, 2000)) * randomScale;
+            FixedType randomDeltaX = FixedType::random_hw(FixedType::from_int(-20), FixedType::from_int(20));
+            FixedType randomDeltaY = FixedType::random_hw(FixedType::from_int(-20), FixedType::from_int(20));
 
-            walkers[i].x += randomDeltaX * this->modspeed.getValue();
-            walkers[i].y += randomDeltaY * this->modspeed.getValue();
+            FixedType deltaX = randomDeltaX.mulWith(this->modspeed.getValue());
+            FixedType deltaY = randomDeltaY.mulWith(this->modspeed.getValue());
+
+        static int debugCounter = 0;
+        if (debugCounter++ % 100 == 0 && i==0) {
+            Serial.printf("%f\t%f\n", randomDeltaX.to_float(), randomDeltaY.to_float());
+        }
+
+            walkers[i].x += deltaX;
+            walkers[i].y += deltaY;
 
             // Wrap at boundaries
             if (walkers[i].x < sqboundFP) {
@@ -804,7 +812,8 @@ public:
             const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
 
             // Modulation output: distance scaled by depth
-            mods[i] = distance * this->moddepth.getValue() * depthScale;
+             FixedType modVal = distance * FixedType(this->moddepth.getValue()) * depthScale;
+             mods[i] = Q16_16(modVal); // convert to q16_16
         }
 
         return mods;
@@ -830,12 +839,12 @@ public:
         }
     }
 
-    std::array<FixedType, N>& getValues() override {
+    std::array<Q16_16, N>& getValues() override {
         return mods;
     }
 
 private:
-    std::array<FixedType, N> mods;
+    std::array<Q16_16, N> mods;
 };
 
 // Forward declaration for 2D screen point
@@ -983,9 +992,9 @@ public:
 };
 
 template<size_t N>
-class metaLorenzFP : public metaAttractorFP<Q12_20, N> {
+class metaLorenzFP : public metaAttractorFP<Q16_16, N> {
 public:
-    using FixedType = Q12_20;
+    using FixedType = Q16_16;
 
     metaLorenzFP() {
         // Initial state

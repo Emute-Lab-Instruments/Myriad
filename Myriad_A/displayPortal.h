@@ -349,11 +349,23 @@ public:
 
   void setMetaOsc(size_t newIdx, metaOscFPPtr<N_OSCS> newPtr) {
     nextState.metaOscVisScreenState.metaOsc = newIdx;
-    nextState.metaOscVisScreenState.ptr = newPtr; 
-    nextState.oscBankScreenState.ptr = newPtr; 
+    nextState.metaOscVisScreenState.ptr = newPtr;
+    nextState.oscBankScreenState.ptr = newPtr;
     nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue().to_float();
     nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue().to_float();
-    nextState.redraw = true;   
+    nextState.redraw = true;
+  }
+
+  // Overload for raw pointers (used with static objects)
+  void setMetaOsc(size_t newIdx, metaOscFP<N_OSCS>* newPtr) {
+    // Create non-owning shared_ptr with empty deleter for internal storage
+    // Safe because static object lifetime exceeds display lifetime
+    nextState.metaOscVisScreenState.metaOsc = newIdx;
+    nextState.metaOscVisScreenState.ptr = std::shared_ptr<metaOscFP<N_OSCS>>(newPtr, [](auto*){});
+    nextState.oscBankScreenState.ptr = nextState.metaOscVisScreenState.ptr;
+    nextState.metaOscVisScreenState.moddepth = newPtr->moddepth.getNormalisedValue().to_float();
+    nextState.metaOscVisScreenState.modspeed = newPtr->modspeed.getNormalisedValue().to_float();
+    nextState.redraw = true;
   }
 
   void setMetaModDepth(Q16_16 newDepth) {

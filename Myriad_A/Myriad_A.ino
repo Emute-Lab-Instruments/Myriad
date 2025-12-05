@@ -103,9 +103,27 @@ volatile bool FAST_MEM restartOscsFlag=false;
 // std::array<metaOscPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaOscSines1};
 
 
-metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlankFP = std::make_shared<metaOscNoneFP<N_OSCILLATORS>>();
-metaOscFPPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1FP = std::make_shared<metaOscSinesFP<N_OSCILLATORS>>();
-std::array<metaOscFPPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsFPList = {metaOscBlankFP, metaOscSines1FP};
+metaOscNoneFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscNone;
+metaOscSinesFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscSines;
+metaOscSinesFMultipleFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscSinesFMultiple;
+metaLorenzFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscLozenz;
+metaRosslerFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscRossler;
+metaOscBoidsFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscBoids;
+metaDrunkenWalkersFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscDrunkenWalkers;
+metaOscMLPFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscNN;
+
+
+// Array of base class pointers
+std::array<metaOscFP<N_OSCILLATORS>*, 8> __not_in_flash("mydata") metaOscsFPList = {
+    &staticMetaOscNone,
+    &staticMetaOscBoids,
+    &staticMetaOscLozenz,
+    &staticMetaOscRossler,
+    &staticMetaOscSines,
+    &staticMetaOscSinesFMultiple,
+    &staticMetaOscNN,
+    &staticMetaOscDrunkenWalkers
+};
 
 size_t FAST_MEM currMetaMod = 0;
 
@@ -1440,7 +1458,7 @@ void setup() {
   // display.setMetaOsc(0, metaOscsList[0]);
 
   // Now turn display on
-  digitalWrite(TFT_BL, HIGH);  
+  // digitalWrite(TFT_BL, HIGH);  // TODO: TFT_BL not defined  
 
   gpio_set_drive_strength(12, GPIO_DRIVE_STRENGTH_12MA);
   gpio_set_slew_rate(12, GPIO_SLEW_RATE_FAST);
