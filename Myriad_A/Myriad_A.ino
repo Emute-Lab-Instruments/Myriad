@@ -307,12 +307,11 @@ bool __not_in_flash("adc") metaModReady = false;
 bool __not_in_flash("adc") octReady = false;
 
 size_t __not_in_flash("adc") lastOctaveIdx = 0;
-size_t __not_in_flash("adc") octaveIdx = 0;
+
 median_filter_t __not_in_flash("adc") pitchMedian;
 
 
 constexpr size_t systemUpdateFreq = 8000;
-constexpr size_t __not_in_flash("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
 volatile bool __not_in_flash("adc") newFrequenciesReady = false;
@@ -399,13 +398,11 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     filteredADC1 = filteredADC1 - (CalibrationSettings::adcMins[1]);
     if (filteredADC1<0) filteredADC1=0;
     if (filteredADC1>4095) filteredADC1=4095;
-    // float detuneControl = filteredADC1 * CalibrationSettings::adcRangesInv[1];
-    // detuneControl *= detuneControl; //exponential mapping
-    // detune = (detuneControl * 0.016f) * new_wavelen0;  
-    
-    Fixed<0,16> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1Fixed);
+
+    //detuning
+    Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1Fixed);
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
-    Fixed<0,16> ctrlValScaled = ctrlValFixed.mul_fast(Fixed<0,16>(0.016f));
+    Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(Fixed<0,18>(0.016f));
     detuneFixed = new_wavelen0_fixed.mulWith(ctrlValScaled);
 
     // PERIODIC_RUN(
@@ -416,10 +413,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // if (detuneControl > 1.0f) detuneControl = 1.0f;
     // if (detuneControl < 0.0f) detuneControl = 0.0f;
 
-    // new_wavelen1 = (new_wavelen0 - detune);
-    // new_wavelen2 = (new_wavelen1 - detune);
-
-
+    //epsilon
     adcLpf2.play(adcReadings[2]);
     int filteredADC2 = adcLpf2.value();
     controlValues[2] = filteredADC2;
@@ -428,73 +422,23 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // if (filteredADC2>4095) filteredADC2=4095;
     ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
 
-
-    // if (metaUpdateCounter++ >= metaUpdatePeriod) {
-    //   metaUpdateCounter = 0;
-
-    //   auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
-
-    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-    //       metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
-    //       metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
-    //       metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
-    //       metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
-    //       metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
-    //       metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
-    //       metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
-    //       metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
-    //       metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
-    //   }
-
-    //   //TODO: many to one mapping?
-    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-    //       metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
-    //   }
-    //   metaModReady = true;
-
-
-    //   }
-
       
     // }
 
 
-    //   new_wavelen0 = new_wavelen0 * octMul0;
-    //   new_wavelen1 = new_wavelen1 * octMul1;
-    //   new_wavelen2 = new_wavelen2 * octMul2;
-
-    //todo: need 64 bit overflow?
-    // new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
-    // new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
-    // new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
-
     //todo: change to fixed
     ctrlVal *= metaModCtrlMul.to_float();
 
-    size_t octControl = adcReadings[3];
-    
+    //octaves
+    const size_t octControl = adcReadings[3];
     controlValues[3] = octControl;
-
-    octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
+    const size_t octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
 
     if (octaveIdx != lastOctaveIdx) {
       lastOctaveIdx = octaveIdx;
       octReady = true;
-
       currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
-      // oct0Shift = currentOctaveShifts[0];
-      // oct1Shift = currentOctaveShifts[1];
-      // oct2Shift = currentOctaveShifts[2];
     }
-
-    // static size_t msgCt=0;
-    // if (msgCt == 500U) {
-    //   Serial.printf("%f\t%f\t%f\t%f%\t%f\n",freq, new_wavelen0, new_wavelen1, detune,detuneControl);
-    //   // Serial.print(".");
-    //   msgCt=0;
-    // }
-    // msgCt++;
-
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
@@ -1524,6 +1468,29 @@ void __not_in_flash_func(loop)() {
 
   auto now = micros();
 
+  PERIODIC_RUN_US(
+      auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+          metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
+          metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
+          metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
+          metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
+          metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
+          metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
+          metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
+          metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
+          metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
+      }
+
+      //TODO: many to one mapping?
+      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+          metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
+      }
+      metaModReady = true;
+    ,1000
+  );
+
+
   // if (newFrequenciesReady && now - freqTS >= 125) {
 
   //   // PERF_BEGIN(SERIALTX);
@@ -1580,7 +1547,7 @@ void __not_in_flash_func(loop)() {
   // }
 
 
-  if (now - displayTS >= 1000000/28{
+  if (now - displayTS >= 1000000/28){
     PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
@@ -1776,6 +1743,11 @@ void __not_in_flash_func(loop1)() {
     if (newFrequenciesReady) {
       new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);
       new_wavelen2_fixed = (new_wavelen1_fixed - detuneFixed);
+
+      new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
+      new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
+      new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
+
       new_wavelen0_fixed = currentOctaveShifts[0] > 0 ? new_wavelen0_fixed >> currentOctaveShifts[0] : new_wavelen0_fixed << -currentOctaveShifts[0];
       new_wavelen1_fixed = currentOctaveShifts[1] > 0 ? new_wavelen1_fixed >> currentOctaveShifts[1] : new_wavelen1_fixed << -currentOctaveShifts[1];
       new_wavelen2_fixed = currentOctaveShifts[2] > 0 ? new_wavelen2_fixed >> currentOctaveShifts[2] : new_wavelen2_fixed << -currentOctaveShifts[2];

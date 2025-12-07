@@ -537,7 +537,7 @@ namespace CalibrationSettings {
   static CALIBMEM Fixed<16,16> adcMinsFP[4] = {adcInitMinFP,adcInitMinFP,adcInitMinFP,adcInitMinFP};
   static CALIBMEM Fixed<16,16> adcMaxsFP[4] = {adcInitMaxFP,adcInitMaxFP,adcInitMaxFP,adcInitMaxFP};
   static CALIBMEM Fixed<16,16> adcRangesFP[4];
-  static CALIBMEM Fixed<0,16> adcRangesInvFP[4];
+  static CALIBMEM Fixed<0,18> adcRangesInvFP[4];
 
   // static __not_in_flash("calib") std::array<int,9> pitchCalPoints = {
   //   0,  //-5V C-1
@@ -562,7 +562,7 @@ namespace CalibrationSettings {
       CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
       CalibrationSettings::adcMinsFP[i] = Fixed<16,16>(CalibrationSettings::adcMins[i]);
       CalibrationSettings::adcRangesFP[i] = Fixed<16,16>(CalibrationSettings::adcRanges[i]);
-      CalibrationSettings::adcRangesInvFP[i] = Fixed<0,16>(CalibrationSettings::adcRangesInv[i]);
+      CalibrationSettings::adcRangesInvFP[i] = Fixed<0,18>(CalibrationSettings::adcRangesInv[i]);
     }
   }
 
