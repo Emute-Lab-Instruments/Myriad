@@ -86,23 +86,6 @@ std::array<oscModelPtr, 3> FAST_MEM currOscModels;
 volatile bool FAST_MEM oscsReadyToStart=false;
 volatile bool FAST_MEM restartOscsFlag=false;
 
-//a list of reference models for display data
-// std::array<oscModelPtr,N_OSCILLATOR_MODELS> FAST_MEM oscModelsDisplayRef;
-
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscBlank = std::make_shared<metaOscNone<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscNN = std::make_shared<metaOscMLP<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSines1 = std::make_shared<metaOscSines<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaOscSinesFMultiple1 = std::make_shared<metaOscSinesFMultiple<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaDrunkenWalkers1 = std::make_shared<metaDrunkenWalkers<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaLorenz1 = std::make_shared<metaLorenz<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaRossler1 = std::make_shared<metaRossler<N_OSCILLATORS>>();
-// metaOscPtr<N_OSCILLATORS> __not_in_flash("mydata") metaBoids1 = std::make_shared<metaOscBoids<N_OSCILLATORS>>();
-
-
-// std::array<metaOscPtr<N_OSCILLATORS>, 8> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaBoids1, metaLorenz1, metaOscSines1, metaRossler1, metaOscSinesFMultiple1, metaOscNN, metaDrunkenWalkers1};
-// std::array<metaOscPtr<N_OSCILLATORS>, 2> __not_in_flash("mydata") metaOscsList = {metaOscBlank, metaOscSines1};
-
-
 metaOscNoneFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscNone;
 metaOscSinesFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscSines;
 metaOscSinesFMultipleFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscSinesFMultiple;
@@ -151,7 +134,7 @@ struct repeating_timer FAST_MEM timerMetaModUpdate;
 
 /////////////////// messaging to Myriad B ///////////////////////
 
-static __scratch_x("msg") streamMessaging::msgpacket msg;
+static FAST_MEM streamMessaging::msgpacket msg;
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
    streamMessaging::createMessage(msg, value, msgType);
@@ -267,7 +250,7 @@ namespace controls {
 // MedianFilter<float> FAST_MEM adcMedians[4];
 // ResponsiveFilter FAST_MEM adcRsFilters[4];
 
-static size_t __scratch_x("adc") controlValues[4] = {0,0,0,0};
+static size_t __not_in_flash("adc") controlValues[4] = {0,0,0,0};
 // static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
@@ -289,8 +272,8 @@ static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
 
-uint __scratch_x("adc") dma_chan;
-uint __scratch_x("adc") dma_chan2;
+uint __not_in_flash("adc") dma_chan;
+uint __not_in_flash("adc") dma_chan2;
 
 FixedLpf<18,8> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
@@ -298,54 +281,54 @@ FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
 // FixedLpf<12,6> FAST_MEM adcLpf3;
 
-// float __scratch_x("adc") new_wavelen0 = 0;
-// float __scratch_x("adc") new_wavelen1 = 0;
-// float __scratch_x("adc") new_wavelen2 = 0;
-Fixed<20,12> __scratch_x("adc") new_wavelen0_fixed(0);
-Fixed<20,12> __scratch_x("adc") new_wavelen1_fixed(0);
-Fixed<20,12> __scratch_x("adc") new_wavelen2_fixed(0);
+// float __not_in_flash("adc") new_wavelen0 = 0;
+// float __not_in_flash("adc") new_wavelen1 = 0;
+// float __not_in_flash("adc") new_wavelen2 = 0;
+Fixed<20,12> __not_in_flash("adc") new_wavelen0_fixed(0);
+Fixed<20,12> __not_in_flash("adc") new_wavelen1_fixed(0);
+Fixed<20,12> __not_in_flash("adc") new_wavelen2_fixed(0);
 
-float __scratch_x("adc") detune = 0;
-float __scratch_x("adc") ctrlVal = 0;
+float __not_in_flash("adc") detune = 0;
+float __not_in_flash("adc") ctrlVal = 0;
 
-Fixed<20,12> __scratch_x("adc") detuneFixed;
+Fixed<20,12> __not_in_flash("adc") detuneFixed;
 
-Q16_16 __scratch_x("adc") metaModWavelenMul0 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul1 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul2 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul3 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul4 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul5 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul6 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul7 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModWavelenMul8 = Q16_16(1);
-Q16_16 __scratch_x("adc") metaModCtrlMul = Q16_16(1);
-bool __scratch_x("adc") metaModReady = false;
-bool __scratch_x("adc") octReady = false;
+Q16_16 __not_in_flash("adc") metaModWavelenMul0 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul1 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul2 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul3 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul4 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul5 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul6 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul7 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModWavelenMul8 = Q16_16(1);
+Q16_16 __not_in_flash("adc") metaModCtrlMul = Q16_16(1);
+bool __not_in_flash("adc") metaModReady = false;
+bool __not_in_flash("adc") octReady = false;
 
-size_t __scratch_x("adc") lastOctaveIdx = 0;
-size_t __scratch_x("adc") octaveIdx = 0;
-median_filter_t __scratch_x("adc") pitchMedian;
+size_t __not_in_flash("adc") lastOctaveIdx = 0;
+size_t __not_in_flash("adc") octaveIdx = 0;
+median_filter_t __not_in_flash("adc") pitchMedian;
 
 
 constexpr size_t systemUpdateFreq = 8000;
-constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
-size_t __scratch_x("adc") metaUpdateCounter = 0;
+constexpr size_t __not_in_flash("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
+size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
-volatile bool __scratch_x("adc") newFrequenciesReady = false;
+volatile bool __not_in_flash("adc") newFrequenciesReady = false;
 
-static size_t __scratch_x("adc") adcCount = 0;
-static size_t __scratch_x("adc") adcAccumulator0=0;
-static size_t __scratch_x("adc") adc0Oversample=0;
+static size_t __not_in_flash("adc") adcCount = 0;
+static size_t __not_in_flash("adc") adcAccumulator0=0;
+static size_t __not_in_flash("adc") adc0Oversample=0;
 #define oversampleBits 2
 #define oversampleFactor (1<<oversampleBits)
 
-float __scratch_x("adc") octMul0=1;
-float __scratch_x("adc") octMul1=1;
-float __scratch_x("adc") octMul2=1;
-uint8_t __scratch_x("adc") oct0Shift = 0;
-uint8_t __scratch_x("adc") oct1Shift = 0;
-uint8_t __scratch_x("adc") oct2Shift = 0;
+// float __not_in_flash("adc") octMul0=1;
+// float __not_in_flash("adc") octMul1=1;
+// float __not_in_flash("adc") octMul2=1;
+uint8_t __not_in_flash("adc") oct0Shift = 0;
+uint8_t __not_in_flash("adc") oct1Shift = 0;
+uint8_t __not_in_flash("adc") oct2Shift = 0;
 
 PERF_DECLARE(ADC);
 PERF_DECLARE(METAMODS);
@@ -1372,6 +1355,7 @@ void calibrate_button_callback() {
 // struct repeating_timer timerAdcProcessor;
 
 
+volatile bool core0ReadyFlag = 0;
 
 void setup() {
 
@@ -1511,8 +1495,8 @@ void setup() {
   constexpr Fixed<20,12> Fixed0(0);
   display.setDisplayWavelengths({Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0});
 
-  //start processing
-  setup_adcs();  
+  core0ReadyFlag = 1;
+
 
 
   
@@ -1540,63 +1524,63 @@ void __not_in_flash_func(loop)() {
 
   auto now = micros();
 
-  if (newFrequenciesReady && now - freqTS >= 125) {
+  // if (newFrequenciesReady && now - freqTS >= 125) {
 
-    // PERF_BEGIN(SERIALTX);
-    // sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
-    // PERF_END(SERIALTX);
+  //   // PERF_BEGIN(SERIALTX);
+  //   // sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0);
+  //   // PERF_END(SERIALTX);
 
-    newFrequenciesReady = false;
-    freqTS = now;
-  }else{
-    //stagger meta mod sends
-    switch(metaModSendIdx) {
-      case 5:
-      metaModSendIdx = 4;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3.to_float());
-      break;
-      case 4:
-      metaModSendIdx = 3;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4.to_float());
-      break;
-      case 3:
-      metaModSendIdx = 2;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5.to_float());
-      break;
-      case 2:
-      metaModSendIdx = 1;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6.to_float());
-      break;
-      case 1:
-      metaModSendIdx = 0;
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7.to_float());
-      break;
-    }
-    if (metaModReady) {
-      sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8.to_float());
-      metaModSendIdx=5;
-      metaModReady=false;
-    }
+  //   newFrequenciesReady = false;
+  //   freqTS = now;
+  // }else{
+  //   //stagger meta mod sends
+  //   switch(metaModSendIdx) {
+  //     case 5:
+  //     metaModSendIdx = 4;
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3.to_float());
+  //     break;
+  //     case 4:
+  //     metaModSendIdx = 3;
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4.to_float());
+  //     break;
+  //     case 3:
+  //     metaModSendIdx = 2;
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5.to_float());
+  //     break;
+  //     case 2:
+  //     metaModSendIdx = 1;
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6.to_float());
+  //     break;
+  //     case 1:
+  //     metaModSendIdx = 0;
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7.to_float());
+  //     break;
+  //   }
+  //   if (metaModReady) {
+  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8.to_float());
+  //     metaModSendIdx=5;
+  //     metaModReady=false;
+  //   }
     
 
-    if (now - ctrlTS >= 1000) {
-      sendToMyriadB(streamMessaging::messageTypes::CTRL0, ctrlVal);
-      ctrlTS = now;
-    }
-    if (now - detuneTS >= 9800) {
-      sendToMyriadB(streamMessaging::messageTypes::DETUNE, detune);
-      detuneTS = now;
-    }
+  //   if (now - ctrlTS >= 1000) {
+  //     sendToMyriadB(streamMessaging::messageTypes::CTRL0, ctrlVal);
+  //     ctrlTS = now;
+  //   }
+  //   if (now - detuneTS >= 9800) {
+  //     sendToMyriadB(streamMessaging::messageTypes::DETUNE, detune);
+  //     detuneTS = now;
+  //   }
 
-    if (octReady) {
-      sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
-      octReady = false;
-    }  
+  //   if (octReady) {
+  //     sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
+  //     octReady = false;
+  //   }  
 
-  }
+  // }
 
 
-  if (now - displayTS >= 49000) {
+  if (now - displayTS >= 1000000/28{
     PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
@@ -1708,6 +1692,13 @@ void __not_in_flash_func(loop)() {
 
 
 void setup1() {
+
+  while(!core0ReadyFlag) {
+    tight_loop_contents();
+  }
+
+  //start processing
+  setup_adcs();  
 
 #ifdef RUN_OSCS
 //wait for the first ADC readings
