@@ -464,7 +464,6 @@ class sawOscillatorModel : public virtual oscillatorModel {
     sawOscillatorModel() : oscillatorModel(){
       loopLength=16;
       prog=bitbybit_program;
-      // setClockMod(2.f);
 
       // generateSawtoothTable();
       // for(size_t i = 0; i < 1000; ++i) {
@@ -543,7 +542,7 @@ class triOscillatorModel : public virtual oscillatorModel {
     triOscillatorModel() : oscillatorModel(){
       loopLength=32;
       prog=bitbybit_program;
-      setClockMod(4.f);
+      setClockModShift(2);
       if (!triTableGenerated) {
         triTableGenerated=true;
         for(size_t i = 0; i < 1000; ++i) {
@@ -700,7 +699,6 @@ class slideOscillatorModel : public virtual oscillatorModel {
   public:
   slideOscillatorModel() : oscillatorModel(){
       loopLength=6;
-      setClockMod(0.25f);
       prog=pulse_program;
       oscInterpTemplate.resize(loopLength,1.0f/loopLength);
       smoothTemplate.resize(loopLength,1.0f/loopLength);
@@ -825,7 +823,7 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
     triSDVar1OscillatorModel() : oscillatorModel(){
       loopLength=32;
-      setClockMod(2.f);
+      setClockModShift(1);
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -864,7 +862,7 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const float v) override {
-      mul = ((1.f - (v * 0.9)) * qfpMul);
+      mul = ((1.f - (v * 0.9f)) * qfpMul);
     }
       
   
@@ -985,7 +983,7 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
       loopLength=32;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      setClockMod(2.f);
+      setClockModShift(1);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
@@ -1063,7 +1061,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
     whiteNoiseOscillatorModel() : oscillatorModel(){
       loopLength=32;
       prog=bitbybit_program;
-      setClockMod(2.0f);
+      setClockModShift(1);
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
@@ -1110,7 +1108,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
       loopLength=32;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      setClockMod(2.f);
+      setClockModShift(1);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {

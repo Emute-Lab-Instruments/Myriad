@@ -26,8 +26,8 @@ public:
 
   volatile bool newFreq;
   bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
-  float clockmod = 1.f;
-  float clockmodinv = 1.f;
+  // float clockmodinv = 1.f;
+  size_t clockModShift = 0;
 
   virtual void ctrl(const float v) {
     //receive a control parameter
@@ -40,13 +40,12 @@ public:
   virtual void reset() {
   }
 
-  void setClockMod(const float mod) {
-    clockmod = mod;
-    clockmodinv = 1.f / clockmod;
+  void setClockModShift(const size_t shift) {
+    clockModShift = shift;
   }
 
   size_t getClockDiv() const {
-    return static_cast<size_t>(clockdiv * clockmod);
+    return clockdiv << clockModShift;
   }
 
   inline size_t getWavelen() const {
@@ -55,7 +54,7 @@ public:
 
   inline void setWavelen(const size_t wlen) {
     if (wlen >=  minWavelen) {
-      wavelen = wlen * clockmodinv;
+      wavelen = wlen >> clockModShift;
       newFreq = true;
     }
   }
@@ -63,12 +62,12 @@ public:
   size_t getWavelenAtFrequency(const float freq) {
     //calculate wavelen for a given frequency
     //wavelen = clockdiv / freq;
-    const size_t w = static_cast<size_t>(sampleClock / freq * clockmodinv);
+    const size_t w = static_cast<size_t>(sampleClock / freq ) >> clockModShift;
     return w;
   }
 
   size_t getMinWavelen() const {
-    return static_cast<size_t>(sampleClock /20000.f * clockmodinv);
+    return static_cast<size_t>(sampleClock /20000.f) >> clockModShift;
   }
 
   virtual String getIdentifier() {

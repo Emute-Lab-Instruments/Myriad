@@ -7,6 +7,7 @@
 // Configuration
 #define PERF_ENABLED 1  // Set to 0 to completely disable (zero overhead)
 #define PERF_WINDOW_SIZE 64  // Number of samples to average (must be power of 2)
+constexpr size_t avgshift = __builtin_ctz(PERF_WINDOW_SIZE);
 
 // Performance measurement structure
 struct PerfCounter {
@@ -14,6 +15,8 @@ struct PerfCounter {
     uint32_t sample_count;     // Total samples (wraps at PERF_WINDOW_SIZE)
     uint32_t mean_cycles;      // Rolling mean
     uint32_t last_cycles;      // Most recent measurement
+    size_t windowStartTS;
+    size_t avgTime;
     const char* name;
 };
 
@@ -28,6 +31,8 @@ inline void perf_init_counter(PerfCounter* counter, const char* name) {
     counter->sample_count = 0;
     counter->mean_cycles = 0;
     counter->last_cycles = 0;
+    counter->avgTime = 1;
+    counter->windowStartTS=0;
     counter->name = name;
 }
 
@@ -41,8 +46,12 @@ inline void perf_update_stats(PerfCounter* counter, uint32_t cycles) {
     
     if ((counter->sample_count & (PERF_WINDOW_SIZE - 1)) == 0) {
         // Window complete - calculate mean and reset
-        counter->mean_cycles = counter->accumulator >> __builtin_ctz(PERF_WINDOW_SIZE);
+        counter->mean_cycles = counter->accumulator >> avgshift;
         counter->accumulator = 0;
+        auto now = micros();
+        size_t elapsed = now - counter->windowStartTS;
+        counter->avgTime = elapsed >> avgshift;
+        counter->windowStartTS = now;
     }
 }
 
@@ -82,6 +91,7 @@ inline void perf_update_stats(PerfCounter* counter, uint32_t cycles) {
 #define PERF_GET_MEAN(name) (perf_##name.mean_cycles)
 #define PERF_GET_LAST(name) (perf_##name.last_cycles)
 #define PERF_GET_COUNT(name) (perf_##name.sample_count)
+#define PERF_GET_FREQ(name) (perf_##name.avgTime > 0 ? 1000000.f/perf_##name.avgTime : 0.f)
 
 #else  // PERF_ENABLED == 0
 

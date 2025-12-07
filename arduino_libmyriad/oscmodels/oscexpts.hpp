@@ -93,7 +93,7 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
     triSDFBVar1OscillatorModel() : oscillatorModel(){
       loopLength=64;
       prog=bitbybit_program;
-      setClockMod(2.f);
+      setClockModShift(1);
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 

@@ -292,7 +292,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __scratch_x("adc") dma_chan;
 uint __scratch_x("adc") dma_chan2;
 
-FixedLpf<18,4> FAST_MEM adcLpf0;
+FixedLpf<18,8> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
@@ -328,7 +328,7 @@ size_t __scratch_x("adc") octaveIdx = 0;
 median_filter_t __scratch_x("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 6000;
+constexpr size_t systemUpdateFreq = 8000;
 constexpr size_t __scratch_x("adc") metaUpdatePeriod = systemUpdateFreq  / 50;
 size_t __scratch_x("adc") metaUpdateCounter = 0;
 
@@ -337,7 +337,7 @@ volatile bool __scratch_x("adc") newFrequenciesReady = false;
 static size_t __scratch_x("adc") adcCount = 0;
 static size_t __scratch_x("adc") adcAccumulator0=0;
 static size_t __scratch_x("adc") adc0Oversample=0;
-#define oversampleBits 6
+#define oversampleBits 2
 #define oversampleFactor (1<<oversampleBits)
 
 float __scratch_x("adc") octMul0=1;
@@ -367,26 +367,6 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     
     PERF_BEGIN(ADC);
     
-    // Serial.printf("%d %d %d %d\n",adcReadings[0],adcReadings[1],adcReadings[2],adcReadings[3]);
-    #ifdef TEST_ARPEGGIATOR
-      float pitchCV=arpNotes[arpIndex];
-      // if (arpCount==0) {
-        // arpCount=0;
-        arpIndex+=1;
-        if (arpIndex >= arpNotes.size()) {
-          arpIndex=0;
-        }
-      // }
-      // arpCount+=1;
-    #else
-      // float pitchCV = adcMap(0);
-      // size_t index = (size_t)controlValues[0];
-      // float voltage = pitchADCMap[index];
-      // float pitchCV = (voltage+5.f) * 0.1f;
-      // Serial.printf("%d, %f, %f\n", index, voltage, pitchCV);
-      // float pitchCV = adcReadings[0] / 4095.f; //raw
-      // size_t pitchCV = pitchADCMap[adcReadings[0]];
-    #endif
 
     // int filteredADC0 = adcLpf0.value();    
     // if (filteredADC0<0) filteredADC0=0;
@@ -413,7 +393,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     Q16_16 freq_Q16 = exp_fast(pitchCV_Q16);
     
-    float freq = freq_Q16.to_float();
+    // float freq = freq_Q16.to_float();
     // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
       
       
@@ -456,8 +436,6 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // new_wavelen1 = (new_wavelen0 - detune);
     // new_wavelen2 = (new_wavelen1 - detune);
 
-    new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);
-    new_wavelen2_fixed = (new_wavelen1_fixed - detuneFixed);
 
     adcLpf2.play(adcReadings[2]);
     int filteredADC2 = adcLpf2.value();
@@ -468,69 +446,63 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
 
 
-    if (metaUpdateCounter++ >= metaUpdatePeriod) {
-      metaUpdateCounter = 0;
+    // if (metaUpdateCounter++ >= metaUpdatePeriod) {
+    //   metaUpdateCounter = 0;
 
-      auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
+    //   auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
 
-      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-          metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
-          metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
-          metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
-          metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
-          metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
-          metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
-          metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
-          metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
-          metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
-      }
+    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+    //       metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
+    //       metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
+    //       metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
+    //       metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
+    //       metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
+    //       metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
+    //       metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
+    //       metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
+    //       metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
+    //   }
 
-      //TODO: many to one mapping?
-      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-          metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
-      }
-      metaModReady = true;
+    //   //TODO: many to one mapping?
+    //   if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+    //       metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
+    //   }
+    //   metaModReady = true;
 
-      size_t octControl = adcReadings[3];
-      
-      controlValues[3] = octControl;
 
-      octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
-
-      if (octaveIdx != lastOctaveIdx) {
-        lastOctaveIdx = octaveIdx;
-        currentOctaves = (float *)octaveTable[octaveIdx];
-        octReady = true;
-        octMul0 = currentOctaves[0];
-        octMul1 = currentOctaves[1];
-        octMul2 = currentOctaves[2];
-
-        currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
-        oct0Shift = currentOctaveShifts[0];
-        oct1Shift = currentOctaveShifts[1];
-        oct2Shift = currentOctaveShifts[2];
-
-      }
+    //   }
 
       
-    }
+    // }
 
-    new_wavelen0_fixed = oct0Shift > 0 ? new_wavelen0_fixed >> oct0Shift : new_wavelen0_fixed << -oct0Shift;
-    new_wavelen1_fixed = oct1Shift > 0 ? new_wavelen1_fixed >> oct1Shift : new_wavelen1_fixed << -oct1Shift;
-    new_wavelen2_fixed = oct2Shift > 0 ? new_wavelen2_fixed >> oct2Shift : new_wavelen2_fixed << -oct2Shift;
 
     //   new_wavelen0 = new_wavelen0 * octMul0;
     //   new_wavelen1 = new_wavelen1 * octMul1;
     //   new_wavelen2 = new_wavelen2 * octMul2;
 
     //todo: need 64 bit overflow?
-    new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
-    new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
-    new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
+    // new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
+    // new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
+    // new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
 
     //todo: change to fixed
     ctrlVal *= metaModCtrlMul.to_float();
 
+    size_t octControl = adcReadings[3];
+    
+    controlValues[3] = octControl;
+
+    octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
+
+    if (octaveIdx != lastOctaveIdx) {
+      lastOctaveIdx = octaveIdx;
+      octReady = true;
+
+      currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
+      // oct0Shift = currentOctaveShifts[0];
+      // oct1Shift = currentOctaveShifts[1];
+      // oct2Shift = currentOctaveShifts[2];
+    }
 
     // static size_t msgCt=0;
     // if (msgCt == 500U) {
@@ -540,21 +512,14 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // }
     // msgCt++;
 
-    currOscModels[0]->setWavelen(new_wavelen0_fixed.to_int());  
-    currOscModels[1]->setWavelen(new_wavelen1_fixed.to_int());
-    currOscModels[2]->setWavelen(new_wavelen2_fixed.to_int());
-    currOscModels[0]->ctrl(ctrlVal);
-    currOscModels[1]->ctrl(ctrlVal);
-    currOscModels[2]->ctrl(ctrlVal);
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
-    PERF_END(ADC);
 
-    //todo: send wavelen2 so need fewer detunes on B?
     PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0_fixed.to_float());
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen2_fixed.to_float());
     PERF_END(SERIALTX);
+    PERF_END(ADC);
 
 }
 
@@ -1416,11 +1381,19 @@ void setup() {
   //     while(1);
   // });
 
+  //claim dma channels before tft init
+  dma_channel_claim(DMACH_CORE1_OSC0);
+  dma_channel_claim(DMACH_CORE1_OSC1);
+  dma_channel_claim(DMACH_CORE1_OSC2);
+  dma_channel_claim(DMACH_ADC_A);
+  dma_channel_claim(DMACH_ADC_B);
+  dma_channel_claim(DMACH_SERIAL_TX);
+
   init_exp2_table();
 
   // //USB Serial
   Serial.begin();
-  while(!Serial) {}
+  // while(!Serial) {}
 
   // calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
   displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
@@ -1535,7 +1508,8 @@ void setup() {
   display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
   display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
 
-  display.setDisplayWavelengths({0,0,0,0,0,0,0,0,0});
+  constexpr Fixed<20,12> Fixed0(0);
+  display.setDisplayWavelengths({Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0});
 
   //start processing
   setup_adcs();  
@@ -1557,7 +1531,9 @@ size_t FAST_MEM metaModSendIdx=0;
 size_t FAST_MEM dotTS;
 
 PERF_DECLARE(CALCOSCS);
+PERF_DECLARE(DISPLAY);
 size_t vu;
+
 void __not_in_flash_func(loop)() {
     // sendToMyriadB(streamMessaging::messageTypes::CTRL, 17U);
     // delay(1);
@@ -1603,7 +1579,7 @@ void __not_in_flash_func(loop)() {
     }
     
 
-    if (now - ctrlTS >= 10000) {
+    if (now - ctrlTS >= 1000) {
       sendToMyriadB(streamMessaging::messageTypes::CTRL0, ctrlVal);
       ctrlTS = now;
     }
@@ -1620,29 +1596,44 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - displayTS >= 39000) {
+  if (now - displayTS >= 49000) {
+    PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
-      float new_wavelen0 = new_wavelen0_fixed.to_float(); //tmp arrange
-      float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
-      float new_wavelen4 = (new_wavelen3 - detune);
-      float new_wavelen5 = (new_wavelen4 - detune);
-      float new_wavelen6 = (new_wavelen5 - detune);
-      float new_wavelen7 = (new_wavelen6 - detune);
-      float new_wavelen8 = (new_wavelen7 - detune);
-      // new_wavelen3 = new_wavelen3 * currentOctaves[3];
-      // new_wavelen4 = new_wavelen4 * currentOctaves[4];
-      // new_wavelen5 = new_wavelen5 * currentOctaves[5];
-      // new_wavelen6 = new_wavelen6 * currentOctaves[6];
-      // new_wavelen7 = new_wavelen7 * currentOctaves[7];
-      // new_wavelen8 = new_wavelen8 * currentOctaves[8];
+      Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      new_wavelen3_fixed = currentOctaveShifts[3] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[3] : new_wavelen3_fixed << -currentOctaveShifts[3];
+
+      Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
+      new_wavelen4_fixed = currentOctaveShifts[4] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[4] : new_wavelen4_fixed << -currentOctaveShifts[4];
+
+      Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
+      new_wavelen5_fixed = currentOctaveShifts[5] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[5] : new_wavelen5_fixed << -currentOctaveShifts[5];
+
+      Fixed<20,12> new_wavelen6_fixed = (new_wavelen5_fixed - detuneFixed);
+      new_wavelen6_fixed = currentOctaveShifts[6] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[6] : new_wavelen6_fixed << -currentOctaveShifts[6];
+
+      Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
+      new_wavelen7_fixed = currentOctaveShifts[7] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[7] : new_wavelen7_fixed << -currentOctaveShifts[7];
+
+      Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
+      new_wavelen8_fixed = currentOctaveShifts[8] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[8] : new_wavelen8_fixed << -currentOctaveShifts[8];
+
+
       uint32_t save = spin_lock_blocking(displaySpinlock);  
 
-      display.setDisplayWavelengths({new_wavelen0,new_wavelen1_fixed.to_float(),
-              new_wavelen2_fixed.to_float(),
-                                    new_wavelen3,new_wavelen4,new_wavelen5,
-                                    new_wavelen6,new_wavelen7,new_wavelen8 });
+      display.setDisplayWavelengths({
+              new_wavelen0_fixed,
+              new_wavelen1_fixed,
+              new_wavelen2_fixed,
+              new_wavelen3_fixed,
+              new_wavelen4_fixed,
+              new_wavelen5_fixed,
+              new_wavelen6_fixed,
+              new_wavelen7_fixed,
+              new_wavelen8_fixed});
+
       spin_unlock(displaySpinlock, save);
+
     }else if (controlMode == CONTROLMODES::CALIBRATEMODE) {
       //pitch is done on next screen
       for(size_t i=1; i < 4; i++) {
@@ -1691,7 +1682,6 @@ void __not_in_flash_func(loop)() {
             }
           }
         }
-
     }
 
     uint32_t save = spin_lock_blocking(displaySpinlock);  
@@ -1699,6 +1689,7 @@ void __not_in_flash_func(loop)() {
     spin_unlock(displaySpinlock, save);
 
     displayTS = now;
+    PERF_END(DISPLAY);
 
     // Serial.printf("%f %d %f\n", new_wavelen0, (CalibrationSettings::adcMins[2]), CalibrationSettings::adcRangesInv[2]);
   }
@@ -1709,8 +1700,8 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 200000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS));
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
     dotTS = now;
   }
 }
@@ -1786,6 +1777,23 @@ void __not_in_flash_func(loop1)() {
   }
   if (oscsRunning) {
     PERF_BEGIN(CALCOSCS);
+    PERIODIC_RUN_US(
+      currOscModels[0]->ctrl(ctrlVal);
+      currOscModels[1]->ctrl(ctrlVal);
+      currOscModels[2]->ctrl(ctrlVal);
+    , 1000);
+    if (newFrequenciesReady) {
+      new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);
+      new_wavelen2_fixed = (new_wavelen1_fixed - detuneFixed);
+      new_wavelen0_fixed = currentOctaveShifts[0] > 0 ? new_wavelen0_fixed >> currentOctaveShifts[0] : new_wavelen0_fixed << -currentOctaveShifts[0];
+      new_wavelen1_fixed = currentOctaveShifts[1] > 0 ? new_wavelen1_fixed >> currentOctaveShifts[1] : new_wavelen1_fixed << -currentOctaveShifts[1];
+      new_wavelen2_fixed = currentOctaveShifts[2] > 0 ? new_wavelen2_fixed >> currentOctaveShifts[2] : new_wavelen2_fixed << -currentOctaveShifts[2];
+      currOscModels[0]->setWavelen(new_wavelen0_fixed.to_int());  
+      currOscModels[1]->setWavelen(new_wavelen1_fixed.to_int());
+      currOscModels[2]->setWavelen(new_wavelen2_fixed.to_int());
+      newFrequenciesReady=false;
+    }
+
     calculateOscBuffers();
     PERF_END(CALCOSCS);
   }
