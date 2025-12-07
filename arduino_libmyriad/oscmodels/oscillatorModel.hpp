@@ -2,6 +2,9 @@
 #define OSCILLATORMODEL_HPP
 
 #include "../clockfreq.h"
+#include "fixedpoint.hpp"
+
+using namespace FixedPoint;
 
 class oscillatorModel {
 public:
@@ -29,7 +32,10 @@ public:
   // float clockmodinv = 1.f;
   size_t clockModShift = 0;
 
-  virtual void ctrl(const float v) {
+  // virtual void ctrl(const float v) {
+  //   //receive a control parameter
+  // }
+  virtual void ctrl(const Q16_16 v) {
     //receive a control parameter
   }
 

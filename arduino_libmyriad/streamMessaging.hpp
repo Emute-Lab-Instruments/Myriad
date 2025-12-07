@@ -113,6 +113,7 @@ namespace streamMessaging {
       union {
         float floatValue;
         size_t uintValue;
+        int32_t intValue;
       } value;
       uint8_t msgType;
       const uint8_t magicByte = MAGIC_BYTE;
@@ -133,6 +134,12 @@ namespace streamMessaging {
 
   __always_inline void createMessage(msgpacket &msg, const size_t value, const messageTypes msgType) {
     msg.value.uintValue = value;
+    msg.msgType = msgType;
+    calcCheckSum(msg);
+  };
+
+  __always_inline void createMessage(msgpacket &msg, const int32_t value, const messageTypes msgType) {
+    msg.value.intValue = value;
     msg.msgType = msgType;
     calcCheckSum(msg);
   };

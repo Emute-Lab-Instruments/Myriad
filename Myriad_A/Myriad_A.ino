@@ -146,6 +146,11 @@ void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::message
    streamMessaging::sendMessageWithDMA(msg);
 }
 
+void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, int32_t value) {
+   streamMessaging::createMessage(msg, value, msgType);
+   streamMessaging::sendMessageWithDMA(msg);
+}
+
 
 
 /////////////////////////////////   IRQ 000000000000000000000000000000000000
@@ -329,6 +334,8 @@ uint8_t __not_in_flash("adc") oct0Shift = 0;
 uint8_t __not_in_flash("adc") oct1Shift = 0;
 uint8_t __not_in_flash("adc") oct2Shift = 0;
 
+Fixed<16,16> __not_in_flash("adc") epsilon_fixed(0);
+
 PERF_DECLARE(ADC);
 PERF_DECLARE(METAMODS);
 PERF_DECLARE(SERIALTX);
@@ -392,12 +399,12 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     adcLpf1.play(adcReadings[1]);
     int filteredADC1 = adcLpf1.value();
-    Fixed<16,16> filteredADC1Fixed = Fixed<16,16>(filteredADC1);
 
     controlValues[1] = filteredADC1;
     filteredADC1 = filteredADC1 - (CalibrationSettings::adcMins[1]);
     if (filteredADC1<0) filteredADC1=0;
     if (filteredADC1>4095) filteredADC1=4095;
+    Fixed<16,16> filteredADC1Fixed = Fixed<16,16>(filteredADC1);
 
     //detuning
     Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1Fixed);
@@ -418,16 +425,19 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     int filteredADC2 = adcLpf2.value();
     controlValues[2] = filteredADC2;
     filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
-    // if (filteredADC2<0) filteredADC2=0;
-    // if (filteredADC2>4095) filteredADC2=4095;
-    ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
-
+    if (filteredADC2<0) filteredADC2=0;
+    if (filteredADC2>4095) filteredADC2=4095;
+    // ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
+    Fixed<16,16> filteredADC2Fixed = Fixed<16,16>(filteredADC2);
+    //
+    epsilon_fixed = filteredADC2Fixed.mulWith(CalibrationSettings::adcRangesInvFP[2]);
+    // epsilon_fixed = epsilon_fixed.mulWith(metaModCtrlMul);
       
     // }
 
 
     //todo: change to fixed
-    ctrlVal *= metaModCtrlMul.to_float();
+    // ctrlVal *= metaModCtrlMul.to_float();
 
     //octaves
     const size_t octControl = adcReadings[3];
@@ -444,7 +454,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     newFrequenciesReady = true;
 
     PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen2_fixed.to_float());
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen2_fixed.raw());
     PERF_END(SERIALTX);
     PERF_END(ADC);
 
@@ -1530,19 +1540,19 @@ void __not_in_flash_func(loop)() {
   //   }
     
 
-  //   if (now - ctrlTS >= 1000) {
-  //     sendToMyriadB(streamMessaging::messageTypes::CTRL0, ctrlVal);
-  //     ctrlTS = now;
-  //   }
-  //   if (now - detuneTS >= 9800) {
-  //     sendToMyriadB(streamMessaging::messageTypes::DETUNE, detune);
-  //     detuneTS = now;
-  //   }
+  if (now - ctrlTS >= 1000) {
+    sendToMyriadB(streamMessaging::messageTypes::CTRL0, epsilon_fixed.raw());
+    ctrlTS = now;
+  }
+  if (now - detuneTS >= 1000) {
+    sendToMyriadB(streamMessaging::messageTypes::DETUNE, detuneFixed.raw());
+    detuneTS = now;
+  }
 
-  //   if (octReady) {
-  //     sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
-  //     octReady = false;
-  //   }  
+  if (octReady) {
+    sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, lastOctaveIdx);
+    octReady = false;
+  }  
 
   // }
 
@@ -1642,7 +1652,6 @@ void __not_in_flash_func(loop)() {
     displayTS = now;
     PERF_END(DISPLAY);
 
-    // Serial.printf("%f %d %f\n", new_wavelen0, (CalibrationSettings::adcMins[2]), CalibrationSettings::adcRangesInv[2]);
   }
 
   if (now - ocmTS >= 31000) {
@@ -1651,10 +1660,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
+  //   dotTS = now;
+  // }
 }
 
 
@@ -1736,9 +1745,9 @@ void __not_in_flash_func(loop1)() {
   if (oscsRunning) {
     PERF_BEGIN(CALCOSCS);
     PERIODIC_RUN_US(
-      currOscModels[0]->ctrl(ctrlVal);
-      currOscModels[1]->ctrl(ctrlVal);
-      currOscModels[2]->ctrl(ctrlVal);
+      currOscModels[0]->ctrl(epsilon_fixed);
+      currOscModels[1]->ctrl(epsilon_fixed);
+      currOscModels[2]->ctrl(epsilon_fixed);
     , 1000);
     if (newFrequenciesReady) {
       new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);

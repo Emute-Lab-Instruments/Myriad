@@ -12,215 +12,7 @@
 
 
 
-class pulse10OscillatorModel : public virtual oscillatorModel {
-public:
-  pulse10OscillatorModel() : oscillatorModel(){
-    loopLength=4;
-    prog=pin_ctrl_program;
-    // updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
 
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen * 0.5f);
-    }
-  }
-  std::vector<float> oscTemplate {0.1,0.9,0.1,0.9};
-
-  void ctrl(const float v) override {
-    //receive a control parameter
-    const float v1 = v * 0.98;
-    const float v2 = 1.0 - v;
-    oscTemplate [0] = v1;
-    oscTemplate [1] = v2;
-    oscTemplate [2] = v1;
-    oscTemplate [3] = v2;
-  }
-
-  pio_sm_config getBaseConfig(uint offset) override {
-    return pin_ctrl_program_get_default_config(offset);
-  }
-
-  void reset() override {
-    oscillatorModel::reset();
-    // Clear any internal state if needed
-  }
-  String getIdentifier() override {
-    return "p100";
-  }
-
-};
-
-class squareOscillatorModel : public virtual oscillatorModel {
-public:
-  squareOscillatorModel() : oscillatorModel(){
-    loopLength=2;
-    prog=pulse_program;
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * this->wavelen);
-    }
-  }
-  pio_sm_config getBaseConfig(uint offset) override {
-    return pulse_program_get_default_config(offset);
-  }
-
-  std::vector<float> oscTemplate {0.5,0.5}; 
-  void ctrl(const float v) override {
-    //receive a control parameter
-    const float v1 = std::max((1.f-v) * 0.5f, 0.01f);
-    const float v2 = 1.0 - v;
-    oscTemplate [0] = v1;
-    oscTemplate [1] = v2;
-  }
-
-
-  String getIdentifier() override {
-    return "sq";
-  }
-
-};
-
-class squareOscillatorModel2 : public oscillatorModel {
-public:
-  squareOscillatorModel2() : oscillatorModel() {
-    loopLength=4;
-    prog=pin_ctrl_program;
-    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    const float wlen = this->wavelen * 2.5f;
-    // for (size_t i = 0; i < oscTemplate.size(); ++i) {
-    //     *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
-    // }
-    for (size_t i = 0; i < loopLength; ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[bufferIndex] * wlen);
-        bufferIndex++;
-        if (bufferIndex >= oscTemplate.size()) bufferIndex=0;
-    }
-  }
-
-  void ctrl(const float v) override {
-    constexpr float bound = 0.001;
-    constexpr float range = 0.2 - (bound * 2);
-    float spread = (v * range) * 0.2;
-    float accSpread=bound;
-
-    oscTemplate [0] = accSpread;
-    oscTemplate [1] = 0.2-accSpread;
-    accSpread += spread;
-
-    oscTemplate [2] = accSpread;
-    oscTemplate [3] = 0.2 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [4] =accSpread;
-    oscTemplate [5] = 0.2 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [6] = accSpread;
-    oscTemplate [7] = 0.2 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [8] = accSpread;
-    oscTemplate [9] = 0.2 - accSpread;
-
-  }
-
-  void reset() override {
-    oscillatorModel::reset();
-    bufferIndex=0;
-  }
-
-
-  //ratios 9:1,8:2,7:3,6:4,5:5
-  std::array<float, 10> oscTemplate {0.18181818181818, 0.018181818181818, 0.16363636363636, 0.036363636363636, 0.14545454545455, 0.054545454545455, 0.12727272727273, 0.072727272727273, 0.10909090909091, 0.090909090909091};
-
-  size_t bufferIndex=0;
-
-  String getIdentifier() override {
-    return "sq2";
-  }
-
-};
-
-
-class squareOscillatorModel14 : public oscillatorModel {
-public:
-  squareOscillatorModel14() : oscillatorModel() {
-    loopLength=4;
-    prog=pin_ctrl_program;
-    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-  }
-  
-  inline void fillBuffer(uint32_t* bufferA) {
-    const float wlen = this->wavelen * 1.75f * 2.0f;
-    // for (size_t i = 0; i < oscTemplate.size(); ++i) {
-    //     *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
-    // }
-    for (size_t i = 0; i < loopLength; ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[bufferIndex] * wlen);
-        bufferIndex++;
-        if (bufferIndex >= oscTemplate.size()) bufferIndex=0;
-    }
-  }
-
-  void ctrl(const float v) override {
-    constexpr float bound = 0.001;
-    constexpr float range = oneOver7 - (bound * 2);
-    float spread = (v * range) * oneOver7;
-    float accSpread=bound;
-
-    oscTemplate [0] = accSpread;
-    oscTemplate [1] = oneOver7-accSpread;
-    accSpread += spread;
-
-    oscTemplate [2] = accSpread;
-    oscTemplate [3] = oneOver7 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [4] =accSpread;
-    oscTemplate [5] = oneOver7 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [6] = accSpread;
-    oscTemplate [7] = oneOver7 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [8] = accSpread;
-    oscTemplate [9] = oneOver7 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [10] = accSpread;
-    oscTemplate [11] = oneOver7 - accSpread;
-    accSpread += spread;
-
-    oscTemplate [12] = accSpread;
-    oscTemplate [13] = oneOver7 - accSpread;
-
-  }
-
-  std::array<float, 14> oscTemplate {oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,
-  oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14,oneOver14};
-
-  size_t bufferIndex=0;
-
-  void reset() override {
-    oscillatorModel::reset();
-    bufferIndex=0;
-  }
-
-
-  String getIdentifier() override {
-    return "sq14";
-  }
-  
-private:
-  static constexpr float oneOver14 = 1.f/14.f;
-  static constexpr float oneOver7 = 1.f/7.f;
-};
 
 class silentOscillatorModel : public oscillatorModel {
 public:
@@ -265,8 +57,8 @@ public:
   pio_sm_config getBaseConfig(uint offset) {
     return pulse_program_get_default_config(offset);
   }
-  void ctrl(const float v) override {
-    randMax = randBaseMin + (v * randRange);
+  void ctrl(const Q16_16 v) override {
+    // randMax = randBaseMin + (v * randRange);
   }
 
   String getIdentifier() override {
@@ -280,175 +72,7 @@ private:
 };
 
 
-//this is bonkers
-class accOscillatorModel : public virtual oscillatorModel {
-public:
-  accOscillatorModel() : oscillatorModel(){
-    loopLength=8;
-    prog=pulse_program;
-
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    for (size_t i = 0; i < loopLength; ++i) {
-      if (w <= 0) {
-        acc += this->wavelen;
-        w = acc >> 5;
-      }
-      int val;
-      val = w;
-      acc -= w;
-
-      w=w - (w>>4) - 1;
-      w=std::max(w,acc>>2);
-      *(bufferA + i) = static_cast<uint32_t>(val);
-
-    }
-  }
-  pio_sm_config getBaseConfig(uint offset) {
-    return pulse_program_get_default_config(offset);
-  }
-  void ctrl(const float v) override {
-  }
-
-  String getIdentifier() override {
-    return "acc";
-  }
-
-private:
-  float phase=0;
-  int acc=0;
-  int w=1;
-  int state=1;
-
-};
-
-
-class sinOscillatorModel8 : public oscillatorModel {
-public:
-  sinOscillatorModel8() : oscillatorModel() {
-    loopLength=8;
-    prog=pulse_program;
-    tempOscTemplate.resize(loopLength,1.0/loopLength);
-    oscTemplate.resize(loopLength,1.0/loopLength);
-    ctrl(0.0);
-
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    const float wlen = wavelen * 2.55f;
-    for (size_t i = 0; i < oscTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
-    }
-  }
-
-  void ctrl(const float v) override {
-    float vscale = ((v * 0.01) + 0.65) * 8;
-    float total=0;
-    for(float i=0; i < loopLength; i++) {
-      const float w = std::max(0.0001f, fabs(sinf(i * vscale)));
-      tempOscTemplate[i] = w;
-      total += w;
-    }
-
-    //normalise
-    const float lenscale = total/4.69f;
-    const float scale=1.f/total;
-    for(size_t i=0; i < loopLength; i++) {
-      oscTemplate[i] = tempOscTemplate[i] * lenscale;
-      // Serial.printf("%f\t",oscTemplate[i]);
-    }
-    Serial.println(lenscale);
-  }
-
-  std::vector<float> tempOscTemplate;
-  std::vector<float> oscTemplate;
-
-  pio_sm_config getBaseConfig(uint offset) {
-    return pulse_program_get_default_config(offset);
-  }
-
-  String getIdentifier() override {
-    return "sin8";
-  }
-
-};
-
-class expdecOscillatorModel1 : public virtual oscillatorModel {
-  public:
-  expdecOscillatorModel1() : oscillatorModel(){
-      loopLength=8;
-      prog=expdec_program;
-    }
-    inline void fillBuffer(uint32_t* bufferA) {
-      const float wlen = this->wavelen * 3.57f;
-      for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
-      }
-    }
-    std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
   
-    void ctrl(const float v) override {
-      const float mul = 0.25f;
-      oscTemplate[0] = 0.05 + (v * 0.02 * mul);
-      oscTemplate[1] = 0.025 - (v * 0.02 * mul);
-
-      oscTemplate[4] = 0.001 - (v * 0.0005 * mul);
-      oscTemplate[5] = 0.001 + (v * 0.0005 * mul);
-
-      oscTemplate[5] = 0.01 - (v * 0.05 * mul);
-      oscTemplate[6] = 0.025 + (v * 0.05 * mul);
-    }
-
-    pio_sm_config getBaseConfig(uint offset) {
-      return expdec_program_get_default_config(offset);
-    }
-
-    String getIdentifier() override {
-      return "exp1";
-    }
-  
-  private:
-  
-  };
-
-class expdecOscillatorBytebeatModel : public virtual oscillatorModel {
-    public:
-    expdecOscillatorBytebeatModel() : oscillatorModel(){
-        loopLength=8;
-        prog=expdec_program;
-        updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-        
-    }
-    inline void fillBuffer(uint32_t* bufferA) {
-      const float wlen = this->wavelen * 7.19f * wmult ;
-      for (size_t i = 0; i < oscTemplate.size(); ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(oscTemplate[i] * wlen);
-      }
-      wmult = wmult * wmultmult;
-      if (wmult < 0.125f) {
-        wmult=1.f;
-      }
-    }
-    std::vector<float> oscTemplate {0.05,0.025,0.01,0.001,0.001,0.01,0.025,0.05};
-  
-    void ctrl(const float v) override {
-      wmultmult = 0.01f + (v*0.5f);
-    }
-
-    pio_sm_config getBaseConfig(uint offset) {
-      return expdec_program_get_default_config(offset);
-    }
-
-    String getIdentifier() override {
-      return "expb";
-    }
-  
-  private:
-    float wmult=1;
-    float wmultmult=1.f;
-  
-};
-  
-#define WAVETABLE_SIZE 1024
 
 
 size_t debugcount=0;
@@ -462,13 +86,9 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }  
 
     sawOscillatorModel() : oscillatorModel(){
-      loopLength=16;
+      loopLength=8;
       prog=bitbybit_program;
 
-      // generateSawtoothTable();
-      // for(size_t i = 0; i < 1000; ++i) {
-      //   MULTIPLIER_TABLE[i] = generate_multiplier(i);
-      // }
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
 
@@ -505,11 +125,10 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
     }
 
-    void ctrl(const float v) override {
-      // const size_t index = v < 0.05 ? 1 : static_cast<size_t>((0.2f +(v * 0.8f)) * 950.f);
-      // const size_t index = static_cast<size_t>((0.0f +(v * 1.0f)) * 950.f);
-      phaseMul = static_cast<size_t>((2.f+(v * 40.f))* 32768.f);
-      // phaseMul = MULTIPLIER_TABLE[index];
+    void ctrl(const Q16_16 v) override {
+      using fptype = Fixed<17,15>;
+      fptype newPhaseMul = fptype(2) + (fptype(40).mulWith(v));
+      phaseMul = newPhaseMul.raw();
     }
   
     pio_sm_config getBaseConfig(uint offset) {
@@ -527,7 +146,6 @@ class sawOscillatorModel : public virtual oscillatorModel {
     bool y=0;
     int err0=0;
     size_t val=0;
-    // uint32_t MULTIPLIER_TABLE[1000];
 
 };
 
@@ -595,20 +213,20 @@ class triOscillatorModel : public virtual oscillatorModel {
     }
 
 
-    void ctrl(const float v) override {
-      const size_t index = static_cast<size_t>(v * 900.f + 0.5f);
-      if (index != lastPW || wavelen != lastWavelen) {
-        lastPW = index;
-        lastWavelen = wavelen;
-        // Serial.printf("index: %zu, wavelen: %zu\n", index, wavelen);
-        phaseRisingMul = MULTIPLIER_TABLE_RISING[index];
-        phaseRisingInvMul = MULTIPLIER_TABLE_RISING_INV[index];
-        phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
-        risingInc = phaseRisingMul;
-        fallingInc = -phaseFallingMul;  
-        // ctrlChange=true;    
-        // amp_fp=0;
-      }
+    void ctrl(const Q16_16 v) override {
+      // const size_t index = static_cast<size_t>(v * 900.f + 0.5f);
+      // if (index != lastPW || wavelen != lastWavelen) {
+      //   lastPW = index;
+      //   lastWavelen = wavelen;
+      //   // Serial.printf("index: %zu, wavelen: %zu\n", index, wavelen);
+      //   phaseRisingMul = MULTIPLIER_TABLE_RISING[index];
+      //   phaseRisingInvMul = MULTIPLIER_TABLE_RISING_INV[index];
+      //   phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
+      //   risingInc = phaseRisingMul;
+      //   fallingInc = -phaseFallingMul;  
+      //   // ctrlChange=true;    
+      //   // amp_fp=0;
+      // }
         // bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
       // Serial.printf("%zu, phaseRisingMul: %zu, phaseRisingInvMul: %zu, phaseFallingMul: %zu\n", index, phaseRisingMul,phaseRisingInvMul, phaseFallingMul);
     }
@@ -676,9 +294,7 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
         }
       }
     }
-    void ctrl(const float v) override {
-    }
-  
+
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
     }
@@ -695,89 +311,6 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
 
   };
 
-class slideOscillatorModel : public virtual oscillatorModel {
-  public:
-  slideOscillatorModel() : oscillatorModel(){
-      loopLength=6;
-      prog=pulse_program;
-      oscInterpTemplate.resize(loopLength,1.0f/loopLength);
-      smoothTemplate.resize(loopLength,1.0f/loopLength);
-      smoothingThreshold = getWavelenAtFrequency(450.f);
-      smoothingThresholdInv = 1.f / smoothingThreshold;
-      ctrl(0);
-      // updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-
-    }
-    inline void fillBuffer(uint32_t* bufferA) {
-      for (size_t i = 0; i < oscInterpTemplate.size(); ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(smoothTemplate[i] * this->wavelen);
-      }
-    }
-
-    void ctrl(const float v) override {
-
-      float scaledV = v*0.999f * (oscTemplate.size() - loopLength);
-      offset = static_cast<size_t>(scaledV);
-      size_t offsetNext = offset+1;
-      float remainder = scaledV - offset; 
-      float remainderInv = 1.f - remainder;
-      float total=0.f;
-      //interpolate from an offset
-      for(size_t i=0; i < loopLength; i++) {
-        float val = (remainderInv * oscTemplate[i+offset]) + (remainder * oscTemplate[i+offsetNext]);
-        oscInterpTemplate[i] = val;
-        total += val;
-      }
-
-
-      //normalise so that the sum of the values is 1
-      if (wavelen < smoothingThreshold) {
-        // smoothTemplateAlpha = 0.05f; // smoothing factor for the control value
-        smoothTemplateAlpha = 0.03f - (0.02f * (1.f - ((float)wavelen*smoothingThresholdInv))); // smoothing factor for the control value
-      } else {
-        smoothTemplateAlpha = 0.1f; // smoothing factor for the control value
-      };
-      smoothTemplateAlphaInv = 1.f - smoothTemplateAlpha;
-      // Serial.printf("smoothTemplateAlpha: %f, smoothTemplateAlphaInv: %f\n", smoothTemplateAlpha, smoothTemplateAlphaInv);
-
-      float scale = 1.f/total;
-      for(size_t i=0; i < loopLength; i++) {
-        oscInterpTemplate[i] *= scale;
-
-        //smooth the template transition
-        smoothTemplate[i] = (smoothTemplate[i] * smoothTemplateAlphaInv) + (oscInterpTemplate[i] * smoothTemplateAlpha);
-        // Serial.printf("%f ", oscInterpTemplate[i]);
-      }
-      // Serial.println();
-      // Serial.printf("%f %f %f\n", oscInterpTemplate[0], oscTemplate[offset], oscTemplate[offsetNext]);
-
-    }
-
-    pio_sm_config getBaseConfig(uint offset) override {
-      return pulse_program_get_default_config(offset);
-    }
-  
-    const std::vector<float> oscTemplate {0.1, 0.3, 0.01, 0.2, 0.03,
-      0.02, 0.01, 0.04, 0.057, 0.034,
-     0.002, 0.03, 0.001, 0.2, 0.023,
-    0.4,0.36,0.7, 0.072, 0.0808}; 
-
-    String getIdentifier() override {
-      return "slide";
-    }
-  
-  private:
-  size_t offset=0;
-  std::vector<float> scales;
-  std::vector<float> oscInterpTemplate;
-
-  float smoothTemplateAlpha = 0.05f; // smoothing factor for the control value
-  float smoothTemplateAlphaInv = 1.f - smoothTemplateAlpha;
-  std::vector<float> smoothTemplate;
-  size_t smoothingThreshold=0;
-  size_t smoothingThresholdInv=1;
-
-  };
     
 
 class noiseOscillatorModel2 : public virtual oscillatorModel {
@@ -799,8 +332,8 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
       return pulse_program_get_default_config(offset);
     }
     
-    void ctrl(const float v) override {
-      randMult = 5 + (v * 500);
+    void ctrl(const Q16_16 v) override {
+      randMult = 5 + (v.mul_fast(Q16_16(500))).to_int();
     }
   
     String getIdentifier() override {
@@ -861,8 +394,8 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
     }
 
 
-    void ctrl(const float v) override {
-      mul = ((1.f - (v * 0.9f)) * qfpMul);
+    void ctrl(const Q16_16 v) override {
+      // mul = ((1.f - (v * 0.9f)) * qfpMul);
     }
       
   
@@ -936,8 +469,8 @@ class rateLimSDOscillatorModel : public virtual oscillatorModel {
     }
 
 
-    void ctrl(const float v) override {
-      lim = this->wavelen * (0.05f + (v * 0.95f));
+    void ctrl(const Q16_16 v) override {
+      // lim = this->wavelen * (0.05f + (v * 0.95f));
       
     }
       
@@ -1011,10 +544,10 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
       }
     }
 
-    void ctrl(const float v) override {
-      alphaf = (0.02f * v * v) + 0.001f; 
-      alpha = alphaf * qfpMul;
-      alpha_inv = (1.0-alphaf) * qfpMul;
+    void ctrl(const Q16_16 v) override {
+      // alphaf = (0.02f * v * v) + 0.001f; 
+      // alpha = alphaf * qfpMul;
+      // alpha_inv = (1.0-alphaf) * qfpMul;
 
     }
       
@@ -1077,11 +610,11 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 
     }
 
-    void ctrl(const float v) override {
-      alpha = (int)(v * 950.f) + 9000;
-      // Serial.printf("alpha: %d\n", alpha);
-      beta = 500 + ( (float)this->wavelen / getWavelenAtFrequency(20.f) * 500.f);
-      // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
+    void ctrl(const Q16_16 v) override {
+      // alpha = (int)(v * 950.f) + 9000;
+      // // Serial.printf("alpha: %d\n", alpha);
+      // beta = 500 + ( (float)this->wavelen / getWavelenAtFrequency(20.f) * 500.f);
+      // // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
     }
   
     pio_sm_config getBaseConfig(uint offset) {
@@ -1165,23 +698,15 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
     }
 
 
-    void ctrl(const float v) override {
-      pw= std::max((1.f-v) * 0.5f, 0.01f);
-      pulselen = this->wavelen * pw;
+    void ctrl(const Q16_16 v) override {
+      // pw= std::max((1.f-v) * 0.5f, 0.01f);
+      // pulselen = this->wavelen * pw;
     }
       
   
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
     }
-
-    // void reset() override {
-    //   oscillatorModel::reset();
-    //   phase = 0;
-    //   y = 0;
-    //   err0 = 0;
-    //   ctrl(0.5f);
-    // }
 
     String getIdentifier() override {
       return "pulsesd";
@@ -1201,7 +726,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 2;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1212,43 +737,42 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   //saw / sharktooth
   []() { return std::make_shared<sawOscillatorModel>(); } //yes, go first
   ,
-  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
-  ,
-
-  //squares
-  // []() { return std::make_shared<squareBBBOscillatorModel>(); } //fix HF
-  // []() { return std::make_shared<squareOscillatorModel>(); }
-  []() { return std::make_shared<pulseSDOscillatorModel>(); }
-  
-  ,
-  []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
-  ,
-  []() { return std::make_shared<squareOscillatorModel14>();}  // as above, slightly different tone
-  ,
-
-  //tris
-  []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
-  ,
-  []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
-  ,
-
-  //slide
-  []() { return std::make_shared<slideOscillatorModel>(); }  //10
-  ,
-
-  // experimental
-  // []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
+  // []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   // ,
-  []() { return std::make_shared<expdecOscillatorModel1>(); } //sounds great, doesn't tune linearly
-  ,
-  []() { return std::make_shared<pulse10OscillatorModel>(); } //sounds great, doesn't tune linearly
-  ,
 
-  //noise
-  []() { return std::make_shared<noiseOscillatorModel2>();} //yes
-  ,
-  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
-  ,
+  // //squares
+  // []() { return std::make_shared<pulseSDOscillatorModel>(); }
+  
+  // ,
+
+  // // []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
+  // // ,
+  // // []() { return std::make_shared<squareOscillatorModel14>();}  // as above, slightly different tone
+  // // ,
+
+  // //tris
+  // []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
+  // ,
+  // []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
+  // ,
+
+  // //slide
+  // // []() { return std::make_shared<slideOscillatorModel>(); }  //10
+  // ,
+
+  // // experimental
+  // // []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
+  // // ,
+  // // []() { return std::make_shared<expdecOscillatorModel1>(); } //sounds great, doesn't tune linearly
+  // // ,
+  // // []() { return std::make_shared<pulse10OscillatorModel>(); } //sounds great, doesn't tune linearly
+  // // ,
+
+  // //noise
+  // // []() { return std::make_shared<noiseOscillatorModel2>();} //yes
+  // // ,
+  // // []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
+  // // ,
 
   //silent
   []() { return std::make_shared<silentOscillatorModel>();}
