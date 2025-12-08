@@ -239,14 +239,14 @@ void __force_inline calculateOscBuffers1() {
   }
 }
 
-inline void __not_in_flash_func(setCtrl)() {
-  currOscModels0[0]->ctrl(epsilon_fixed);
-  currOscModels0[1]->ctrl(epsilon_fixed);
-  currOscModels0[2]->ctrl(epsilon_fixed);
-  currOscModels1[0]->ctrl(epsilon_fixed);
-  currOscModels1[1]->ctrl(epsilon_fixed);
-  currOscModels1[2]->ctrl(epsilon_fixed);
-}
+// inline void __not_in_flash_func(setCtrl)() {
+//   currOscModels0[0]->ctrl(epsilon_fixed);
+//   currOscModels0[1]->ctrl(epsilon_fixed);
+//   currOscModels0[2]->ctrl(epsilon_fixed);
+//   currOscModels1[0]->ctrl(epsilon_fixed);
+//   currOscModels1[1]->ctrl(epsilon_fixed);
+//   currOscModels1[2]->ctrl(epsilon_fixed);
+// }
 
 // float FAST_MEM detune = 0.f;
 Fixed<20,12> FAST_MEM detuneFixed(0);
@@ -398,7 +398,8 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       
       // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
       // new_wavelen0 = msg.value.floatValue;
-      new_wavelen2_fixed = Fixed<20,12>::from_raw(msg.value.intValue);
+      Fixed<20,12> new_wavelen0_fixed = Fixed<20,12>::from_raw(msg.value.intValue);
+      new_wavelen2_fixed = new_wavelen0_fixed - detuneFixed - detuneFixed;
       newFrequenciesReady0 = true;
       newFrequenciesReady1 = true;
       waitingForFirstFrequency0 = false;
@@ -407,7 +408,6 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     }
     case streamMessaging::messageTypes::DETUNE:
     {
-      // detune = msg.value.floatValue;
       detuneFixed = Fixed<20,12>::from_raw(msg.value.intValue);
       break;
     }     
@@ -450,29 +450,19 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     case streamMessaging::messageTypes::OCTSPREAD:
     {
       octaveIdx = msg.value.uintValue;
-      // if (octaveIdx > 15) octaveIdx = 15;
-      // currentOctaves = (float *)octaveTable[octaveIdx];
-      // //copy to save array access later
-      // currOct3 = currentOctaves[3];
-      // currOct4 = currentOctaves[4];
-      // currOct5 = currentOctaves[5];
-      // // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      // currOct6 = currentOctaves[6];
-      // currOct7 = currentOctaves[7];
-      // currOct8 = currentOctaves[8];
-      // spin_unlock(calcOscsSpinlock1, save1);
+      if (octaveIdx > 15) octaveIdx = 15;
+      currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
       break;
     }
     case streamMessaging::messageTypes::CTRL0:
     {
-      // ctrlVal = msg.value.floatValue;
       epsilon_fixed = Q16_16::from_raw(msg.value.intValue);
+      newCtrlReady = true;
 
       currOscModels0[0]->ctrl(epsilon_fixed);
       currOscModels0[1]->ctrl(epsilon_fixed);
       currOscModels0[2]->ctrl(epsilon_fixed);
 
-      newCtrlReady = true;
       break;
     }
     case streamMessaging::messageTypes::BANK0:
@@ -505,24 +495,19 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       currOscModels0[1]->setWavelen(w2);
       currOscModels0[2]->setWavelen(w3);
 
-      setCtrl();
+      currOscModels0[0]->ctrl(epsilon_fixed);
+      currOscModels0[1]->ctrl(epsilon_fixed);
+      currOscModels0[2]->ctrl(epsilon_fixed);
+
+
 
       calculateOscBuffers0();
 
 
       startOscBankA();
 
-      // spin_unlock(calcOscsSpinlock0, save);
-
       // Update current bank type
       currentBank0Type = requestedBank;
-
-      // RESTART DMA receiver - reuse existing PIO/DMA configuration
-      // Reset read position and restart DMA channels
-      // streamMessaging::last_dma_pos = 0;
-      // streamMessaging::current_rx_dma = streamMessaging::dma_channel_rx_a;
-      // streamMessaging::curr_rx_buffer = streamMessaging::rx_buffer_a_word;
-      // dma_channel_start(streamMessaging::dma_channel_rx_a);
 
       Serial.println("Bank0 changed, RX restarted");
       // streamMessaging::resumeReceiver();
@@ -596,31 +581,29 @@ size_t errorCount=0;
 size_t totalMessagesReceived=0;
 
 size_t serialts=0;
+
 void __not_in_flash_func(loop)() {
   digitalWrite(22,0);
 
-  // for(size_t i=0; i < 3; i++) {
-    streamMessaging::msgpacket* msg;
-    streamMessaging::RxStatus status = streamMessaging::receiveWithDMA(&msg);
+  streamMessaging::msgpacket* msg;
+  streamMessaging::RxStatus status = streamMessaging::receiveWithDMA(&msg);
 
-    if (status != streamMessaging::RxStatus::NO_MESSAGE) {
-        if (status == streamMessaging::RxStatus::MESSAGE_OK) {
-            totalMessagesReceived++;
-            digitalWrite(22,1);
-            processSerialMessage(*msg);
-        } else {
-            errorCount++;
-        }
-        if (counter++ == checkevery) {
-            Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
-            counter=0;
-            errorCount=0;
-        }
-    }
-  //   else{
-  //       break;
-  //   }
-  // }
+  if (status != streamMessaging::RxStatus::NO_MESSAGE) {
+      if (status == streamMessaging::RxStatus::MESSAGE_OK) {
+          totalMessagesReceived++;
+          digitalWrite(22,1);
+          processSerialMessage(*msg);
+      } else {
+          errorCount++;
+      }
+      if (counter++ == checkevery) {
+          Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
+          Serial.printf("new oct %d\n ", octaveIdx);
+
+          counter=0;
+          errorCount=0;
+      }
+  }
   if (waitingForFirstFrequency0 == false && oscsStartedAfterFirstFrequency0 == false) {
     startOscBankA();
     oscsStartedAfterFirstFrequency0 = true;
@@ -630,9 +613,11 @@ void __not_in_flash_func(loop)() {
       Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
       Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
       Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
-      // new_wavelen3 = new_wavelen3 * currOct3;
-      // new_wavelen4 = new_wavelen4 * currOct4;
-      // new_wavelen5 = new_wavelen5 * currOct5;
+
+      new_wavelen3_fixed = currentOctaveShifts[0] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[0] : new_wavelen3_fixed << -currentOctaveShifts[0];
+      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
+      new_wavelen5_fixed = currentOctaveShifts[2] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[2] : new_wavelen5_fixed << -currentOctaveShifts[2];
+
       currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
       currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
       currOscModels0[2]->setWavelen(new_wavelen5_fixed.to_int());
@@ -696,7 +681,11 @@ void __not_in_flash_func(loop1)() {
       currOscModels1[1]->setWavelen(w2);
       currOscModels1[2]->setWavelen(w3);
 
-      setCtrl();
+      // setCtrl();
+
+      currOscModels1[0]->ctrl(epsilon_fixed);
+      currOscModels1[1]->ctrl(epsilon_fixed);
+      currOscModels1[2]->ctrl(epsilon_fixed);
 
       calculateOscBuffers1();
 
@@ -715,12 +704,14 @@ void __not_in_flash_func(loop1)() {
       newCtrlReady = false;
     }
     if (newFrequenciesReady1) {
-      Fixed<20,12> new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed );
+      Fixed<20,12> new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed - detuneFixed );
       Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
       Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
-      // new_wavelen6 = new_wavelen6 * currOct6;
-      // new_wavelen7 = new_wavelen7 * currOct7;
-      // new_wavelen8 = new_wavelen8 * currOct8;
+
+      new_wavelen6_fixed = currentOctaveShifts[0] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[0] : new_wavelen6_fixed << -currentOctaveShifts[0];
+      new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
+      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
+
       currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
       currOscModels1[1]->setWavelen(new_wavelen7_fixed.to_int());
       currOscModels1[2]->setWavelen(new_wavelen8_fixed.to_int());

@@ -291,7 +291,7 @@ FixedLpf<18,2> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
-// FixedLpf<12,6> FAST_MEM adcLpf3;
+FixedLpf<12,6> FAST_MEM adcLpf3;
 
 Fixed<20,12> __not_in_flash("adc") new_wavelen0_fixed(0);
 Fixed<20,12> __not_in_flash("adc") new_wavelen1_fixed(0);
@@ -433,21 +433,24 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     epsilon_fixed *= metaModCtrlMul;
 
     //octaves
-    const size_t octControl = adcReadings[3];
+    adcLpf3.play(adcReadings[3]);
+    const size_t octControl = adcLpf3.value();
     controlValues[3] = octControl;
-    const size_t octaveIdx = static_cast<size_t>(octControl) >> 8;  // 16 divisions
+    const size_t octaveIdx = octControl >> 8;  // 16 divisions
 
     if (octaveIdx != lastOctaveIdx) {
       lastOctaveIdx = octaveIdx;
       octReady = true;
+      sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
       currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
+      Serial.printf("oct %d\n", octaveIdx);
     }
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
 
     PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen2_fixed.raw());
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0_fixed.raw());
     PERF_END(SERIALTX);
     PERF_END(ADC);
 
@@ -1534,10 +1537,10 @@ void __not_in_flash_func(loop)() {
   //   }
     
 
-  // if (now - ctrlTS >= 1000) {
-  //   sendToMyriadB(streamMessaging::messageTypes::CTRL0, epsilon_fixed.raw());
-  //   ctrlTS = now;
-  // }
+  if (now - ctrlTS >= 1000) {
+    sendToMyriadB(streamMessaging::messageTypes::CTRL0, epsilon_fixed.raw());
+    ctrlTS = now;
+  }
   if (now - detuneTS >= 1000) {
     sendToMyriadB(streamMessaging::messageTypes::DETUNE, detuneFixed.raw());
     detuneTS = now;
@@ -1548,7 +1551,6 @@ void __not_in_flash_func(loop)() {
   //   octReady = false;
   // }  
 
-  // }
 
 
   if (now - displayTS >= 1000000/28){
@@ -1556,22 +1558,22 @@ void __not_in_flash_func(loop)() {
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
       Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
-      new_wavelen3_fixed = currentOctaveShifts[3] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[3] : new_wavelen3_fixed << -currentOctaveShifts[3];
+      new_wavelen3_fixed = currentOctaveShifts[0] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[0] : new_wavelen3_fixed << -currentOctaveShifts[0];
 
       Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
-      new_wavelen4_fixed = currentOctaveShifts[4] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[4] : new_wavelen4_fixed << -currentOctaveShifts[4];
+      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
 
       Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
-      new_wavelen5_fixed = currentOctaveShifts[5] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[5] : new_wavelen5_fixed << -currentOctaveShifts[5];
+      new_wavelen5_fixed = currentOctaveShifts[2] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[2] : new_wavelen5_fixed << -currentOctaveShifts[2];
 
       Fixed<20,12> new_wavelen6_fixed = (new_wavelen5_fixed - detuneFixed);
-      new_wavelen6_fixed = currentOctaveShifts[6] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[6] : new_wavelen6_fixed << -currentOctaveShifts[6];
+      new_wavelen6_fixed = currentOctaveShifts[0] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[0] : new_wavelen6_fixed << -currentOctaveShifts[0];
 
       Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
-      new_wavelen7_fixed = currentOctaveShifts[7] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[7] : new_wavelen7_fixed << -currentOctaveShifts[7];
+      new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
 
       Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
-      new_wavelen8_fixed = currentOctaveShifts[8] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[8] : new_wavelen8_fixed << -currentOctaveShifts[8];
+      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
 
 
       uint32_t save = spin_lock_blocking(displaySpinlock);  
@@ -1654,10 +1656,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 500000) {
-  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
+    dotTS = now;
+  }
 }
 
 

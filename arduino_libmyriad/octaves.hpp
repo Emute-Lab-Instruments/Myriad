@@ -1,24 +1,24 @@
 #ifndef OCTAVES_HPP
 #define OCTAVES_HPP
 
-static const __not_in_flash("octaves") float octaveTable[16][9] = {
-    {1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f},   // case 0
-    {0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f},   // case 1
-    {0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f},   // case 2
-    {0.25f,  0.5f,   1.0f,   0.25f,  0.5f,   1.0f,   0.25f,  0.5f,   1.0f},   // case 3
-    {0.25f,  0.5f,   2.0f,   0.25f,  0.5f,   2.0f,   0.25f,  0.5f,   2.0f},   // case 4
-    {0.25f,  0.5f,   4.0f,   0.25f,  0.5f,   4.0f,   0.25f,  0.5f,   4.0f},   // case 5
-    {0.25f,  0.25f,  4.0f,   0.25f,  0.25f,  4.0f,   0.25f,  0.25f,  4.0f},   // case 6
-    {0.5f,   0.25f,  4.0f,   0.5f,   0.25f,  4.0f,   0.5f,   0.25f,  4.0f},   // case 7
-    {0.25f,  2.0f,   4.0f,   0.25f,  2.0f,   4.0f,   0.25f,  2.0f,   4.0f},   // case 8
-    {0.25f,  4.0f,   4.0f,   0.25f,  4.0f,   4.0f,   0.25f,  4.0f,   4.0f},   // case 9
-    {0.5f,   4.0f,   4.0f,   0.5f,   4.0f,   4.0f,   0.25f,  4.0f,   4.0f},   // case 10
-    {1.0f,   4.0f,   4.0f,   1.0f,   4.0f,   4.0f,   1.0f,   4.0f,   4.0f},   // case 11
-    {2.0f,   4.0f,   4.0f,   2.0f,   4.0f,   4.0f,   2.0f,   4.0f,   4.0f},   // case 12
-    {2.0f,   2.0f,   4.0f,   2.0f,   2.0f,   4.0f,   2.0f,   2.0f,   4.0f},   // case 13
-    {1.0f,   2.0f,   4.0f,   1.0f,   2.0f,   4.0f,   1.0f,   2.0f,   4.0f},   // case 14
-    {1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f}    // case 15
-};
+// static const __not_in_flash("octaves") float octaveTable[16][9] = {
+//     {1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f,   1.0f},   // case 0
+//     {0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f,   0.5f,   1.0f,   1.0f},   // case 1
+//     {0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f,   0.5f,   0.5f,   1.0f},   // case 2
+//     {0.25f,  0.5f,   1.0f,   0.25f,  0.5f,   1.0f,   0.25f,  0.5f,   1.0f},   // case 3
+//     {0.25f,  0.5f,   2.0f,   0.25f,  0.5f,   2.0f,   0.25f,  0.5f,   2.0f},   // case 4
+//     {0.25f,  0.5f,   4.0f,   0.25f,  0.5f,   4.0f,   0.25f,  0.5f,   4.0f},   // case 5
+//     {0.25f,  0.25f,  4.0f,   0.25f,  0.25f,  4.0f,   0.25f,  0.25f,  4.0f},   // case 6
+//     {0.5f,   0.25f,  4.0f,   0.5f,   0.25f,  4.0f,   0.5f,   0.25f,  4.0f},   // case 7
+//     {0.25f,  2.0f,   4.0f,   0.25f,  2.0f,   4.0f,   0.25f,  2.0f,   4.0f},   // case 8
+//     {0.25f,  4.0f,   4.0f,   0.25f,  4.0f,   4.0f,   0.25f,  4.0f,   4.0f},   // case 9
+//     {0.5f,   4.0f,   4.0f,   0.5f,   4.0f,   4.0f,   0.25f,  4.0f,   4.0f},   // case 10
+//     {1.0f,   4.0f,   4.0f,   1.0f,   4.0f,   4.0f,   1.0f,   4.0f,   4.0f},   // case 11
+//     {2.0f,   4.0f,   4.0f,   2.0f,   4.0f,   4.0f,   2.0f,   4.0f,   4.0f},   // case 12
+//     {2.0f,   2.0f,   4.0f,   2.0f,   2.0f,   4.0f,   2.0f,   2.0f,   4.0f},   // case 13
+//     {1.0f,   2.0f,   4.0f,   1.0f,   2.0f,   4.0f,   1.0f,   2.0f,   4.0f},   // case 14
+//     {1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f}    // case 15
+// };
 
 static const __not_in_flash("octaves") int8_t octaveTableShift[16][3] = {
     {0, 0, 0},   // case 0
@@ -39,7 +39,7 @@ static const __not_in_flash("octaves") int8_t octaveTableShift[16][3] = {
     {0, -1, -1}    //case 15
 };
 
-static float __not_in_flash("adc") *currentOctaves = (float *)octaveTable[0];
+// static float __not_in_flash("adc") *currentOctaves = (float *)octaveTable[0];
 static int8_t __not_in_flash("adc") *currentOctaveShifts = (int8_t *)octaveTableShift[0];
 
 
