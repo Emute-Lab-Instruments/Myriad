@@ -315,24 +315,24 @@ class squareBBBOscillatorModel : public virtual oscillatorModel {
 class noiseOscillatorModel2 : public virtual oscillatorModel {
   public:
     noiseOscillatorModel2() : oscillatorModel(){
-      loopLength=16;
+      loopLength=4;
       prog=pulse_program;
-      randBaseMin = randMin = sampleClock/10000;
-      randBaseMax = randMax = sampleClock/20;
-      randRange = randMax - randBaseMin;
   
     }
     inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
-          *(bufferA + i) = static_cast<uint32_t>(random(0,randMult) * wavelen * 0.01f);
+          Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);
+
+          *(bufferA + i) = (Fixed<20,12>(wavelen) * Fixed<20,12>(0.01f)).mulWith(rnd).to_int();//static_cast<uint32_t>(rnd * wavelen * 0.01f);
       }
     }
+
     pio_sm_config getBaseConfig(uint offset) {
       return pulse_program_get_default_config(offset);
     }
     
     void ctrl(const Q16_16 v) override {
-      randMult = 5 + (v.mul_fast(Q16_16(500))).to_int();
+      randMult = Q16_16(0) + (v.mul_fast(Q16_16(500)));
     }
   
     String getIdentifier() override {
@@ -340,8 +340,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     }
   
   private:
-    long randMin, randMax, randBaseMin, randRange, randBaseMax;
-    float randMult=100.f;
+    Q16_16 randMult = Q16_16(100);
     // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
   
   
@@ -580,16 +579,19 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 
 
     whiteNoiseOscillatorModel() : oscillatorModel(){
-      loopLength=32;
+      loopLength=16;
       prog=bitbybit_program;
       setClockModShift(1);
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      wv20 = Fixed<20,12>(getWavelenAtFrequency(20.f));
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
-        if ((rand() % 10000) > alpha)
-          acc += (rand() & 1) ? 1 : -1;
+        if ((rand() % 200000) > alpha) {
+          int inc = beta>>2;
+          acc += (rand() & 1) ? inc : -inc;
+        }
         if (rand() % 1000 > beta)
           acc ^= (rand() & 127U);
         
@@ -599,10 +601,10 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
     }
 
     void ctrl(const Q16_16 v) override {
-      // alpha = (int)(v * 950.f) + 9000;
-      // // Serial.printf("alpha: %d\n", alpha);
-      // beta = 500 + ( (float)this->wavelen / getWavelenAtFrequency(20.f) * 500.f);
-      // // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
+      alpha = (v * Q16_16(10000)).to_int() + 190000;
+      // Serial.printf("alpha: %d\n", alpha);
+      beta = 500 + ( (Fixed<20,12>(this->wavelen) / wv20) * Fixed<20,12>(400)).to_int();
+      // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
     }
   
     pio_sm_config getBaseConfig(uint offset) {
@@ -619,6 +621,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 
    int integrator = 0, acc=0;  
    int alpha=255, beta=0;
+   Fixed<20,12> wv20;
 };
 
 
@@ -687,7 +690,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 6;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -730,10 +733,10 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   // // ,
 
   // //noise
-  // // []() { return std::make_shared<noiseOscillatorModel2>();} //yes
-  // // ,
-  // // []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
-  // // ,
+  []() { return std::make_shared<noiseOscillatorModel2>();} //yes
+  ,
+  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
+  ,
 
   //silent
   []() { return std::make_shared<silentOscillatorModel>();}
