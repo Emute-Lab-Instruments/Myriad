@@ -158,9 +158,9 @@ class triOscillatorModel : public virtual oscillatorModel {
   public:
 
     triOscillatorModel() : oscillatorModel(){
-      loopLength=32;
+      loopLength=16;
       prog=bitbybit_program;
-      setClockModShift(2);
+      setClockModShift(1);
       if (!triTableGenerated) {
         triTableGenerated=true;
         for(size_t i = 0; i < 1000; ++i) {
@@ -214,20 +214,19 @@ class triOscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const Q16_16 v) override {
-      // const size_t index = static_cast<size_t>(v * 900.f + 0.5f);
-      // if (index != lastPW || wavelen != lastWavelen) {
-      //   lastPW = index;
-      //   lastWavelen = wavelen;
-      //   // Serial.printf("index: %zu, wavelen: %zu\n", index, wavelen);
-      //   phaseRisingMul = MULTIPLIER_TABLE_RISING[index];
-      //   phaseRisingInvMul = MULTIPLIER_TABLE_RISING_INV[index];
-      //   phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
-      //   risingInc = phaseRisingMul;
-      //   fallingInc = -phaseFallingMul;  
-      //   // ctrlChange=true;    
-      //   // amp_fp=0;
-      // }
-        // bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
+      const size_t index = (v * Q16_16(900)).to_int();  //static_cast<size_t>(v * 900.f + 0.5f);
+      if (index != lastPW || wavelen != lastWavelen) {
+        lastPW = index;
+        lastWavelen = wavelen;
+        phaseRisingMul = MULTIPLIER_TABLE_RISING[index];
+        phaseRisingInvMul = MULTIPLIER_TABLE_RISING_INV[index];
+        phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
+        risingInc = phaseRisingMul;
+        fallingInc = -phaseFallingMul;  
+        // ctrlChange=true;    
+        // amp_fp=0;
+      }
+      //   bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
       // Serial.printf("%zu, phaseRisingMul: %zu, phaseRisingInvMul: %zu, phaseFallingMul: %zu\n", index, phaseRisingMul,phaseRisingInvMul, phaseFallingMul);
     }
   
@@ -355,7 +354,7 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
   public:
 
     triSDVar1OscillatorModel() : oscillatorModel(){
-      loopLength=32;
+      loopLength=16;
       setClockModShift(1);
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
@@ -395,6 +394,8 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const Q16_16 v) override {
+      using fptype = Fixed<18,14>;
+      mul = (fptype(1) - (fptype(v) * fptype(0.9f))).raw();
       // mul = ((1.f - (v * 0.9f)) * qfpMul);
     }
       
@@ -402,14 +403,6 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
     }
-
-    // void reset() override {
-    //   oscillatorModel::reset();
-    //   phase = 0;
-    //   y = 0;
-    //   err0 = 0;
-    //   mul = 1;
-    // }
 
     String getIdentifier() override {
       return "trv10";
@@ -694,7 +687,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 4;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 6;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -719,10 +712,10 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   // // ,
 
   // //tris
-  // []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
-  // ,
-  // []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
-  // ,
+  []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
+  ,
+  []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
+  ,
 
   // //slide
   // // []() { return std::make_shared<slideOscillatorModel>(); }  //10
