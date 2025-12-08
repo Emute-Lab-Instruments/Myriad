@@ -135,20 +135,27 @@ struct repeating_timer FAST_MEM timerMetaModUpdate;
 /////////////////// messaging to Myriad B ///////////////////////
 
 static FAST_MEM streamMessaging::msgpacket msg;
+static spin_lock_t FAST_MEM *serialSpinlock;
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
-   streamMessaging::createMessage(msg, value, msgType);
-   streamMessaging::sendMessageWithDMA(msg);
+  streamMessaging::createMessage(msg, value, msgType);
+  uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::sendMessageWithDMA(msg);
+  spin_unlock(serialSpinlock, save);
 }
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, size_t value) {
-   streamMessaging::createMessage(msg, value, msgType);
-   streamMessaging::sendMessageWithDMA(msg);
+  streamMessaging::createMessage(msg, value, msgType);
+  uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::sendMessageWithDMA(msg);
+  spin_unlock(serialSpinlock, save);
 }
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, int32_t value) {
-   streamMessaging::createMessage(msg, value, msgType);
-   streamMessaging::sendMessageWithDMA(msg);
+  streamMessaging::createMessage(msg, value, msgType);
+  uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::sendMessageWithDMA(msg);
+  spin_unlock(serialSpinlock, save);
 }
 
 
@@ -280,7 +287,7 @@ size_t FAST_MEM oscBankTypes[3] = {0,0,0};
 uint __not_in_flash("adc") dma_chan;
 uint __not_in_flash("adc") dma_chan2;
 
-FixedLpf<18,8> FAST_MEM adcLpf0;
+FixedLpf<18,2> FAST_MEM adcLpf0;
 // FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
@@ -310,7 +317,7 @@ size_t __not_in_flash("adc") lastOctaveIdx = 0;
 // median_filter_t __not_in_flash("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 10000;
+constexpr size_t systemUpdateFreq = 8000;
 size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
 volatile bool __not_in_flash("adc") newFrequenciesReady = false;
@@ -318,7 +325,7 @@ volatile bool __not_in_flash("adc") newFrequenciesReady = false;
 static size_t __not_in_flash("adc") adcCount = 0;
 static size_t __not_in_flash("adc") adcAccumulator0=0;
 static size_t __not_in_flash("adc") adc0Oversample=0;
-#define oversampleBits 2
+#define oversampleBits 3
 #define oversampleFactor (1<<oversampleBits)
 
 uint8_t __not_in_flash("adc") oct0Shift = 0;
@@ -331,15 +338,18 @@ PERF_DECLARE(ADC);
 PERF_DECLARE(METAMODS);
 PERF_DECLARE(SERIALTX);
 
-    
+size_t pitchCVAccumulator=0;
 void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //oversampling pitch
-    adcLpf0.play(adcReadings[0]); 
+    pitchCVAccumulator += adcReadings[0];
 
     adcCount++;
 
     if (adcCount == oversampleFactor) {
       adcCount=0;
+      pitchCVAccumulator = pitchCVAccumulator >> oversampleBits;
+      adcLpf0.play(pitchCVAccumulator); 
+      pitchCVAccumulator=0;
     }else{
       return;
     }
@@ -1319,6 +1329,7 @@ void setup() {
   // calcOscsSpinlock = spin_lock_init(spin_lock_claim_unused(true));
   displaySpinlock = spin_lock_init(spin_lock_claim_unused(true));
   adcSpinlock = spin_lock_init(spin_lock_claim_unused(true));
+  serialSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
   //set up serial tx to Myriad B
   bool serialTXOK = streamMessaging::setupTX(pio0, nullptr, 13, 12, DMACH_SERIAL_TX);
@@ -1523,19 +1534,19 @@ void __not_in_flash_func(loop)() {
   //   }
     
 
-  if (now - ctrlTS >= 1000) {
-    sendToMyriadB(streamMessaging::messageTypes::CTRL0, epsilon_fixed.raw());
-    ctrlTS = now;
-  }
+  // if (now - ctrlTS >= 1000) {
+  //   sendToMyriadB(streamMessaging::messageTypes::CTRL0, epsilon_fixed.raw());
+  //   ctrlTS = now;
+  // }
   if (now - detuneTS >= 1000) {
     sendToMyriadB(streamMessaging::messageTypes::DETUNE, detuneFixed.raw());
     detuneTS = now;
   }
 
-  if (octReady) {
-    sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, lastOctaveIdx);
-    octReady = false;
-  }  
+  // if (octReady) {
+  //   sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, lastOctaveIdx);
+  //   octReady = false;
+  // }  
 
   // }
 
@@ -1643,10 +1654,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
+  //   dotTS = now;
+  // }
 }
 
 

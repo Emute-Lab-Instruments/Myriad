@@ -16,7 +16,9 @@
 #include <memory>
 #include "octaves.hpp"
 #include "streamMessaging.hpp"
+#include "fixedpoint.hpp"
 
+using namespace FixedPoint;
 
 #define RUNCORE0_OSCS
 #define RUNCORE1_OSCS
@@ -128,7 +130,9 @@ uint32_t CORE1_FAST_MEM smOsc5_dma_chan_bit;
 volatile bool FAST_MEM oscsRunning0 = false;
 volatile bool FAST_MEM oscsRunning1 = false;
 
-float ctrlVal = 0.f;
+// float ctrlVal = 0.f;
+Fixed<16,16> FAST_MEM epsilon_fixed(0);
+
 
 
 
@@ -177,21 +181,21 @@ void restart_sm(PIO pio, uint sm) {
 }
 
 void assignOscModels0(size_t modelIdx) {
-  Serial.printf("assignOscModels0: modelIdx=%d\n", modelIdx);
-  Serial.flush();
+  // Serial.printf("assignOscModels0: modelIdx=%d\n", modelIdx);
+  // Serial.flush();
 
   for(size_t i = 0; i < currOscModels0.size(); i++) {
-    Serial.printf("  Creating model %d...\n", i);
-    Serial.flush();
+    // Serial.printf("  Creating model %d...\n", i);
+    // Serial.flush();
 
     currOscModels0[i] = oscModelFactories[modelIdx]();
 
-    Serial.printf("  Model %d created\n", i);
-    Serial.flush();
+    // Serial.printf("  Model %d created\n", i);
+    // Serial.flush();
   }
 
-  Serial.println("assignOscModels0 complete");
-  Serial.flush();
+  // Serial.println("assignOscModels0 complete");
+  // Serial.flush();
 }
 void assignOscModels1(size_t modelIdx) {
   for(auto &model: currOscModels1) {
@@ -236,21 +240,22 @@ void __force_inline calculateOscBuffers1() {
 }
 
 inline void __not_in_flash_func(setCtrl)() {
-  currOscModels0[0]->ctrl(ctrlVal);
-  currOscModels0[1]->ctrl(ctrlVal);
-  currOscModels0[2]->ctrl(ctrlVal);
-  currOscModels1[0]->ctrl(ctrlVal);
-  currOscModels1[1]->ctrl(ctrlVal);
-  currOscModels1[2]->ctrl(ctrlVal);
+  currOscModels0[0]->ctrl(epsilon_fixed);
+  currOscModels0[1]->ctrl(epsilon_fixed);
+  currOscModels0[2]->ctrl(epsilon_fixed);
+  currOscModels1[0]->ctrl(epsilon_fixed);
+  currOscModels1[1]->ctrl(epsilon_fixed);
+  currOscModels1[2]->ctrl(epsilon_fixed);
 }
 
-float FAST_MEM detune = 0.f;
-float FAST_MEM metaModWavelenMul3 = 1.f;
-float FAST_MEM metaModWavelenMul4 = 1.f;
-float FAST_MEM metaModWavelenMul5 = 1.f;
-float FAST_MEM metaModWavelenMul6 = 1.f;
-float FAST_MEM metaModWavelenMul7 = 1.f;
-float FAST_MEM metaModWavelenMul8 = 1.f;
+// float FAST_MEM detune = 0.f;
+Fixed<20,12> FAST_MEM detuneFixed(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul3(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul4(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul5(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul6(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul7(0);
+Fixed<20,12> FAST_MEM metaModWavelenMul8(0);
 
 float FAST_MEM currOct3=1;
 float FAST_MEM currOct4=1;
@@ -264,240 +269,23 @@ size_t FAST_MEM octaveIdx = 0;
 volatile bool FAST_MEM newFrequenciesReady0 = false;
 volatile bool FAST_MEM newFrequenciesReady1 = false;
 
-float new_wavelen0 = 10000;
+// float new_wavelen0 = 10000;
+Fixed<20,12> new_wavelen2_fixed;
 
-static uint8_t __scratch_x("mydata") slipBuffer[64];
+
+// static uint8_t __scratch_x("mydata") slipBuffer[64];
 volatile bool FAST_MEM newCtrlReady = false;
-
-// inline void __not_in_flash_func(readUart)() {
-//   uint8_t spiByte=0;
-//   int nBytes;
-//   // Serial.println("readuart");
-//   if (Serial1.available()) {
-//     switch(spiState) {
-//       case SPISTATES::WAITFOREND:
-//         spiByte = Serial1.read();
-//         if (spiByte != -1) {
-//           if (spiByte == SLIP::END) {
-//             // Serial.println("end");
-//             slipBuffer[0] = SLIP::END;
-//             spiState = SPISTATES::ENDORBYTES;
-//           }else{
-//             // Serial.println(spiByte);
-//           }
-//         }
-//         break;
-//       case ENDORBYTES:
-//         spiByte = Serial1.read();
-//         if (spiByte != -1) {
-//           if (spiByte == SLIP::END) {
-//             //this is the message start
-//             spiIdx = 1;
-
-//           }else{
-//             slipBuffer[1] = spiByte;
-//             spiIdx=2;
-//           }
-//           spiState = SPISTATES::READBYTES;
-//         }
-//         break;
-//       case READBYTES:
-//         spiByte = Serial1.read();
-//         if (spiByte != -1) {
-
-//           slipBuffer[spiIdx++] = spiByte;
-//           if (spiByte == SLIP::END) {
-//             // for(int i=0; i < spiIdx; i++) {
-//             //   Serial.print(slipBuffer[i]);
-//             //   Serial.print("\t");
-//             // }
-//             // Serial.println("");
-//             spiMessage decodeMsg;
-//             constexpr size_t decodeMsgSize =sizeof(spiMessage);
-
-//             const size_t bytesDecoded = SLIP::decode(slipBuffer, spiIdx, reinterpret_cast<uint8_t*>(&decodeMsg));
-//             if (bytesDecoded == decodeMsgSize) {
-//               // Serial.print(decodeMsg.msg);
-//               // Serial.print(": ");
-              
-//               // Serial.println(decodeMsg.value);
-//               switch(decodeMsg.msg) {
-//                 case WAVELEN0:
-//                 {
-                  
-//                   // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
-//                   new_wavelen0 = decodeMsg.value;
-//                   newFrequenciesReady0 = true;
-//                   newFrequenciesReady1 = true;
-//                   waitingForFirstFrequency0 = false;
-//                   waitingForFirstFrequency1 = false;
-//                   break;
-//                 }
-//                 case DETUNE:
-//                 {
-//                   detune = decodeMsg.value;
-//                   break;
-//                 }     
-//                 case METAMOD3:
-//                 {
-//                   metaModWavelenMul3 = decodeMsg.value;
-//                   break;
-//                 }
-//                 case METAMOD4:
-//                 {
-//                   metaModWavelenMul4 = decodeMsg.value;
-//                   break;
-//                 }
-//                 case METAMOD5:
-//                 {
-//                   metaModWavelenMul5 = decodeMsg.value;
-//                   break;
-//                 }
-//                 case METAMOD6:
-//                 {
-//                   // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-//                   metaModWavelenMul6 = decodeMsg.value;
-//                   // spin_unlock(calcOscsSpinlock1, save1);
-//                   break;
-//                 }
-//                 case METAMOD7:
-//                 {
-//                   // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-//                   metaModWavelenMul7 = decodeMsg.value;
-//                   // spin_unlock(calcOscsSpinlock1, save1);
-//                   break;
-//                 }
-//                 case METAMOD8:
-//                 {
-//                   // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-//                   metaModWavelenMul8 = decodeMsg.value;
-//                   // spin_unlock(calcOscsSpinlock1, save1);
-//                   break;
-//                 }
-//                 case OCTSPREAD:
-//                 {
-//                   octaveIdx = decodeMsg.ivalue;
-//                   if (octaveIdx > 15) octaveIdx = 15;
-//                   currentOctaves = (float *)octaveTable[octaveIdx];
-//                   //copy to save array access later
-//                   currOct3 = currentOctaves[3];
-//                   currOct4 = currentOctaves[4];
-//                   currOct5 = currentOctaves[5];
-//                   // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-//                   currOct6 = currentOctaves[6];
-//                   currOct7 = currentOctaves[7];
-//                   currOct8 = currentOctaves[8];
-//                   // spin_unlock(calcOscsSpinlock1, save1);
-//                   break;
-//                 }
-//                 case CTRL0:
-//                 {
-//                   ctrlVal = decodeMsg.value;
-//                   currOscModels0[0]->ctrl(ctrlVal);
-//                   currOscModels0[1]->ctrl(ctrlVal);
-//                   currOscModels0[2]->ctrl(ctrlVal);
-
-//                   newCtrlReady = true;
-//                   // Serial.println(v);
-//                   break;
-//                 }
-//                 case BANK0:
-//                 {
-//                   // Serial.println("bank0");
-//                   uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
-
-//                   stopOscBankA();
-
-//                   busy_wait_us(100);                  
-
-//                   dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
-
-//                   auto w1 = currOscModels0[0]->getWavelen();
-//                   auto w2 = currOscModels0[1]->getWavelen();
-//                   auto w3 = currOscModels0[2]->getWavelen();
-
-//                   assignOscModels0(decodeMsg.ivalue);
-
-//                   currOscModels0[0]->reset();
-//                   currOscModels0[1]->reset();
-//                   currOscModels0[2]->reset();
-
-//                   currOscModels0[0]->setWavelen(w1);
-//                   currOscModels0[1]->setWavelen(w2);
-//                   currOscModels0[2]->setWavelen(w3);
-
-//                   setCtrl();
-
-//                   calculateOscBuffers0();
-
-
-//                   startOscBankA();
-//                   spin_unlock(calcOscsSpinlock0, save);
-
-//                 }
-//                 break;
-//                 case BANK1:
-//                 {
-//                   // Serial.println("bank1");   
-//                   // // Serial.println(decodeMsg.value);
-//                   uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
-
-//                   stopOscBankB();
-
-//                   busy_wait_us(100);
-
-//                   dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
-
-//                   auto w1 = currOscModels1[0]->getWavelen();
-//                   auto w2 = currOscModels1[1]->getWavelen();
-//                   auto w3 = currOscModels1[2]->getWavelen();
-//                   assignOscModels1(decodeMsg.ivalue);
-
-//                   currOscModels1[0]->reset();
-//                   currOscModels1[1]->reset();
-//                   currOscModels1[2]->reset();
-
-//                   currOscModels1[0]->setWavelen(w1);
-//                   currOscModels1[1]->setWavelen(w2);
-//                   currOscModels1[2]->setWavelen(w3);
-
-//                   setCtrl();
-
-//                   calculateOscBuffers1();
-
-//                   startOscBankB();
-//                   spin_unlock(calcOscsSpinlock1, save);
-
-//                 }
-//                 break;
-//                 default:
-//                   break;
-//               }
-//             }
-//             spiState = SPISTATES::WAITFOREND;
-//           }
-//         }
-//         break;
-//     }
-//   }
-// }
 
 
 void startOscBankA() {
 
   uint programOffset = currOscModels0[0]->loadProg(pio0);
 
-  Serial.printf("PIO_off=%d\n", programOffset);
-  Serial.flush();
 
   pio_sm_config baseConfig = currOscModels0[0]->getBaseConfig(programOffset);
   const size_t modelClockDiv = currOscModels0[0]->getClockDiv();
 
-  Serial.println("Before init0");
-  Serial.flush();
   smOsc0_dma_chan = smOsc0.init(pio0, 0, OSC1_PIN, programOffset, baseConfig, nextTimingBuffer0, dma_irh, modelClockDiv, currOscModels0[0]->loopLength, DMA_IRQ_0, DMACH_CORE0_OSC0);
-  Serial.printf("After init0, chan=%d\n", smOsc0_dma_chan);
-  Serial.flush();
   if (smOsc0_dma_chan < 0) {
     Serial.println("dma chan allocation error");
   }
@@ -516,24 +304,8 @@ void startOscBankA() {
 }
 
 void stopOscBankA() {
-  Serial.println("stopOscBankA START");
-  Serial.flush();
 
   oscsRunning0 = false;
-
-  // Wait for any pending DMA transfers to complete
-  // uint32_t timeout_counter = 0;
-  // while (dma_channel_is_busy(smOsc0_dma_chan) ||
-  //        dma_channel_is_busy(smOsc1_dma_chan) ||
-  //        dma_channel_is_busy(smOsc2_dma_chan)) {
-  //   tight_loop_contents();
-  //   timeout_counter++;
-  //   if (timeout_counter > 1000000) {
-  //     Serial.printf("DMA TIMEOUT!\n");
-  //     Serial.flush();
-  //     timeout_counter = 0;
-  //   }
-  // }
 
   smOsc0.stop();
   smOsc1.stop();
@@ -558,13 +330,10 @@ void stopOscBankA() {
   bufSent1 = false;
   bufSent2 = false;
 
-  Serial.println("stopOscBankA END");
-  Serial.flush();
 }
 
 void startOscBankB() {
 
-  Serial.println("StartoscbankB");
 
   // Don't clear entire PIO - this would destroy the RX program
   // The oscillator loadProg() will add its program without clearing others
@@ -574,11 +343,9 @@ void startOscBankB() {
   pio_sm_config baseConfig = currOscModels1[0]->getBaseConfig(programOffset);
 
   const size_t modelClockDiv = currOscModels1[0]->getClockDiv();
-  Serial.printf("clockdiv: %d", modelClockDiv);
 
   // Monitor PIO program placement
   // Check how much PIO memory is used (32 instructions max)
-  Serial.printf(" PIO1_offset=%d\n", programOffset);
 
   smOsc3_dma_chan = smOsc3.init(pio1, 0, OSC4_PIN, programOffset, baseConfig, nextTimingBuffer3, dma_irh1, modelClockDiv, currOscModels1[0]->loopLength, DMA_IRQ_1, DMACH_CORE1_OSC0);
   smOsc3_dma_chan_bit = 1u << smOsc3_dma_chan;
@@ -630,7 +397,8 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     {
       
       // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
-      new_wavelen0 = msg.value.floatValue;
+      // new_wavelen0 = msg.value.floatValue;
+      new_wavelen2_fixed = Fixed<20,12>::from_raw(msg.value.intValue);
       newFrequenciesReady0 = true;
       newFrequenciesReady1 = true;
       waitingForFirstFrequency0 = false;
@@ -639,70 +407,72 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     }
     case streamMessaging::messageTypes::DETUNE:
     {
-      detune = msg.value.floatValue;
+      // detune = msg.value.floatValue;
+      detuneFixed = Fixed<20,12>::from_raw(msg.value.intValue);
       break;
     }     
     case streamMessaging::messageTypes::METAMOD3:
     {
-      metaModWavelenMul3 = msg.value.floatValue;
+      // metaModWavelenMul3 = msg.value.floatValue;
       break;
     }
     case streamMessaging::messageTypes::METAMOD4:
     {
-      metaModWavelenMul4 = msg.value.floatValue;
+      // metaModWavelenMul4 = msg.value.floatValue;
       break;
     }
     case streamMessaging::messageTypes::METAMOD5:
     {
-      metaModWavelenMul5 = msg.value.floatValue;
+      // metaModWavelenMul5 = msg.value.floatValue;
       break;
     }
     case streamMessaging::messageTypes::METAMOD6:
     {
       // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      metaModWavelenMul6 = msg.value.floatValue;
+      // metaModWavelenMul6 = msg.value.floatValue;
       // spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::METAMOD7:
     {
       // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      metaModWavelenMul7 = msg.value.floatValue;
+      // metaModWavelenMul7 = msg.value.floatValue;
       // spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::METAMOD8:
     {
       // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      metaModWavelenMul8 = msg.value.floatValue;
+      // metaModWavelenMul8 = msg.value.floatValue;
       // spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::OCTSPREAD:
     {
       octaveIdx = msg.value.uintValue;
-      if (octaveIdx > 15) octaveIdx = 15;
-      currentOctaves = (float *)octaveTable[octaveIdx];
-      //copy to save array access later
-      currOct3 = currentOctaves[3];
-      currOct4 = currentOctaves[4];
-      currOct5 = currentOctaves[5];
-      // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      currOct6 = currentOctaves[6];
-      currOct7 = currentOctaves[7];
-      currOct8 = currentOctaves[8];
+      // if (octaveIdx > 15) octaveIdx = 15;
+      // currentOctaves = (float *)octaveTable[octaveIdx];
+      // //copy to save array access later
+      // currOct3 = currentOctaves[3];
+      // currOct4 = currentOctaves[4];
+      // currOct5 = currentOctaves[5];
+      // // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+      // currOct6 = currentOctaves[6];
+      // currOct7 = currentOctaves[7];
+      // currOct8 = currentOctaves[8];
       // spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::CTRL0:
     {
-      ctrlVal = msg.value.floatValue;
-      currOscModels0[0]->ctrl(ctrlVal);
-      currOscModels0[1]->ctrl(ctrlVal);
-      currOscModels0[2]->ctrl(ctrlVal);
+      // ctrlVal = msg.value.floatValue;
+      epsilon_fixed = Q16_16::from_raw(msg.value.intValue);
+
+      currOscModels0[0]->ctrl(epsilon_fixed);
+      currOscModels0[1]->ctrl(epsilon_fixed);
+      currOscModels0[2]->ctrl(epsilon_fixed);
 
       newCtrlReady = true;
-      // Serial.println(v);
       break;
     }
     case streamMessaging::messageTypes::BANK0:
@@ -711,11 +481,9 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
 
       // Skip if already at this bank (prevents redundant changes)
       if (requestedBank == currentBank0Type) {
-        Serial.printf("bank0: already at bank %d, skipping\n", requestedBank);
         break;
       }
 
-      Serial.printf("BANK0 CHANGE: %d->%d\n", currentBank0Type, requestedBank);
 
       // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
 
@@ -726,33 +494,23 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       auto w2 = currOscModels0[1]->getWavelen();
       auto w3 = currOscModels0[2]->getWavelen();
 
-      Serial.println("Before assignOscModels0");
 
       assignOscModels0(requestedBank);
 
-      Serial.println("After assignOscModels0");
-
-      Serial.println("reset");
       currOscModels0[0]->reset();
       currOscModels0[1]->reset();
       currOscModels0[2]->reset();
 
-      Serial.println("setWavelen");
       currOscModels0[0]->setWavelen(w1);
       currOscModels0[1]->setWavelen(w2);
       currOscModels0[2]->setWavelen(w3);
 
-      Serial.println("setCtrl");
       setCtrl();
 
-      Serial.println("calcBuf");
       calculateOscBuffers0();
 
-      Serial.println("Before startOscBankA");
 
       startOscBankA();
-
-      Serial.println("After startOscBankA");
 
       // spin_unlock(calcOscsSpinlock0, save);
 
@@ -776,47 +534,6 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
       requestedBank1 = msg.value.uintValue;
       spin_unlock(calcOscsSpinlock1, save);
-
-      // Skip if already at this bank (prevents redundant changes)
-      // if (requestedBank == currentBank1Type) {
-      //   Serial.printf("bank1: already at bank %d, skipping\n", requestedBank);
-      //   break;
-      // }
-
-      // Serial.printf("bank1: changing %d -> %d\n", currentBank1Type, requestedBank);
-
-      // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
-
-      // stopOscBankB();
-
-      // // busy_wait_us(100);
-
-      // dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
-
-      // auto w1 = currOscModels1[0]->getWavelen();
-      // auto w2 = currOscModels1[1]->getWavelen();
-      // auto w3 = currOscModels1[2]->getWavelen();
-
-      // assignOscModels1(requestedBank);
-
-      // currOscModels1[0]->reset();
-      // currOscModels1[1]->reset();
-      // currOscModels1[2]->reset();
-
-      // currOscModels1[0]->setWavelen(w1);
-      // currOscModels1[1]->setWavelen(w2);
-      // currOscModels1[2]->setWavelen(w3);
-
-      // setCtrl();
-
-      // calculateOscBuffers1();
-
-      // startOscBankB();
-      // spin_unlock(calcOscsSpinlock1, save);
-
-      // // Update current bank type
-      // currentBank1Type = requestedBank;
-
 
     }
     break;
@@ -910,15 +627,15 @@ void __not_in_flash_func(loop)() {
   }
   if (oscsRunning0) {
     if (newFrequenciesReady0) {
-      float new_wavelen3 = (new_wavelen0 - detune - detune - detune);
-      float new_wavelen4 = (new_wavelen3 - detune);
-      float new_wavelen5 = (new_wavelen4 - detune);
-      new_wavelen3 = new_wavelen3 * currOct3;
-      new_wavelen4 = new_wavelen4 * currOct4;
-      new_wavelen5 = new_wavelen5 * currOct5;
-      currOscModels0[0]->setWavelen(new_wavelen3 * metaModWavelenMul3);
-      currOscModels0[1]->setWavelen(new_wavelen4 * metaModWavelenMul4);
-      currOscModels0[2]->setWavelen(new_wavelen5 * metaModWavelenMul5);
+      Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
+      Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
+      // new_wavelen3 = new_wavelen3 * currOct3;
+      // new_wavelen4 = new_wavelen4 * currOct4;
+      // new_wavelen5 = new_wavelen5 * currOct5;
+      currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
+      currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
+      currOscModels0[2]->setWavelen(new_wavelen5_fixed.to_int());
       newFrequenciesReady0 = false;
     }
     
@@ -946,7 +663,6 @@ void setup1() {
 
 }
 
-//TODO: better spin locking and concurrency safety
 void __not_in_flash_func(loop1)() {
   if (waitingForFirstFrequency1 == false && oscsStartedAfterFirstFrequency1 == false) {
     startOscBankB();
@@ -993,24 +709,21 @@ void __not_in_flash_func(loop1)() {
 
     }    
     if (newCtrlReady) {
-      currOscModels1[0]->ctrl(ctrlVal);
-      currOscModels1[1]->ctrl(ctrlVal);
-      currOscModels1[2]->ctrl(ctrlVal);
+      currOscModels1[0]->ctrl(epsilon_fixed);
+      currOscModels1[1]->ctrl(epsilon_fixed);
+      currOscModels1[2]->ctrl(epsilon_fixed);
       newCtrlReady = false;
     }
     if (newFrequenciesReady1) {
-      float new_wavelen6 = (new_wavelen0 - detune - detune - detune - detune - detune);
-      float new_wavelen7 = (new_wavelen6 - detune);
-      float new_wavelen8 = (new_wavelen7 - detune);
-      new_wavelen6 = new_wavelen6 * currOct6;
-      new_wavelen7 = new_wavelen7 * currOct7;
-      new_wavelen8 = new_wavelen8 * currOct8;
-      currOscModels1[0]->setWavelen(new_wavelen6 * metaModWavelenMul6);
-      // currOscModels1[0]->reset();
-      currOscModels1[1]->setWavelen(new_wavelen7 * metaModWavelenMul7);
-      // currOscModels1[1]->reset();
-      currOscModels1[2]->setWavelen(new_wavelen8 * metaModWavelenMul8);
-      // currOscModels1[2]->reset();
+      Fixed<20,12> new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed );
+      Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
+      Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
+      // new_wavelen6 = new_wavelen6 * currOct6;
+      // new_wavelen7 = new_wavelen7 * currOct7;
+      // new_wavelen8 = new_wavelen8 * currOct8;
+      currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
+      currOscModels1[1]->setWavelen(new_wavelen7_fixed.to_int());
+      currOscModels1[2]->setWavelen(new_wavelen8_fixed.to_int());
       newFrequenciesReady1 = false;
     }
     // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
