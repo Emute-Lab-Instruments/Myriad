@@ -633,7 +633,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
   public:
 
     pulseSDOscillatorModel() : oscillatorModel(){
-      loopLength=32;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
       setClockModShift(1);
@@ -660,40 +660,14 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
         *(bufferA + i) = word;
 
       }
-      // const size_t wlen = this->wavelen;
-      // for (size_t i = 0; i < loopLength; ++i) {
-      //   size_t word=0U;
-      //   for(size_t bit=0U; bit < 32U; bit++) {
-      //     // if (phase>=wavelen) {
-      //     //   phase = 0U;
-      //     // }
-      //     const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
-      //     phase &= phasemask;
-      //     phase++;
-
-      //     size_t amp = phase;
-      //     // size_t amp = (phase * phaseMul) >> 15U;
-      //     // if (amp >= wavelen) {
-      //     //   amp = 0U; // wrap around
-      //     // }
-      //     const size_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
-      //     amp &= mask;
-
-      //     const bool y = amp >= err0 ? 1 : 0;
-      //     err0 = (y ? wlen : 0) - amp + err0;
-
-      //     word |= (y << bit);
-
-      //   }
-      //   // word = word << 1U;
-      //   *(bufferA + i) = word;
-
-      // }
-
     }
 
 
     void ctrl(const Q16_16 v) override {
+      using fptype = Fixed<1,30>;
+      fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
+      pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
+      pulselen = Fixed<20,12>(this->wavelen).mulWith(pw).to_int();
       // pw= std::max((1.f-v) * 0.5f, 0.01f);
       // pulselen = this->wavelen * pw;
     }
@@ -713,15 +687,14 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
     bool y=0;
     int err0=0;
 
-    float pw=0.5f;
-    size_t pulselen=10000;
+    int pulselen=10000;
 
 };
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 3;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 4;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -735,10 +708,10 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
 
-  // //squares
-  // []() { return std::make_shared<pulseSDOscillatorModel>(); }
+  //squares
+  []() { return std::make_shared<pulseSDOscillatorModel>(); }
   
-  // ,
+  ,
 
   // // []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
   // // ,
