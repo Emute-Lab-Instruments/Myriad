@@ -804,15 +804,15 @@ public:
             }
 
             // Calculate distance from center
-            // const FixedType dx = centerX - walkers[i].x;
-            // const FixedType dy = centerY - walkers[i].y;
+            const FixedType dx = centerX - walkers[i].x;
+            const FixedType dy = centerY - walkers[i].y;
 
             // Distance = sqrt(dx^2 + dy^2)
-            // const FixedType dx2 = dx * dx;
-            // const FixedType dy2 = dy * dy;
+            const FixedType dx2 = dx * dx;
+            const FixedType dy2 = dy * dy;
 
-            // const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
-            const FixedType distance = distL1(centerX, centerY, walkers[i].x, walkers[i].y);
+            const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
+            // const FixedType distance = distL1(centerX, centerY, walkers[i].x, walkers[i].y);
             
 
             // Modulation output: distance scaled by depth
@@ -1192,9 +1192,9 @@ public:
         centerY = sumY * Q16_16(1.f/N);
 
         // Fixed-point constants
-        const Q16_16 cohesionRadius = Q16_16(60.0);
-        const Q16_16 separationRadius = Q16_16(45.0);
-        const Q16_16 alignmentRadius = Q16_16(55.0);
+        const Q16_16 cohesionRadius = Q16_16(45.0);
+        const Q16_16 separationRadius = Q16_16(30.0);
+        const Q16_16 alignmentRadius = Q16_16(38.0);
         const Q16_16 cohesionStrength = Q16_16(0.005);
         const Q16_16 separationMul = Q16_16(0.2);
         const Q16_16 alignmentStrength = Q16_16(0.05);
@@ -1219,7 +1219,7 @@ public:
             int neighborCount = 0;
             for(auto &other: boids) {
                 if (&v != &other) {
-                    neighbors[neighborCount].dist = distL1(v.x, v.y, other.x, other.y);
+                    neighbors[neighborCount].dist = distBetween(v.x, v.y, other.x, other.y);
                     neighbors[neighborCount].ptr = &other;
                     neighborCount++;
                 }

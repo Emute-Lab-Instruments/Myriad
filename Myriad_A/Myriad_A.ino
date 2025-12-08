@@ -390,7 +390,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //calc wavelenth
     //TODO: restore tuning
     // const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
-    const Fixed<20,12> wvlenFixed = TuningSettings::wavelenC1Fixed; //Fixed point wavelength at C1
+    // const Fixed<20,12> wvlenFixed = TuningSettings::wavelenC1Fixed; //Fixed point wavelength at C1
+    const Fixed<20,12> wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
     Q16_16 freqRecpFixed = Q16_16(1) / freq_Q16; //1/freq
 
     new_wavelen0_fixed = wvlenFixed.mulWith(freqRecpFixed); //wvlenC1 * (1/freq)
@@ -604,13 +605,42 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
 }
 
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
+  PERF_BEGIN(METAMODS);
   if (currMetaMod > 0) {
     uint32_t save = spin_lock_blocking(adcSpinlock);
-    PERF_BEGIN(METAMODS);
     auto metamods = metaOscsFPList.at(currMetaMod)->update(controlValues);
-    PERF_END(METAMODS);
     spin_unlock(adcSpinlock, save);
+
+    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
+        metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
+        metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
+        metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
+        metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
+        metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
+        metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
+        metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
+        metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
+        metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
+    }
+
+    if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
+        metaModCtrlMul = (Q16_16(1) + (
+          metamods[0]
+          + metamods[1]
+          + metamods[2]
+          + metamods[3]
+          + metamods[4]
+          + metamods[5]
+          + metamods[6]
+          + metamods[7]
+          + metamods[8]
+        )
+        * Q16_16(5));
+    }
+
+    metaModReady = true;
   }
+  PERF_END(METAMODS);
   return true;
 }
 
@@ -1146,10 +1176,22 @@ void __isr encoder3_switch_callback() {
         switch(modTarget) {
           case MODTARGETS::PITCH: {
             modTarget = MODTARGETS::EPSILON;
+            metaModCtrlMul = Q16_16(1);            
             break;
           }
           case MODTARGETS::EPSILON: {
             modTarget = MODTARGETS::PITCH_AND_EPSILON;
+
+            //clear out old metamod info
+            metaModWavelenMul0 = Q16_16(1);
+            metaModWavelenMul1 = Q16_16(1);
+            metaModWavelenMul2 = Q16_16(1);
+            metaModWavelenMul3 = Q16_16(1);
+            metaModWavelenMul4 = Q16_16(1);
+            metaModWavelenMul5 = Q16_16(1);
+            metaModWavelenMul6 = Q16_16(1);
+            metaModWavelenMul7 = Q16_16(1);
+            metaModWavelenMul8 = Q16_16(1);
             break;
           }
           case MODTARGETS::PITCH_AND_EPSILON: {
@@ -1475,27 +1517,10 @@ void __not_in_flash_func(loop)() {
 
   auto now = micros();
 
-  PERIODIC_RUN_US(
-      auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
-      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::PITCH ) {
-          metaModWavelenMul0 = (Q16_16(1) + (metamods[0]));
-          metaModWavelenMul1 = (Q16_16(1) + (metamods[1]));
-          metaModWavelenMul2 = (Q16_16(1) + (metamods[2]));
-          metaModWavelenMul3 = (Q16_16(1) + (metamods[3]));
-          metaModWavelenMul4 = (Q16_16(1) + (metamods[4]));
-          metaModWavelenMul5 = (Q16_16(1) + (metamods[5]));
-          metaModWavelenMul6 = (Q16_16(1) + (metamods[6]));
-          metaModWavelenMul7 = (Q16_16(1) + (metamods[7]));
-          metaModWavelenMul8 = (Q16_16(1) + (metamods[8]));
-      }
-
-      //TODO: many to one mapping?
-      if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-          metaModCtrlMul = (Q16_16(1) + (metamods[0] * Q16_16(5)));
-      }
-      metaModReady = true;
-    ,1000
-  );
+  // PERIODIC_RUN_US(
+  //     auto metamods = metaOscsFPList.at(currMetaMod)->getValues();
+  //   ,1000
+  // );
 
 
   // if (newFrequenciesReady && now - freqTS >= 125) {
@@ -1507,34 +1532,34 @@ void __not_in_flash_func(loop)() {
   //   newFrequenciesReady = false;
   //   freqTS = now;
   // }else{
-  //   //stagger meta mod sends
-  //   switch(metaModSendIdx) {
-  //     case 5:
-  //     metaModSendIdx = 4;
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3.to_float());
-  //     break;
-  //     case 4:
-  //     metaModSendIdx = 3;
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4.to_float());
-  //     break;
-  //     case 3:
-  //     metaModSendIdx = 2;
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5.to_float());
-  //     break;
-  //     case 2:
-  //     metaModSendIdx = 1;
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6.to_float());
-  //     break;
-  //     case 1:
-  //     metaModSendIdx = 0;
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7.to_float());
-  //     break;
-  //   }
-  //   if (metaModReady) {
-  //     sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8.to_float());
-  //     metaModSendIdx=5;
-  //     metaModReady=false;
-  //   }
+  //stagger meta mod sends
+  if (metaModReady) {
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD8, metaModWavelenMul8.raw());
+    metaModSendIdx=5;
+    metaModReady=false;
+  }
+  switch(metaModSendIdx) {
+    case 5:
+    metaModSendIdx = 4;
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD3, metaModWavelenMul3.raw());
+    break;
+    case 4:
+    metaModSendIdx = 3;
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD4, metaModWavelenMul4.raw());
+    break;
+    case 3:
+    metaModSendIdx = 2;
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD5, metaModWavelenMul5.raw());
+    break;
+    case 2:
+    metaModSendIdx = 1;
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD6, metaModWavelenMul6.raw());
+    break;
+    case 1:
+    metaModSendIdx = 0;
+    sendToMyriadB(streamMessaging::messageTypes::METAMOD7, metaModWavelenMul7.raw());
+    break;
+  }
     
 
   if (now - ctrlTS >= 1000) {

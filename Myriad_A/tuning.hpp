@@ -30,6 +30,10 @@ namespace TuningSettings {
     float TUNING_MEM baseWavelen = sampleClock /baseFrequency;
     float TUNING_MEM baseWavelenInv = 1.f/baseWavelen;
 
+    Fixed<20,12> TUNING_MEM baseFrequencyFP = Fixed<20,12>(baseFrequency);
+    Fixed<20,12> TUNING_MEM baseWavelenFP = Fixed<20,12>(sampleClockFP.divWith(baseFrequencyFP));
+    Fixed<20,12> TUNING_MEM baseWavelenInvFP = Fixed<20,12>(1)/baseWavelenFP;
+
     float TUNING_MEM quantNotesPerOct = 12.f;
     float TUNING_MEM quantPull = 0.f;
 
@@ -50,8 +54,11 @@ namespace TuningSettings {
     void update() {
         TuningSettings::adjustment = ((TuningSettings::octaves) + (TuningSettings::semitones * 1.f/12.f) + (TuningSettings::cents * 1.f/1200.f)); // 10 octaves
         baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
+        baseFrequencyFP = Fixed<20,12>(baseFrequency);
         baseWavelen = sampleClock  / baseFrequency;
         baseWavelenInv = 1.f/baseWavelen;
+        baseWavelenFP = Fixed<20,12>(sampleClockFP.divWith(baseFrequencyFP));
+        baseWavelenInvFP = Fixed<20,12>(1)/baseWavelenFP;
 
     }
 

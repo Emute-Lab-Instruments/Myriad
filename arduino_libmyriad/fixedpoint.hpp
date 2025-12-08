@@ -262,6 +262,25 @@ public:
         );
     }
 
+    // Divide by another Fixed type, keeping this format
+    template<int IntBits2, int FracBits2, typename StorageT2>
+    constexpr Fixed<IntBits, FracBits, StorageT> divWith(
+        const Fixed<IntBits2, FracBits2, StorageT2>& other
+    ) const {
+        // Always use int64_t for 32-bit storage division
+        using WideT = int64_t;
+        
+        // Shift dividend left by divisor's fractional bits to maintain precision
+        WideT temp = static_cast<WideT>(value) << FracBits2;
+        
+        // Perform division in wider type
+        WideT result = temp / static_cast<WideT>(other.raw());
+                
+        return Fixed<IntBits, FracBits, StorageT>::from_raw(
+            static_cast<StorageT>(result)
+        );
+    }    
+
     
     // ========================================================================
     // SATURATING ARITHMETIC

@@ -184,7 +184,6 @@ namespace streamMessaging {
 
   //also need RX_DATA_PIN+1 available for the packet frame signal
   bool setupRX(PIO pioNum, uint offset, int RX_DATA_PIN, uint dmaChA, uint dmaChB) {
-    while(!Serial) {};
     // bool success = pio_claim_free_sm_and_add_program_for_gpio_range(&stream_rx_program, &pioRx, &smRx, &offsetRx, RX_DATA_PIN, 2, true);
     
     pioRx = pioNum; 

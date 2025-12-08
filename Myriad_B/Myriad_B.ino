@@ -250,12 +250,12 @@ void __force_inline calculateOscBuffers1() {
 
 // float FAST_MEM detune = 0.f;
 Fixed<20,12> FAST_MEM detuneFixed(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul3(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul4(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul5(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul6(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul7(0);
-Fixed<20,12> FAST_MEM metaModWavelenMul8(0);
+Q16_16 FAST_MEM metaModWavelenMul3(1);
+Q16_16 FAST_MEM metaModWavelenMul4(1);
+Q16_16 FAST_MEM metaModWavelenMul5(1);
+Q16_16 FAST_MEM metaModWavelenMul6(1);
+Q16_16 FAST_MEM metaModWavelenMul7(1);
+Q16_16 FAST_MEM metaModWavelenMul8(1);
 
 float FAST_MEM currOct3=1;
 float FAST_MEM currOct4=1;
@@ -413,38 +413,38 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     }     
     case streamMessaging::messageTypes::METAMOD3:
     {
-      // metaModWavelenMul3 = msg.value.floatValue;
+      metaModWavelenMul3 = Q16_16::from_raw(msg.value.intValue);
       break;
     }
     case streamMessaging::messageTypes::METAMOD4:
     {
-      // metaModWavelenMul4 = msg.value.floatValue;
+      metaModWavelenMul4 = Q16_16::from_raw(msg.value.intValue);
       break;
     }
     case streamMessaging::messageTypes::METAMOD5:
     {
-      // metaModWavelenMul5 = msg.value.floatValue;
+      metaModWavelenMul5 = Q16_16::from_raw(msg.value.intValue);
       break;
     }
     case streamMessaging::messageTypes::METAMOD6:
     {
-      // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      // metaModWavelenMul6 = msg.value.floatValue;
-      // spin_unlock(calcOscsSpinlock1, save1);
+      uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+      metaModWavelenMul6 = Q16_16::from_raw(msg.value.intValue);
+      spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::METAMOD7:
     {
-      // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      // metaModWavelenMul7 = msg.value.floatValue;
-      // spin_unlock(calcOscsSpinlock1, save1);
+      uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+      metaModWavelenMul7 = Q16_16::from_raw(msg.value.intValue);
+      spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::METAMOD8:
     {
-      // uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
-      // metaModWavelenMul8 = msg.value.floatValue;
-      // spin_unlock(calcOscsSpinlock1, save1);
+      uint32_t save1 = spin_lock_blocking(calcOscsSpinlock1);  
+      metaModWavelenMul8 = Q16_16::from_raw(msg.value.intValue);
+      spin_unlock(calcOscsSpinlock1, save1);
       break;
     }
     case streamMessaging::messageTypes::OCTSPREAD:
@@ -499,10 +499,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       currOscModels0[1]->ctrl(epsilon_fixed);
       currOscModels0[2]->ctrl(epsilon_fixed);
 
-
-
       calculateOscBuffers0();
-
 
       startOscBankA();
 
@@ -605,6 +602,10 @@ void __not_in_flash_func(loop)() {
       }
   }
   if (waitingForFirstFrequency0 == false && oscsStartedAfterFirstFrequency0 == false) {
+    // currOscModels0[0]->ctrl(ctrlVal);
+    // currOscModels0[1]->ctrl(ctrlVal);
+    // currOscModels0[2]->ctrl(ctrlVal);
+
     startOscBankA();
     oscsStartedAfterFirstFrequency0 = true;
   }
@@ -613,6 +614,11 @@ void __not_in_flash_func(loop)() {
       Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
       Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
       Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
+
+      new_wavelen3_fixed = new_wavelen3_fixed.mulWith(metaModWavelenMul3);
+      new_wavelen4_fixed = new_wavelen4_fixed.mulWith(metaModWavelenMul4);
+      new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
+
 
       new_wavelen3_fixed = currentOctaveShifts[0] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[0] : new_wavelen3_fixed << -currentOctaveShifts[0];
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
@@ -681,8 +687,6 @@ void __not_in_flash_func(loop1)() {
       currOscModels1[1]->setWavelen(w2);
       currOscModels1[2]->setWavelen(w3);
 
-      // setCtrl();
-
       currOscModels1[0]->ctrl(epsilon_fixed);
       currOscModels1[1]->ctrl(epsilon_fixed);
       currOscModels1[2]->ctrl(epsilon_fixed);
@@ -707,6 +711,11 @@ void __not_in_flash_func(loop1)() {
       Fixed<20,12> new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed - detuneFixed );
       Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
       Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
+
+      new_wavelen6_fixed = new_wavelen6_fixed.mulWith(metaModWavelenMul6);
+      new_wavelen7_fixed = new_wavelen7_fixed.mulWith(metaModWavelenMul7);
+      new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
+
 
       new_wavelen6_fixed = currentOctaveShifts[0] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[0] : new_wavelen6_fixed << -currentOctaveShifts[0];
       new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
