@@ -286,16 +286,9 @@ FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
 // FixedLpf<12,6> FAST_MEM adcLpf3;
 
-// float __not_in_flash("adc") new_wavelen0 = 0;
-// float __not_in_flash("adc") new_wavelen1 = 0;
-// float __not_in_flash("adc") new_wavelen2 = 0;
 Fixed<20,12> __not_in_flash("adc") new_wavelen0_fixed(0);
 Fixed<20,12> __not_in_flash("adc") new_wavelen1_fixed(0);
 Fixed<20,12> __not_in_flash("adc") new_wavelen2_fixed(0);
-
-float __not_in_flash("adc") detune = 0;
-float __not_in_flash("adc") ctrlVal = 0;
-
 Fixed<20,12> __not_in_flash("adc") detuneFixed;
 
 Q16_16 __not_in_flash("adc") metaModWavelenMul0 = Q16_16(1);
@@ -308,15 +301,16 @@ Q16_16 __not_in_flash("adc") metaModWavelenMul6 = Q16_16(1);
 Q16_16 __not_in_flash("adc") metaModWavelenMul7 = Q16_16(1);
 Q16_16 __not_in_flash("adc") metaModWavelenMul8 = Q16_16(1);
 Q16_16 __not_in_flash("adc") metaModCtrlMul = Q16_16(1);
+
 bool __not_in_flash("adc") metaModReady = false;
 bool __not_in_flash("adc") octReady = false;
 
 size_t __not_in_flash("adc") lastOctaveIdx = 0;
 
-median_filter_t __not_in_flash("adc") pitchMedian;
+// median_filter_t __not_in_flash("adc") pitchMedian;
 
 
-constexpr size_t systemUpdateFreq = 8000;
+constexpr size_t systemUpdateFreq = 10000;
 size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
 volatile bool __not_in_flash("adc") newFrequenciesReady = false;
@@ -327,9 +321,6 @@ static size_t __not_in_flash("adc") adc0Oversample=0;
 #define oversampleBits 2
 #define oversampleFactor (1<<oversampleBits)
 
-// float __not_in_flash("adc") octMul0=1;
-// float __not_in_flash("adc") octMul1=1;
-// float __not_in_flash("adc") octMul2=1;
 uint8_t __not_in_flash("adc") oct0Shift = 0;
 uint8_t __not_in_flash("adc") oct1Shift = 0;
 uint8_t __not_in_flash("adc") oct2Shift = 0;
@@ -427,17 +418,9 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
     if (filteredADC2<0) filteredADC2=0;
     if (filteredADC2>4095) filteredADC2=4095;
-    // ctrlVal = filteredADC2 * CalibrationSettings::adcRangesInv[2];
     Fixed<16,16> filteredADC2Fixed = Fixed<16,16>(filteredADC2);
-    //
     epsilon_fixed = filteredADC2Fixed.mulWith(CalibrationSettings::adcRangesInvFP[2]);
-    // epsilon_fixed = epsilon_fixed.mulWith(metaModCtrlMul);
-      
-    // }
-
-
-    //todo: change to fixed
-    // ctrlVal *= metaModCtrlMul.to_float();
+    epsilon_fixed *= metaModCtrlMul;
 
     //octaves
     const size_t octControl = adcReadings[3];
@@ -1660,10 +1643,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 500000) {
-  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
+    dotTS = now;
+  }
 }
 
 

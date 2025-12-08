@@ -513,7 +513,7 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
   public:
 
     smoothThreshSDOscillatorModel() : oscillatorModel(){
-      loopLength=32;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
       setClockModShift(1);
@@ -533,7 +533,8 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
           const bool y = amp >= thr ? 1 : 0;
           size_t err0 = (y ? wlen : 0) - amp + thr;
 
-          thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
+          // thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
+          thr = ((err0 * alpha) + (thr)) >> qfp;
 
           word |= (y << bit);
 
@@ -545,9 +546,12 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
     }
 
     void ctrl(const Q16_16 v) override {
-      // alphaf = (0.02f * v * v) + 0.001f; 
-      // alpha = alphaf * qfpMul;
-      // alpha_inv = (1.0-alphaf) * qfpMul;
+      using fptype = Fixed<1,30>;
+      fptype v18(v);
+      v18 = (fptype(0.1f) * (v18) * (v18)) + fptype(0.03f);
+      alpha = v18.raw()>>12;
+      alpha_inv = (1<<qfp) - alpha; 
+      // Serial.printf("%f %d %d %d %d\n", v18.to_float(), alpha, alphatest, alpha_inv, alpha_invtest);
 
     }
       
@@ -555,15 +559,6 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
     }
-
-    // void reset() override {
-    //   oscillatorModel::reset();
-    //   phase = 0;
-    //   y = 0;
-    //   err0 = 0;
-    //   mul = 1;
-    //   lim=this->wavelen;
-    // }
 
     String getIdentifier() override {
       return "sdt10";
@@ -726,7 +721,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 2;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 3;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -737,8 +732,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   //saw / sharktooth
   []() { return std::make_shared<sawOscillatorModel>(); } //yes, go first
   ,
-  // []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
-  // ,
+  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
+  ,
 
   // //squares
   // []() { return std::make_shared<pulseSDOscillatorModel>(); }
