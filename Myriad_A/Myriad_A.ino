@@ -134,26 +134,29 @@ struct repeating_timer FAST_MEM timerMetaModUpdate;
 
 /////////////////// messaging to Myriad B ///////////////////////
 
-static FAST_MEM streamMessaging::msgpacket msg;
+// static FAST_MEM streamMessaging::msgpacket msg;
 static spin_lock_t FAST_MEM *serialSpinlock;
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, float value) {
-  streamMessaging::createMessage(msg, value, msgType);
   uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::msgpacket msg;
+  streamMessaging::createMessage(msg, value, msgType);
   streamMessaging::sendMessageWithDMA(msg);
   spin_unlock(serialSpinlock, save);
 }
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, size_t value) {
-  streamMessaging::createMessage(msg, value, msgType);
   uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::msgpacket msg;
+  streamMessaging::createMessage(msg, value, msgType);
   streamMessaging::sendMessageWithDMA(msg);
   spin_unlock(serialSpinlock, save);
 }
 
 void __force_inline __not_in_flash_func(sendToMyriadB) (streamMessaging::messageTypes msgType, int32_t value) {
-  streamMessaging::createMessage(msg, value, msgType);
   uint32_t save = spin_lock_blocking(serialSpinlock);  
+  streamMessaging::msgpacket msg;
+  streamMessaging::createMessage(msg, value, msgType);
   streamMessaging::sendMessageWithDMA(msg);
   spin_unlock(serialSpinlock, save);
 }
