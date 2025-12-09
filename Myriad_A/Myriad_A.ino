@@ -1594,13 +1594,14 @@ void __not_in_flash_func(loop)() {
     PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
-      WvlenFPType new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      WvlenFPType new_wavelen3_fixed = (new_wavelen0_fixed - detuneFixed - detuneFixed - detuneFixed);
       WvlenFPType new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
       WvlenFPType new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
       WvlenFPType new_wavelen6_fixed = (new_wavelen5_fixed - detuneFixed);
       WvlenFPType new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
       WvlenFPType new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
 
+      // Serial.printf("%f %f %f\n", new_wavelen6_fixed.to_float(),   new_wavelen7_fixed.to_float(), new_wavelen8_fixed.to_float());
       new_wavelen3_fixed = new_wavelen3_fixed.mulWith(metaModWavelenMul3);
       new_wavelen4_fixed = new_wavelen4_fixed.mulWith(metaModWavelenMul4);
       new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
@@ -1615,7 +1616,6 @@ void __not_in_flash_func(loop)() {
       new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
       new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
 
-      // Serial.printf("%d %f %f %f %d\n",(16 << 1), new_wavelen2_fixed.to_float(),   new_wavelen8_fixed.to_float(), detuneFixed.to_float(), currentOctaveShifts[2]);
       uint32_t save = spin_lock_blocking(displaySpinlock);  
 
       display.setDisplayWavelengths({
@@ -1696,10 +1696,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
+  //   dotTS = now;
+  // }
 }
 
 
