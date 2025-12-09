@@ -607,6 +607,18 @@ inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
   return mappedVal;
 }
 
+void __not_in_flash_func(resetMetaMods)() {
+  metaModWavelenMul0 = Q16_16(1);
+  metaModWavelenMul1 = Q16_16(1);
+  metaModWavelenMul2 = Q16_16(1);
+  metaModWavelenMul3 = Q16_16(1);
+  metaModWavelenMul4 = Q16_16(1);
+  metaModWavelenMul5 = Q16_16(1);
+  metaModWavelenMul6 = Q16_16(1);
+  metaModWavelenMul7 = Q16_16(1);
+  metaModWavelenMul8 = Q16_16(1);
+}
+
 bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   PERF_BEGIN(METAMODS);
   if (currMetaMod > 0) {
@@ -746,7 +758,11 @@ void __not_in_flash_func(setMetaOscMode)(size_t mode) {
   cancel_repeating_timer(&timerMetaModUpdate);
   add_repeating_timer_ms(metaOscsFPList[currMetaMod]->getTimerMS(), metaModUpdate, NULL, &timerMetaModUpdate);
 
-  Serial.printf("meta mod mode change %d\n", currMetaMod);
+  if (mode ==0) {
+    resetMetaMods();
+    metaModCtrlMul = Q16_16(1);            
+    metaModReady = true; //send to unit B
+  }
 
 }
 
@@ -754,7 +770,6 @@ void updateTuning() {
   TuningSettings::update();
   display.setTuning(TuningSettings::octaves, TuningSettings::semitones, TuningSettings::cents);
   display.setTuningBypass(TuningSettings::bypass);
-  // Serial.printf("%f %f\n", courseTuning, fineTuning);
 }
 
 constexpr size_t postSwitchUpPause = 200; //ms
@@ -1167,6 +1182,7 @@ void __isr encoder2_switch_callback() {
   }
 }
 
+
 //right
 void __isr encoder3_switch_callback() {
   bool switchDownEvent = processSwitchEvent(2, enc3Debouncer, ENCODER3_SWITCH);
@@ -1184,17 +1200,8 @@ void __isr encoder3_switch_callback() {
           }
           case MODTARGETS::EPSILON: {
             modTarget = MODTARGETS::PITCH_AND_EPSILON;
-
+            resetMetaMods();
             //clear out old metamod info
-            metaModWavelenMul0 = Q16_16(1);
-            metaModWavelenMul1 = Q16_16(1);
-            metaModWavelenMul2 = Q16_16(1);
-            metaModWavelenMul3 = Q16_16(1);
-            metaModWavelenMul4 = Q16_16(1);
-            metaModWavelenMul5 = Q16_16(1);
-            metaModWavelenMul6 = Q16_16(1);
-            metaModWavelenMul7 = Q16_16(1);
-            metaModWavelenMul8 = Q16_16(1);
             break;
           }
           case MODTARGETS::PITCH_AND_EPSILON: {
@@ -1203,6 +1210,7 @@ void __isr encoder3_switch_callback() {
           }
         }
         display.setModTarget(modTarget);
+        metaModReady = true; //send any changes to unit B
         break;
       }
       case CONTROLMODES::OSCMODE:

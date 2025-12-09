@@ -594,9 +594,7 @@ void __not_in_flash_func(loop)() {
           errorCount++;
       }
       if (counter++ == checkevery) {
-          Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
-          Serial.printf("new oct %d\n ", octaveIdx);
-
+          // Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
           counter=0;
           errorCount=0;
       }
