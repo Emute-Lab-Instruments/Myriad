@@ -9,7 +9,7 @@
 #include <limits>
 #include "oscmodels/oscillatorModel.hpp"
 
-
+using WvlenFPType = Fixed<20,11>;
 
 
 
@@ -323,7 +323,7 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
       for (size_t i = 0; i < loopLength; ++i) {
           Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);
 
-          *(bufferA + i) = (Fixed<20,12>(wavelen) * Fixed<20,12>(0.01f)).mulWith(rnd).to_int();//static_cast<uint32_t>(rnd * wavelen * 0.01f);
+          *(bufferA + i) = (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();//static_cast<uint32_t>(rnd * wavelen * 0.01f);
       }
     }
 
@@ -583,7 +583,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
       prog=bitbybit_program;
       setClockModShift(1);
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      wv20 = Fixed<20,12>(getWavelenAtFrequency(20.f));
+      wv20 = WvlenFPType(getWavelenAtFrequency(20.f));
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
@@ -603,7 +603,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
     void ctrl(const Q16_16 v) override {
       alpha = (v * Q16_16(10000)).to_int() + 190000;
       // Serial.printf("alpha: %d\n", alpha);
-      beta = 500 + ( (Fixed<20,12>(this->wavelen) / wv20) * Fixed<20,12>(400)).to_int();
+      beta = 500 + ( (WvlenFPType(this->wavelen) / wv20) * WvlenFPType(400)).to_int();
       // Serial.printf("alpha: %d, beta: %d\n", alpha, beta);
     }
   
@@ -621,7 +621,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
 
    int integrator = 0, acc=0;  
    int alpha=255, beta=0;
-   Fixed<20,12> wv20;
+   WvlenFPType wv20;
 };
 
 
@@ -663,7 +663,7 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
       using fptype = Fixed<1,30>;
       fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
       pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
-      pulselen = Fixed<20,12>(this->wavelen).mulWith(pw).to_int();
+      pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
       // pw= std::max((1.f-v) * 0.5f, 0.01f);
       // pulselen = this->wavelen * pw;
     }

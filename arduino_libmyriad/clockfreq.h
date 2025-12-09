@@ -4,6 +4,7 @@
 #include "fixedpoint.hpp"
 
 using namespace FixedPoint;
+using WvlenFPType = Fixed<20,11>;
 
 constexpr size_t CLOCKDIV_BASE = 96; 
 constexpr size_t clockdiv = CLOCKDIV_BASE;
@@ -16,5 +17,5 @@ constexpr float maxWavelen = sampleClock / 20.f; //1Hz min
 
 constexpr Fixed<24,8> sampleClockFP = Fixed<24,8>(sampleClock);
 constexpr Q16_16 sampleClockInvFP(sampleClockInv);
-constexpr Fixed<20,12> minWavelenFP(minWavelen); //20kHz max
-constexpr Fixed<20,12> maxWavelenFP(maxWavelen);
+constexpr WvlenFPType minWavelenFP(minWavelen); //20kHz max
+constexpr WvlenFPType maxWavelenFP(maxWavelen);

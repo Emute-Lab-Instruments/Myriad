@@ -13,6 +13,7 @@
 #include <sinetable_fixed.hpp>
 
 using namespace FixedPoint;
+using WvlenFPType = Fixed<20,11>;
 
 TFT_eSPI __not_in_flash("display") tft = TFT_eSPI();  // Invoke custom library
 
@@ -29,7 +30,7 @@ public:
 
   struct OscBankScreenStates {
     size_t oscModel[3];
-    std::array<Fixed<20,12>, N_OSCS> oscWavelengths;
+    std::array<WvlenFPType, N_OSCS> oscWavelengths;
     metaOscFPPtr<N_OSCS> ptr;
     std::array<float, N_OSCS> modLineX, modLineY, modLineXStart, modLineYStart;
   };
@@ -285,7 +286,7 @@ public:
     }
   }
 
-  void __force_inline setDisplayWavelengths(const std::array<Fixed<20,12>, N_OSCS> &wavelengths) {
+  void __force_inline setDisplayWavelengths(const std::array<WvlenFPType, N_OSCS> &wavelengths) {
     nextState.oscBankScreenState.oscWavelengths = wavelengths;
   }
 
@@ -469,7 +470,7 @@ private:
       tft.fillScreen(ELI_BLUE);
     }
     
-    static constexpr float slowestWavelen = sampleClock/3.f;
+    static constexpr float slowestWavelen = sampleClock/10.f;
     static constexpr float fastestWavelen = sampleClock/20000.f;
     static constexpr float rangeWavelen = slowestWavelen - fastestWavelen;
     static constexpr float rangeWavelenRcpFloat = 1.0/rangeWavelen;
@@ -478,13 +479,14 @@ private:
     // static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
     // static constexpr float unitR=7;
     static constexpr Fixed<0,24> rangeWavelenRcp(rangeWavelenRcpFloat);
-    static constexpr Q16_16 slowestOscVisSpeed = Q16_16(0.001f);
-    static constexpr Q16_16 fastestOscVisSpeed = Q16_16(0.03f);
+    static constexpr Q16_16 slowestOscVisSpeed = Q16_16(0.0005f);
+    static constexpr Q16_16 fastestOscVisSpeed = Q16_16(0.04f);
     static constexpr Q16_16 rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
     static constexpr Q16_16 unitR=Q16_16(7);
     // auto modVals = nextState.ptr->getValues();
     static constexpr int __not_in_flash("oscdisp") oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
 
+    // for(size_t i=0; i < 1; i++) {
     for(size_t i=0; i < N_OSCS; i++) {
       const Q16_16 prevpos = oscVisPhase[i] * Q16_16(TWOPI);
       const Q16_16 prevcospos = sine_table.fast_cos(prevpos);
@@ -498,13 +500,17 @@ private:
       // tft.drawLine(currState.modLineXStart[i], currState.modLineYStart[i], currState.modLineX[i], currState.modLineY[i], ELI_BLUE );
       tft.drawCircle(cx, cy, 5, ELI_BLUE);
 
-      Fixed<20,12> normwavelen = Fixed<20,12>(1) - (nextState.oscWavelengths[i] - minWavelenFP).mulWith(rangeWavelenRcp);
+      WvlenFPType normwavelen = WvlenFPType(1) - (nextState.oscWavelengths[i] - minWavelenFP).mulWith(rangeWavelenRcp);
+      normwavelen = normwavelen < WvlenFPType(0) ? WvlenFPType(0) : normwavelen;
       normwavelen= normwavelen * normwavelen * normwavelen;
-      // normwavelen = std::max(normwavelen,0.f);
+      // if (i==0) {
+      //   Serial.printf("%f %f %f %f %f\n", nextState.oscWavelengths[i].to_float(), minWavelenFP.to_float(), rangeWavelenRcp.to_float(), rangeWavelen, normwavelen.to_float());
+      // }
       const Q16_16 speed = rangeOscVisSpeed.mulWith(normwavelen) + slowestOscVisSpeed;
       // if (i==0) {
       //   Serial.printf("%f %f %f\n",nextState.oscWavelengths[i].to_float(), rangeWavelenRcp.to_float(), normwavelen.to_float());
       // }
+      // Serial.printf("%f\t", speed.to_float());
       oscVisPhase[i] += speed;
       if (oscVisPhase[i] >= Q16_16(1)) {
         oscVisPhase[i] -= Q16_16(1);
@@ -539,6 +545,7 @@ private:
       tft.drawCircle(cx2, cy2, 5, oscColArray[i]);
 
     } 
+    // Serial.println();
 
     constexpr float angleRange = 120.f/ N_OSCILLATOR_MODELS;
     constexpr std::array<size_t, 15> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE, TFT_SKYBLUE, TFT_VIOLET, TFT_PINK, TFT_LIGHTGREY, TFT_WHITE};

@@ -295,11 +295,12 @@ FixedLpf<18,2> FAST_MEM adcLpf0;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
 FixedLpf<12,6> FAST_MEM adcLpf3;
+using WvlenFPType = Fixed<20,11>;
 
-Fixed<20,12> __not_in_flash("adc") new_wavelen0_fixed(0);
-Fixed<20,12> __not_in_flash("adc") new_wavelen1_fixed(0);
-Fixed<20,12> __not_in_flash("adc") new_wavelen2_fixed(0);
-Fixed<20,12> __not_in_flash("adc") detuneFixed;
+WvlenFPType __not_in_flash("adc") new_wavelen0_fixed(0);
+WvlenFPType __not_in_flash("adc") new_wavelen1_fixed(0);
+WvlenFPType __not_in_flash("adc") new_wavelen2_fixed(0);
+WvlenFPType __not_in_flash("adc") detuneFixed;
 
 Q16_16 __not_in_flash("adc") metaModWavelenMul0 = Q16_16(1);
 Q16_16 __not_in_flash("adc") metaModWavelenMul1 = Q16_16(1);
@@ -393,8 +394,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //calc wavelenth
     //TODO: restore tuning
     // const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
-    // const Fixed<20,12> wvlenFixed = TuningSettings::wavelenC1Fixed; //Fixed point wavelength at C1
-    const Fixed<20,12> wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
+    // const WvlenFPType wvlenFixed = TuningSettings::wavelenC1Fixed; //Fixed point wavelength at C1
+    const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
     Q16_16 freqRecpFixed = Q16_16(1) / freq_Q16; //1/freq
 
     new_wavelen0_fixed = wvlenFixed.mulWith(freqRecpFixed); //wvlenC1 * (1/freq)
@@ -1496,7 +1497,7 @@ void setup() {
   display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
   display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
 
-  constexpr Fixed<20,12> Fixed0(0);
+  constexpr WvlenFPType Fixed0(0);
   display.setDisplayWavelengths({Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0});
 
   core0ReadyFlag = 1;
@@ -1593,25 +1594,28 @@ void __not_in_flash_func(loop)() {
     PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
-      Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      WvlenFPType new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      WvlenFPType new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
+      WvlenFPType new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
+      WvlenFPType new_wavelen6_fixed = (new_wavelen5_fixed - detuneFixed);
+      WvlenFPType new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
+      WvlenFPType new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
+
+      new_wavelen3_fixed = new_wavelen3_fixed.mulWith(metaModWavelenMul3);
+      new_wavelen4_fixed = new_wavelen4_fixed.mulWith(metaModWavelenMul4);
+      new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
+      new_wavelen6_fixed = new_wavelen6_fixed.mulWith(metaModWavelenMul6);
+      new_wavelen7_fixed = new_wavelen7_fixed.mulWith(metaModWavelenMul7);
+      new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
+
       new_wavelen3_fixed = currentOctaveShifts[0] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[0] : new_wavelen3_fixed << -currentOctaveShifts[0];
-
-      Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
-
-      Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
       new_wavelen5_fixed = currentOctaveShifts[2] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[2] : new_wavelen5_fixed << -currentOctaveShifts[2];
-
-      Fixed<20,12> new_wavelen6_fixed = (new_wavelen5_fixed - detuneFixed);
       new_wavelen6_fixed = currentOctaveShifts[0] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[0] : new_wavelen6_fixed << -currentOctaveShifts[0];
-
-      Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
       new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
-
-      Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
       new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
 
-
+      // Serial.printf("%d %f %f %f %d\n",(16 << 1), new_wavelen2_fixed.to_float(),   new_wavelen8_fixed.to_float(), detuneFixed.to_float(), currentOctaveShifts[2]);
       uint32_t save = spin_lock_blocking(displaySpinlock);  
 
       display.setDisplayWavelengths({

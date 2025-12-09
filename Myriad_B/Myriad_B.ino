@@ -12,13 +12,14 @@
 #include "SLIP.h"
 #include "oscillatorModels.hpp"
 #include "bitstreams.hpp"
-#include "myriad_setup.h"
+// #include "myriad_setup.h"
 #include <memory>
 #include "octaves.hpp"
 #include "streamMessaging.hpp"
 #include "fixedpoint.hpp"
 
 using namespace FixedPoint;
+using WvlenFPType = Fixed<20,11>;
 
 #define RUNCORE0_OSCS
 #define RUNCORE1_OSCS
@@ -249,7 +250,7 @@ void __force_inline calculateOscBuffers1() {
 // }
 
 // float FAST_MEM detune = 0.f;
-Fixed<20,12> FAST_MEM detuneFixed(0);
+WvlenFPType FAST_MEM detuneFixed(0);
 Q16_16 FAST_MEM metaModWavelenMul3(1);
 Q16_16 FAST_MEM metaModWavelenMul4(1);
 Q16_16 FAST_MEM metaModWavelenMul5(1);
@@ -270,7 +271,7 @@ volatile bool FAST_MEM newFrequenciesReady0 = false;
 volatile bool FAST_MEM newFrequenciesReady1 = false;
 
 // float new_wavelen0 = 10000;
-Fixed<20,12> new_wavelen2_fixed;
+WvlenFPType new_wavelen2_fixed;
 
 
 // static uint8_t __scratch_x("mydata") slipBuffer[64];
@@ -398,7 +399,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
       
       // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
       // new_wavelen0 = msg.value.floatValue;
-      Fixed<20,12> new_wavelen0_fixed = Fixed<20,12>::from_raw(msg.value.intValue);
+      WvlenFPType new_wavelen0_fixed = WvlenFPType::from_raw(msg.value.intValue);
       new_wavelen2_fixed = new_wavelen0_fixed - detuneFixed - detuneFixed;
       newFrequenciesReady0 = true;
       newFrequenciesReady1 = true;
@@ -408,7 +409,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     }
     case streamMessaging::messageTypes::DETUNE:
     {
-      detuneFixed = Fixed<20,12>::from_raw(msg.value.intValue);
+      detuneFixed = WvlenFPType::from_raw(msg.value.intValue);
       break;
     }     
     case streamMessaging::messageTypes::METAMOD3:
@@ -609,9 +610,9 @@ void __not_in_flash_func(loop)() {
   }
   if (oscsRunning0) {
     if (newFrequenciesReady0) {
-      Fixed<20,12> new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
-      Fixed<20,12> new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
-      Fixed<20,12> new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
+      WvlenFPType new_wavelen3_fixed = (new_wavelen2_fixed - detuneFixed);
+      WvlenFPType new_wavelen4_fixed = (new_wavelen3_fixed - detuneFixed);
+      WvlenFPType new_wavelen5_fixed = (new_wavelen4_fixed - detuneFixed);
 
       new_wavelen3_fixed = new_wavelen3_fixed.mulWith(metaModWavelenMul3);
       new_wavelen4_fixed = new_wavelen4_fixed.mulWith(metaModWavelenMul4);
@@ -706,9 +707,9 @@ void __not_in_flash_func(loop1)() {
       newCtrlReady = false;
     }
     if (newFrequenciesReady1) {
-      Fixed<20,12> new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed - detuneFixed );
-      Fixed<20,12> new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
-      Fixed<20,12> new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
+      WvlenFPType new_wavelen6_fixed = (new_wavelen2_fixed - detuneFixed - detuneFixed - detuneFixed - detuneFixed );
+      WvlenFPType new_wavelen7_fixed = (new_wavelen6_fixed - detuneFixed);
+      WvlenFPType new_wavelen8_fixed = (new_wavelen7_fixed - detuneFixed);
 
       new_wavelen6_fixed = new_wavelen6_fixed.mulWith(metaModWavelenMul6);
       new_wavelen7_fixed = new_wavelen7_fixed.mulWith(metaModWavelenMul7);
