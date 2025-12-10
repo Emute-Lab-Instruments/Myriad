@@ -687,10 +687,100 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class impulseSDOscillatorModel : public virtual oscillatorModel {
+  private:
+    size_t loopLengthBits=0;
+  public:
+
+
+    impulseSDOscillatorModel() : oscillatorModel(){
+      loopLength=8;
+      loopLengthBits = 1 << __builtin_clz(loopLength);
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
+    }
+
+    Fixed<16,16> counterFP = Q16_16(0);
+    Fixed<16,16> targetIncFP = Q16_16(1000);
+    Fixed<16,16> targetIncFPOrg = Q16_16(1000);
+    Fixed<16,16> targetFP= Q16_16(1000);
+    Fixed<16,16> targIncMul = Q16_16(1.1f);
+    bool b1=0;
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        size_t loopbits = 1;
+        do {
+          // phase = phase >= wlen ? 0 : phase; // wrap around
+          uint32_t wrap = (phase < wlen);  // 1 if in range, 0 if needs wrap
+          phase *= wrap;  // Becomes 0 if phase >= wlen
+
+          [[unlikely]]
+          if (phase == 0) {
+            counterFP=Q16_16(0);
+            targetFP = targetIncFPOrg;
+            targetIncFP = targetIncFPOrg;
+            b1=0;
+
+          }
+
+          [[unlikely]]
+          if (counterFP >= targetFP) {
+            b1 = !b1;
+            counterFP = Q16_16(0);
+            targetFP += targetIncFP;
+            targetIncFP *= targIncMul;
+          }
+          counterFP += Q16_16(1);
+
+          word |= loopbits & -(int32_t)(b1);  // Set bit if either is true
+
+          phase++;
+
+          loopbits <<= 1;
+        } while (loopbits);
+        *(bufferA ++) = word;
+
+      }
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      using fptype = Fixed<16,16>;
+      fptype vinv = fptype(1) - v;
+      fptype targmax = fptype(1/32.f).mulWith(WvlenFPType(this->wavelen));
+      targetIncFPOrg = ((vinv * targmax) + fptype(10));
+      // targetIncFPOrg = targetIncFP;
+      targIncMul = (vinv * Q16_16(0.4f)) + Q16_16(1);
+      
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "slide";
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    int pulselen=10000;
+
+};
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 8;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 9;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -698,6 +788,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
+  []() { return std::make_shared<impulseSDOscillatorModel>(); } 
+  ,
   //saw / sharktooth
   []() { return std::make_shared<sawOscillatorModel>(); } //yes, go first
   ,
