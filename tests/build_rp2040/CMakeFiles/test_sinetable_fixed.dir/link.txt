@@ -1,1 +1,0 @@
-/usr/bin/c++  -Wall -Wextra -O3 CMakeFiles/test_sinetable_fixed.dir/test_sinetable_fixed.cpp.o -o test_sinetable_fixed  -lm 

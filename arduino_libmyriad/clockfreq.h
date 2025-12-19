@@ -6,7 +6,7 @@
 using namespace FixedPoint;
 using WvlenFPType = Fixed<20,11>;
 
-constexpr size_t CLOCKDIV_BASE = 96; 
+constexpr size_t CLOCKDIV_BASE = 120; 
 constexpr size_t clockdiv = CLOCKDIV_BASE;
 constexpr size_t cpuClock=250000000;
 constexpr float sampleClock = static_cast<float>(cpuClock) / clockdiv;

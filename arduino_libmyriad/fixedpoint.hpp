@@ -281,6 +281,15 @@ public:
         );
     }    
 
+    constexpr Fixed frac() const {
+        // Mask to keep only fractional bits: frac(x) = x - floor(x)
+        storage_type mask = (storage_type(1) << FRACTIONAL_BITS) - 1;
+        return Fixed::from_raw(value & mask);
+    }    
+
+    constexpr Fixed frac_signed() const {
+        return *this - Fixed::from_int(to_int());
+    }    
     
     // ========================================================================
     // SATURATING ARITHMETIC

@@ -31,10 +31,9 @@
 #include "hardware/sync.h"
 #include "hardware/irq.h"
 
-#include "MedianFilter.h"
-#include "MAFilter.h"
-#include "ResponsiveFilter.hpp"
-#include "medians.hpp"
+// #include "MedianFilter.h"
+// #include "MAFilter.h"
+// #include "medians.hpp"
 
 #include "freqlookup.h"
 #include "myriad_messages.h"
@@ -58,6 +57,8 @@
 using namespace FixedPoint;
 
 #include "fastExpFixed.hpp"
+
+#include "ADCProfile.hpp"
 
 
 constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
@@ -272,17 +273,16 @@ static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(204
 static uint16_t __not_in_flash("adc") capture_buf_a[16] __attribute__((aligned(2048)));
 static uint16_t __not_in_flash("adc") capture_buf_b[16] __attribute__((aligned(2048)));
 
-static float __not_in_flash("mydata") octave0=1;
-static float __not_in_flash("mydata") octave1=1;
-static float __not_in_flash("mydata") octave2=1;
-static float __not_in_flash("mydata") octave3=1;
-static float __not_in_flash("mydata") octave4=1;
-static float __not_in_flash("mydata") octave5=1;
-static float __not_in_flash("mydata") octave6=1;
-static float __not_in_flash("mydata") octave7=1;
-static float __not_in_flash("mydata") octave8=1;
-static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,1, 1,1,1, 1,1,1};
-
+// static float __not_in_flash("mydata") octave0=1;
+// static float __not_in_flash("mydata") octave1=1;
+// static float __not_in_flash("mydata") octave2=1;
+// static float __not_in_flash("mydata") octave3=1;
+// static float __not_in_flash("mydata") octave4=1;
+// static float __not_in_flash("mydata") octave5=1;
+// static float __not_in_flash("mydata") octave6=1;
+// static float __not_in_flash("mydata") octave7=1;
+// static float __not_in_flash("mydata") octave8=1;
+// static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,1, 1,1,1, 1,1,1};
 
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
@@ -291,7 +291,6 @@ uint __not_in_flash("adc") dma_chan;
 uint __not_in_flash("adc") dma_chan2;
 
 FixedLpf<18,2> FAST_MEM adcLpf0;
-// FixedLpf<16,1> FAST_MEM adcLpf0b;
 FixedLpf<12,6> FAST_MEM adcLpf1;
 FixedLpf<12,6> FAST_MEM adcLpf2;    
 FixedLpf<12,6> FAST_MEM adcLpf3;
@@ -318,10 +317,8 @@ bool __not_in_flash("adc") octReady = false;
 
 size_t __not_in_flash("adc") lastOctaveIdx = 0;
 
-// median_filter_t __not_in_flash("adc") pitchMedian;
+constexpr size_t systemUpdateFreq = 8000; //kkkkkkkkkkk
 
-
-constexpr size_t systemUpdateFreq = 8000;
 size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
 volatile bool __not_in_flash("adc") newFrequenciesReady = false;
@@ -329,12 +326,13 @@ volatile bool __not_in_flash("adc") newFrequenciesReady = false;
 static size_t __not_in_flash("adc") adcCount = 0;
 static size_t __not_in_flash("adc") adcAccumulator0=0;
 static size_t __not_in_flash("adc") adc0Oversample=0;
+
 #define oversampleBits 3
 #define oversampleFactor (1<<oversampleBits)
 
-uint8_t __not_in_flash("adc") oct0Shift = 0;
-uint8_t __not_in_flash("adc") oct1Shift = 0;
-uint8_t __not_in_flash("adc") oct2Shift = 0;
+// uint8_t __not_in_flash("adc") oct0Shift = 0;
+// uint8_t __not_in_flash("adc") oct1Shift = 0;
+// uint8_t __not_in_flash("adc") oct2Shift = 0;
 
 Fixed<16,16> __not_in_flash("adc") epsilon_fixed(0);
 
@@ -342,7 +340,10 @@ PERF_DECLARE(ADC);
 PERF_DECLARE(METAMODS);
 PERF_DECLARE(SERIALTX);
 
-size_t pitchCVAccumulator=0;
+size_t __scratch_y("adc") pitchCVAccumulator=0;
+Fixed<14,18> pitchCopy;
+Q16_16 pitchVCopy;
+Q16_16 wavelenScaleCopy;
 void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //oversampling pitch
     pitchCVAccumulator += adcReadings[0];
@@ -368,9 +369,39 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //todo: restore bounds check?
     size_t pitchADCRaw = adcLpf0.raw(); // in Q14:18 format
     Fixed<14,18> pitchADCQ1418 = Fixed<14,18>::from_raw(pitchADCRaw);
+    pitchCopy = pitchADCQ1418;
+    
+    // size_t adcProfileIdx = pitchADCQ1418.to_int();
+    // Fixed<14,18> frac = pitchADCQ1418.frac();  // Mask lower bits
+    // if (adcProfileIdx >= 4095) {
+    //   adcProfileIdx = 4094;
+    //   frac = Fixed<14,18>(1);
+    // }
+    // // Look up adjacent entries
+    // Fixed<14,18> val0 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx]);
+    // Fixed<14,18> val1 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx + 1]);
+
+    // Fixed<14,18> diff = val1 - val0;
+    // Fixed<14,18> interpolated = (diff * frac) ; 
+
+    // Fixed<14,18> correction = val0 + interpolated;
+
+    // // size_t correction = ADCProfile::cal_data.correction[adcProfileIdx];
+    // pitchADCQ1418 = pitchADCQ1418 + correction; // apply correction
+    // //18, 4078
+    // constexpr Q16_16 tmpADCMin(18);
+    // constexpr Q16_16 tmpADCMax(4078);
+    // constexpr Q16_16 tmpADCRangeInv = Q16_16(1) / (tmpADCMax - tmpADCMin);
+
+    // Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) - tmpADCMin) * tmpADCRangeInv; // map to 0-1 range
+    // pitchCV_Q16 = pitchCV_Q16 * Q16_16(10); // map to 0-10V
+
+
     // float pitchCV = pitchADCMap.convertFixedInterpolatedToFloat_Q14_18(pitchADCQ1418);
     auto pitchCV_Q16_raw = pitchADCMap.convertFixedInterpolated_Q14_18(pitchADCQ1418);
     Q16_16 pitchCV_Q16 = Fixed<16,16,int32_t>::from_raw(pitchCV_Q16_raw);
+    pitchVCopy = pitchCV_Q16;
+
     int filteredADC0 = adcLpf0.value();
     controlValues[0] = filteredADC0;
 
@@ -383,25 +414,16 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //   pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
     // }
     
-    // float freq = fast_exp2f(pitchCV);
-
-    Q16_16 freq_Q16 = exp_fast(pitchCV_Q16);
-    
-    // float freq = freq_Q16.to_float();
-    // Serial.printf("Pitch CV: %f, Freq: %f\n", pitchCV, freq);
+    // Q16_16 freq_Q16 = exp_fast(pitchCV_Q16); 
+    // pitchVExpCopy = freq_Q16;
+    Q16_16 wavelenScale = exp2_fast(Q16_16(-1) * pitchCV_Q16); //1/freq
+    wavelenScaleCopy = wavelenScale;
       
-      
-    //calc wavelenth
-    //TODO: restore tuning
-    // const float wvlen = TuningSettings::bypass ? TuningSettings::wavelenC1 : TuningSettings::baseWavelen;
-    // const WvlenFPType wvlenFixed = TuningSettings::wavelenC1Fixed; //Fixed point wavelength at C1
     const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
-    Q16_16 freqRecpFixed = Q16_16(1) / freq_Q16; //1/freq
+    // Q16_16 freqRecpFixed = Q16_16(1) / freq_Q16; //1/freq
 
-    new_wavelen0_fixed = wvlenFixed.mulWith(freqRecpFixed); //wvlenC1 * (1/freq)
-    // new_wavelen0 = 1.0f/freq * wvlen; 
-    // new_wavelen0 = new_wavelen0_fixed.to_float();
-    // new_wavelen0 = new_wavelen0 > TuningSettings::wavelenC1 ?  TuningSettings::wavelenC1 : new_wavelen0;
+    // new_wavelen0_fixed = wvlenFixed.mulWith(freqRecpFixed); //wvlenC1 * (1/freq)
+    new_wavelen0_fixed = wvlenFixed.mulWith(wavelenScale);
 
     adcLpf1.play(adcReadings[1]);
     int filteredADC1 = adcLpf1.value();
@@ -1394,6 +1416,11 @@ void setup() {
     Serial.println("Error creating serial tx");
   }
 
+  while(!Serial) {}
+  Serial.println("Myriad A starting...");
+
+  ADCProfile::load_calibration_from_file();
+
   CalibrationSettings::load();
 
   // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
@@ -1590,7 +1617,7 @@ void __not_in_flash_func(loop)() {
 
 
 
-  if (now - displayTS >= 1000000/28){
+  if (now - displayTS >= 1000000/20){
     PERF_BEGIN(DISPLAY);
     if (controlMode == CONTROLMODES::OSCMODE && oscsReadyToStart) {
       //same calc as on myriad B, but just for display
@@ -1696,10 +1723,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 500000) {
-  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY));
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+    dotTS = now;
+  }
 }
 
 

@@ -687,13 +687,13 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
-class impulseSDOscillatorModel : public virtual oscillatorModel {
+class expPulseSDOscillatorModel : public virtual oscillatorModel {
   private:
     size_t loopLengthBits=0;
   public:
 
 
-    impulseSDOscillatorModel() : oscillatorModel(){
+    expPulseSDOscillatorModel() : oscillatorModel(){
       loopLength=8;
       loopLengthBits = 1 << __builtin_clz(loopLength);
       prog=bitbybit_program;
@@ -764,7 +764,7 @@ class impulseSDOscillatorModel : public virtual oscillatorModel {
     }
 
     String getIdentifier() override {
-      return "slide";
+      return "exp1";
     }
 
   
@@ -777,10 +777,153 @@ class impulseSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class pulsePMSDOscillatorModel : public virtual oscillatorModel {
+  private:
+
+    WvlenFPType phase = WvlenFPType(0);
+
+    WvlenFPType modphase = WvlenFPType(0);
+    WvlenFPType phaseIncLow=WvlenFPType(1);
+    WvlenFPType phaseIncHigh=WvlenFPType(1);
+
+
+  public:
+
+
+    pulsePMSDOscillatorModel() : oscillatorModel(){
+      loopLength=8;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
+    }
+
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const WvlenFPType wlen = WvlenFPType(this->wavelen);
+      const WvlenFPType wlenHalf = WvlenFPType(this->wavelen>>1);
+      const WvlenFPType modwlen = WvlenFPType(2.9f) * wlen;
+      const WvlenFPType modwlenPW = modwlen.div_pow2(1);
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        size_t loopbits = 1;
+        do {
+          //carrier
+          phase = (phase < wlen) ? phase : WvlenFPType(0);  
+
+          size_t on = phase > wlenHalf ?  0xFFFFFFFF : 0;
+          word |= loopbits & on;  // Set bit if either is true
+
+           
+          //modulator
+          modphase = (modphase < modwlen) ? modphase : WvlenFPType(0);  
+          WvlenFPType phaseInc = modphase > modwlenPW ?  phaseIncLow : phaseIncHigh;
+
+
+          //carrier phase 
+          phase = phase + phaseInc;
+
+          //modulation phase
+          modphase += WvlenFPType(1);
+
+          loopbits <<= 1;
+        } while (loopbits);
+
+        *(bufferA ++) = word;
+      }
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      WvlenFPType modIdx = WvlenFPType(0.95f).mulWith(v);
+      phaseIncLow = WvlenFPType(1) - modIdx;
+      phaseIncHigh = WvlenFPType(1) + modIdx;
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "slide";
+    }
+
+  
+
+};
+
+// class sinetableSDOscillatorModel : public virtual oscillatorModel {
+//   public:
+
+//     sinetableSDOscillatorModel() : oscillatorModel(){
+//       loopLength=16;
+//       prog=bitbybit_program;
+//       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+//       setClockModShift(1);
+//     }
+
+//     inline void fillBuffer(uint32_t* bufferA) {
+//       const size_t wlen = this->wavelen;
+//       const size_t subWaveLen = wlen * sampleRatio;
+//       for (size_t i = 0; i < loopLength; ++i) {
+//         size_t word=0U;
+//         for(size_t bit=0U; bit < 32U; bit++) {
+//           phase = phase >= wlen ? 0 : phase; // wrap around
+
+//           // size_t amp =  phase > pulselen ? 0 : wlen; 
+
+//           subsampleIndex = subsampleIndex < subWaveLen ? subsampleIndex : 0;
+//           if (subsampleIndex==0) {
+//             amp = wlen-amp;
+//           }
+//           subsampleIndex++;
+
+//           int32_t y = amp >= err0 ? 1 : 0;
+//           err0 = (y ? wlen : 0) - amp + err0;
+
+//           word |= (y << bit);
+
+//           phase++;
+//         }
+//         *(bufferA + i) = word;
+
+//       }
+//     }
+
+
+//     void ctrl(const Q16_16 v) override {
+//     }
+      
+  
+//     pio_sm_config getBaseConfig(uint offset) {
+//       return bitbybit_program_get_default_config(offset);
+//     }
+
+//     String getIdentifier() override {
+//       return "pulsesd";
+//     }
+
+  
+//   private:
+//     size_t phase=0;
+//     bool y=0;
+//     int err0=0;
+
+//     SineTableQ16_16 sinetab;
+//     // size_t subsampleCount = static_cast<size_t>(sampleClock / 40000.f);
+//     size_t sampleRatio = sampleClock / 40000.f;
+//     size_t subsampleIndex=0;
+//     size_t subsampleCount= sampleRatio;
+//     int32_t amp=0;
+
+// };
+
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 9;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 10;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -788,23 +931,22 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
   
-  []() { return std::make_shared<impulseSDOscillatorModel>(); } 
+
+  // []() { return std::make_shared<sinetableSDOscillatorModel>(); } 
+  // ,
+  []() { return std::make_shared<sawOscillatorModel>(); } 
   ,
-  //saw / sharktooth
-  []() { return std::make_shared<sawOscillatorModel>(); } //yes, go first
+  []() { return std::make_shared<expPulseSDOscillatorModel>(); } 
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
 
   //squares
   []() { return std::make_shared<pulseSDOscillatorModel>(); }
-  
+  ,
+  []() { return std::make_shared<pulsePMSDOscillatorModel>(); } 
   ,
 
-  // // []() { return std::make_shared<squareOscillatorModel2>();}  //excellent
-  // // ,
-  // // []() { return std::make_shared<squareOscillatorModel14>();}  // as above, slightly different tone
-  // // ,
 
   // //tris
   []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
@@ -812,20 +954,8 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
   ,
 
-  // //slide
-  // // []() { return std::make_shared<slideOscillatorModel>(); }  //10
-  // ,
-
-  // // experimental
-  // // []() { return std::make_shared<expdecOscillatorBytebeatModel>(); } //maybe keep
-  // // ,
-  // // []() { return std::make_shared<expdecOscillatorModel1>(); } //sounds great, doesn't tune linearly
-  // // ,
-  // // []() { return std::make_shared<pulse10OscillatorModel>(); } //sounds great, doesn't tune linearly
-  // // ,
-
   // //noise
-  []() { return std::make_shared<noiseOscillatorModel2>();} //yes
+  []() { return std::make_shared<noiseOscillatorModel2>();} 
   ,
   []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
   ,
