@@ -363,14 +363,13 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     PERF_BEGIN(ADC);
     
 
-    // int filteredADC0 = adcLpf0.value();    
-    // if (filteredADC0<0) filteredADC0=0;
-    // if (filteredADC0>4095) filteredADC0=4095;
-    //todo: restore bounds check?
+
+    // todo: restore bounds check?
     size_t pitchADCRaw = adcLpf0.raw(); // in Q14:18 format
     Fixed<14,18> pitchADCQ1418 = Fixed<14,18>::from_raw(pitchADCRaw);
     pitchCopy = pitchADCQ1418;
     
+    //-----new calibration method
     // size_t adcProfileIdx = pitchADCQ1418.to_int();
     // Fixed<14,18> frac = pitchADCQ1418.frac();  // Mask lower bits
     // if (adcProfileIdx >= 4095) {
@@ -396,10 +395,10 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     // Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) - tmpADCMin) * tmpADCRangeInv; // map to 0-1 range
     // pitchCV_Q16 = pitchCV_Q16 * Q16_16(10); // map to 0-10V
 
-
-    // float pitchCV = pitchADCMap.convertFixedInterpolatedToFloat_Q14_18(pitchADCQ1418);
+    //old calibration method
     auto pitchCV_Q16_raw = pitchADCMap.convertFixedInterpolated_Q14_18(pitchADCQ1418);
     Q16_16 pitchCV_Q16 = Fixed<16,16,int32_t>::from_raw(pitchCV_Q16_raw);
+
     pitchVCopy = pitchCV_Q16;
 
     int filteredADC0 = adcLpf0.value();
@@ -420,9 +419,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     wavelenScaleCopy = wavelenScale;
       
     const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
-    // Q16_16 freqRecpFixed = Q16_16(1) / freq_Q16; //1/freq
 
-    // new_wavelen0_fixed = wvlenFixed.mulWith(freqRecpFixed); //wvlenC1 * (1/freq)
     new_wavelen0_fixed = wvlenFixed.mulWith(wavelenScale);
 
     adcLpf1.play(adcReadings[1]);
@@ -1416,7 +1413,7 @@ void setup() {
     Serial.println("Error creating serial tx");
   }
 
-  while(!Serial) {}
+  // while(!Serial) {}
   Serial.println("Myriad A starting...");
 
   ADCProfile::load_calibration_from_file();
@@ -1723,10 +1720,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+  //   dotTS = now;
+  // }
 }
 
 
