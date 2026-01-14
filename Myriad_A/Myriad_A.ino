@@ -31,10 +31,6 @@
 #include "hardware/sync.h"
 #include "hardware/irq.h"
 
-// #include "MedianFilter.h"
-// #include "MAFilter.h"
-// #include "medians.hpp"
-
 #include "freqlookup.h"
 #include "myriad_messages.h"
 #include "SLIP.h"
@@ -61,10 +57,6 @@ using namespace FixedPoint;
 #include "ADCProfile.hpp"
 
 
-constexpr int cal_data[11] = {9, 379, 758, 1149, 1525, 1907, 2294, 2671, 3062, 3439, 3819};
-// initial guess
-
-
 #define FRAC_BITS 16
 using ADCCalibType = ADCCalibrator<12,121, int32_t, FRAC_BITS>;
 ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(CalibrationSettings::pitchCalPoints);
@@ -82,6 +74,7 @@ portal FAST_MEM display;
 enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, CALIBRATEPITCHMODE, TUNINGMODE, UTILITYMODE, QUANTISESETTINGSMODE} controlMode = CONTROLMODES::OSCMODE;
 
 #define RUN_OSCS
+
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
 
 volatile bool FAST_MEM oscsReadyToStart=false;
@@ -262,27 +255,11 @@ namespace controls {
   static bool FAST_MEM calibrateButton=0;
 };
 
-// MovingAverageFilter<float> FAST_MEM adcFilters[4];
-// MedianFilter<float> FAST_MEM adcMedians[4];
-// ResponsiveFilter FAST_MEM adcRsFilters[4];
-
 static size_t __not_in_flash("adc") controlValues[4] = {0,0,0,0};
-// static size_t __not_in_flash("mydata") controlValueMedians[4] = {0,0,0,0};
 
 static uint16_t __not_in_flash("adc") capture_buf[16] __attribute__((aligned(2048)));
 static uint16_t __not_in_flash("adc") capture_buf_a[16] __attribute__((aligned(2048)));
 static uint16_t __not_in_flash("adc") capture_buf_b[16] __attribute__((aligned(2048)));
-
-// static float __not_in_flash("mydata") octave0=1;
-// static float __not_in_flash("mydata") octave1=1;
-// static float __not_in_flash("mydata") octave2=1;
-// static float __not_in_flash("mydata") octave3=1;
-// static float __not_in_flash("mydata") octave4=1;
-// static float __not_in_flash("mydata") octave5=1;
-// static float __not_in_flash("mydata") octave6=1;
-// static float __not_in_flash("mydata") octave7=1;
-// static float __not_in_flash("mydata") octave8=1;
-// static std::array<float, N_OSCILLATORS> __not_in_flash("mydata") octaves = {1,1,1, 1,1,1, 1,1,1};
 
 
 size_t FAST_MEM oscBankTypes[3] = {0,0,0}; 
@@ -330,10 +307,6 @@ static size_t __not_in_flash("adc") adc0Oversample=0;
 #define oversampleBits 3
 #define oversampleFactor (1<<oversampleBits)
 
-// uint8_t __not_in_flash("adc") oct0Shift = 0;
-// uint8_t __not_in_flash("adc") oct1Shift = 0;
-// uint8_t __not_in_flash("adc") oct2Shift = 0;
-
 Fixed<16,16> __not_in_flash("adc") epsilon_fixed(0);
 
 PERF_DECLARE(ADC);
@@ -341,6 +314,7 @@ PERF_DECLARE(METAMODS);
 PERF_DECLARE(SERIALTX);
 
 size_t __scratch_y("adc") pitchCVAccumulator=0;
+
 Fixed<14,18> pitchCopy;
 Q16_16 pitchVCopy;
 Q16_16 wavelenScaleCopy;
@@ -362,47 +336,40 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     
     PERF_BEGIN(ADC);
     
-
-
-    // todo: restore bounds check?
     size_t pitchADCRaw = adcLpf0.raw(); // in Q14:18 format
     Fixed<14,18> pitchADCQ1418 = Fixed<14,18>::from_raw(pitchADCRaw);
     pitchCopy = pitchADCQ1418;
     
     //-----new calibration method
-    // size_t adcProfileIdx = pitchADCQ1418.to_int();
-    // Fixed<14,18> frac = pitchADCQ1418.frac();  // Mask lower bits
-    // if (adcProfileIdx >= 4095) {
-    //   adcProfileIdx = 4094;
-    //   frac = Fixed<14,18>(1);
-    // }
-    // // Look up adjacent entries
-    // Fixed<14,18> val0 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx]);
-    // Fixed<14,18> val1 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx + 1]);
+    size_t adcProfileIdx = pitchADCQ1418.to_int();
+    Fixed<14,18> frac = pitchADCQ1418.frac();  // Mask lower bits
+    if (adcProfileIdx >= 4095) {
+      adcProfileIdx = 4094;
+      frac = Fixed<14,18>(1);
+    }
+    // Look up adjacent entries
+    Fixed<14,18> val0 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx]);
+    Fixed<14,18> val1 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx + 1]);
 
-    // Fixed<14,18> diff = val1 - val0;
-    // Fixed<14,18> interpolated = (diff * frac) ; 
+    Fixed<14,18> diff = val1 - val0;
+    Fixed<14,18> interpolated = (diff * frac) ; 
 
-    // Fixed<14,18> correction = val0 + interpolated;
+    Fixed<14,18> correction = val0 + interpolated;
 
-    // // size_t correction = ADCProfile::cal_data.correction[adcProfileIdx];
-    // pitchADCQ1418 = pitchADCQ1418 + correction; // apply correction
-    // //18, 4078
-    // constexpr Q16_16 tmpADCMin(18);
-    // constexpr Q16_16 tmpADCMax(4078);
-    // constexpr Q16_16 tmpADCRangeInv = Q16_16(1) / (tmpADCMax - tmpADCMin);
+    // size_t correction = ADCProfile::cal_data.correction[adcProfileIdx];
+    pitchADCQ1418 = pitchADCQ1418 + correction; // apply correction
 
-    // Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) - tmpADCMin) * tmpADCRangeInv; // map to 0-1 range
-    // pitchCV_Q16 = pitchCV_Q16 * Q16_16(10); // map to 0-10V
-
+    //18, 4078    
+    // constexpr Q16_16 adcVRangeInv = Q16_16(10) / Q16_16(4078); 
+    Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) * ADCProfile::adcVRangeInv); // map to 0-10V range
+    
     //old calibration method
-    auto pitchCV_Q16_raw = pitchADCMap.convertFixedInterpolated_Q14_18(pitchADCQ1418);
-    Q16_16 pitchCV_Q16 = Fixed<16,16,int32_t>::from_raw(pitchCV_Q16_raw);
+    // auto pitchCV_Q16_raw = pitchADCMap.convertFixedInterpolated_Q14_18(pitchADCQ1418);
+    // Q16_16 pitchCV_Q16 = Fixed<16,16,int32_t>::from_raw(pitchCV_Q16_raw);
 
     pitchVCopy = pitchCV_Q16;
+    controlValues[0] = pitchADCQ1418.to_int();
 
-    int filteredADC0 = adcLpf0.value();
-    controlValues[0] = filteredADC0;
 
     //quantise?
     //todo: restore
@@ -415,6 +382,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     
     // Q16_16 freq_Q16 = exp_fast(pitchCV_Q16); 
     // pitchVExpCopy = freq_Q16;
+
     Q16_16 wavelenScale = exp2_fast(Q16_16(-1) * pitchCV_Q16); //1/freq
     wavelenScaleCopy = wavelenScale;
       
@@ -422,30 +390,28 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     new_wavelen0_fixed = wvlenFixed.mulWith(wavelenScale);
 
-    adcLpf1.play(adcReadings[1]);
-    int filteredADC1 = adcLpf1.value();
 
-    controlValues[1] = filteredADC1;
-    filteredADC1 = filteredADC1 - (CalibrationSettings::adcMins[1]);
-    if (filteredADC1<0) filteredADC1=0;
-    if (filteredADC1>4095) filteredADC1=4095;
-    Fixed<16,16> filteredADC1Fixed = Fixed<16,16>(filteredADC1);
+    ///////////////////////// detune 
+
+    adcLpf1.play(adcReadings[1]);
+    Q16_16 filteredADC1_Q16 = Q16_16(adcLpf1.value()) + Q16_16(0.5f);
+    if (filteredADC1_Q16 > Q16_16(4095)) {
+      filteredADC1_Q16 = Q16_16(4095);
+    }
+    int correctionADC1 = ADCProfile::cal_data.correction[filteredADC1_Q16.to_int()];
+    filteredADC1_Q16 = filteredADC1_Q16 + Q16_16(correctionADC1);
+
+    controlValues[1] = filteredADC1_Q16.to_int();
 
     //detuning
-    Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1Fixed);
+    Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1_Q16);
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
     Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(Fixed<0,18>(0.016f));
     detuneFixed = new_wavelen0_fixed.mulWith(ctrlValScaled);
 
-    // PERIODIC_RUN(
-    //   Serial.printf("%f\t%f\n", new_wavelen0, new_wavelen0_fixed.to_int());
-    // ,100);
 
+    ////////////////////////  epsilon
 
-    // if (detuneControl > 1.0f) detuneControl = 1.0f;
-    // if (detuneControl < 0.0f) detuneControl = 0.0f;
-
-    //epsilon
     adcLpf2.play(adcReadings[2]);
     int filteredADC2 = adcLpf2.value();
     controlValues[2] = filteredADC2;
@@ -1361,24 +1327,78 @@ void calibrate_button_callback() {
         }
       }
 
-      // if (controlMode != CONTROLMODES::CALIBRATEMODE) {
-      //   controlMode = CONTROLMODES::CALIBRATEMODE;
-      //   //get free memory
-      //   int freeMem = rp2040.getFreeHeap();  
-      //   display.setFreeHeap(freeMem);
-      //   display.setScreen(portal::SCREENMODES::CALIBRATE);
-      // }else{
-      //   CalibrationSettings::save();
-      //   switchToOSCMode();
-      // }
     }
   }
 }
 
-// struct repeating_timer timerAdcProcessor;
-
 
 volatile bool core0ReadyFlag = 0;
+
+void dump_midscale_correction() {
+    Serial.println("code, histogram, correction");
+    for (int i = 2020; i < 2080; i++) {
+        Serial.printf("%d, %lu, %d\n", i, ADCProfile::histogram[i], ADCProfile::cal_data.correction[i]);
+    }
+}
+
+void check_correction_discontinuities() {
+    Serial.println("Large jumps in correction table:");
+    for (int i = 1; i < 4095; i++) {
+        int16_t diff = ADCProfile::cal_data.correction[i] - ADCProfile::cal_data.correction[i-1];
+        if (diff > 2 || diff < -2) {
+            Serial.printf("  code %d: correction jumps from %d to %d (diff %d)\n",
+                          i, 
+                          ADCProfile::cal_data.correction[i-1],
+                          ADCProfile::cal_data.correction[i],
+                          diff);
+        }
+    }
+}
+
+void find_pitch_discontinuity() {
+    Serial.println("Sweeping through correction table for large output jumps...\n");
+    
+    Q16_16 last_pitch = Q16_16(0);
+    bool first = true;
+    
+    for (int adc = 100; adc < 4000; adc++) {
+        // Simulate your pitch calculation
+        Fixed<14,18> pitchADCQ1418 = Fixed<14,18>(adc);
+        
+        // Your DNL correction (simplified - no interpolation for this test)
+        int16_t correction = ADCProfile::cal_data.correction[adc];
+        pitchADCQ1418 = pitchADCQ1418 + Fixed<14,18>(correction);
+        
+        // Your endpoint calibration
+        Q16_16 pitchCV_Q16 = Q16_16(pitchADCQ1418);
+        Q16_16 pitch;
+        
+        constexpr Q16_16 tmpADCMin(0);
+        constexpr Q16_16 tmpADCMid(2059);
+        constexpr Q16_16 tmpADCMax(4095);
+        
+        if (pitchCV_Q16 < tmpADCMid) {
+            pitch = (pitchCV_Q16 - tmpADCMin) / (tmpADCMid - tmpADCMin) * Q16_16(5);
+        } else {
+            pitch = (pitchCV_Q16 - tmpADCMid) / (tmpADCMax - tmpADCMid) * Q16_16(5) + Q16_16(5);
+        }
+        
+        if (!first) {
+            Q16_16 diff = pitch - last_pitch;
+            // Normal step should be ~0.00244 (10V / 4096)
+            // Flag anything > 0.01 (4x normal)
+            if (diff > Q16_16(0.01) || diff < Q16_16(-0.01)) {
+                float diff_mv = diff.to_float() * 1000.0f;
+                float diff_cents = diff_mv / 0.833f;  // 83.3mV per semitone
+                Serial.printf("ADC %d: jump of %.1f mV (%.1f cents)\n", 
+                              adc, diff_mv, diff_cents);
+            }
+        }
+        
+        last_pitch = pitch;
+        first = false;
+    }
+}
 
 void setup() {
 
@@ -1418,6 +1438,9 @@ void setup() {
 
   ADCProfile::load_calibration_from_file();
 
+  // dump_midscale_correction();
+  // check_correction_discontinuities();
+  find_pitch_discontinuity();
   CalibrationSettings::load();
 
   // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
@@ -1720,10 +1743,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 500000) {
-  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+    dotTS = now;
+  }
 }
 
 

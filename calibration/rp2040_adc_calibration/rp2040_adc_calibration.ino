@@ -15,10 +15,10 @@
 #define CAL_ADC_PIN         29
 #define CAL_ADC_CHAN        3
 
-#define PWM_WRAP            2048       // 11-bit
-// #define SETTLE_MS           1           // RC filter settling (assumes ~100µs τ, 20× margin)
-#define SAMPLES_PER_LEVEL   256         // Heavy averaging at each PWM level
-#define NUM_SWEEPS          2          // Multiple sweeps (2 up, 2 down) to average hysteresis
+#define PWM_WRAP            256       // 11-bit
+#define SETTLE_US           1000           // RC filter settling (assumes ~100µs τ, 20× margin)
+#define SAMPLES_PER_LEVEL   32         // Heavy averaging at each PWM level
+#define NUM_SWEEPS          4         // Multiple sweeps (2 up, 2 down) to average hysteresis
 
 // Flash storage for calibration
 #define CAL_FLASH_OFFSET    (1024 * 1024)  // 1MB into flash (adjust for your binary size)
@@ -193,7 +193,7 @@ void collect_histogram_sweep(bool ascending, size_t settleUS) {
             if (code < 4096) {
                 histogram[code]++;
             }
-            sleep_us(20);
+            sleep_us(100);
         }
         if (pwm_level % 100 == 0) {
             Serial.printf("%d,", pwm_level);
@@ -391,7 +391,37 @@ void verify_calibration(size_t settleUS) {
 }
 
     
-
+void measure_step_response(void) {
+    Serial.printf("\n=== Step Response Test ===\n");
+    
+    cal_pwm_init();
+    cal_adc_init();
+    
+    // Start at 0
+    pwm_set_gpio_level(CAL_PWM_PIN, 0);
+    sleep_ms(100);
+    uint16_t baseline = adc_read_averaged(64);
+    
+    // Step to 50%
+    uint32_t step_target = PWM_WRAP / 2;
+    pwm_set_gpio_level(CAL_PWM_PIN, step_target);
+    
+    // Sample rapidly after step
+    Serial.printf("time_us,adc_code\n");
+    uint32_t start = time_us_32();
+    for (int i = 0; i < 200; i++) {
+        uint32_t t = time_us_32() - start;
+        uint16_t code = adc_read();
+        Serial.printf("%lu,%d\n", t, code);
+        sleep_us(10);
+    }
+    
+    uint16_t final_val = adc_read_averaged(64);
+    Serial.printf("\nBaseline: %d, Final: %d, Delta: %d codes\n", 
+                  baseline, final_val, final_val - baseline);
+    
+    pwm_set_gpio_level(CAL_PWM_PIN, 0);
+}
                             
 void setup() {
   Serial.begin();
@@ -400,19 +430,19 @@ void setup() {
   Serial.printf("\nRP2040 ADC Calibration\n");
   Serial.printf("==================================\n");
     
-    for (auto &settle : {1000}) {
-        Serial.printf("Settle time: %d\n", settle);
-        // load_calibration_from_file();
-        run_calibration(settle);
-        // // }
+    // for (auto &settle : {500}) {
+    //     Serial.printf("Settle time: %d\n", settle);
+    //     // load_calibration_from_file();
+    //     run_calibration(settle);
+    //     // // }
         
-        verify_calibration(settle);
-        verify_calibration(settle);
-        verify_calibration(settle);
-        verify_calibration(settle);
-        verify_calibration(settle);
-    }
-
+    //     verify_calibration(settle);
+    //     verify_calibration(settle);
+    //     verify_calibration(settle);
+    //     verify_calibration(settle>>1);
+    //     verify_calibration(settle>>2);
+    // }
+    measure_step_response();
 }
 
 void loop() {
