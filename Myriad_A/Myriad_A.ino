@@ -199,13 +199,13 @@ static spin_lock_t FAST_MEM *adcSpinlock;
 
 void startOscBankA() {
 
-  Serial.println("StartoscbankA");
+  // Serial.println("StartoscbankA");
 
   //reset the pio block
   pio_clear_instruction_memory(pio1);
   uint programOffset = currOscModels[0]->loadProg(pio1);
   pio_sm_config baseConfig = currOscModels[0]->getBaseConfig(programOffset);
-  Serial.printf("Offset %d\n", programOffset);
+  // Serial.printf("Offset %d\n", programOffset);
 
   const size_t modelClockDiv = currOscModels[0]->getClockDiv();
 
@@ -433,7 +433,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       octReady = true;
       sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
       currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
-      Serial.printf("oct %d\n", octaveIdx);
+      // Serial.printf("oct %d\n", octaveIdx);
     }
 
     oscsReadyToStart = true;
@@ -1522,7 +1522,7 @@ void setup() {
   oscBankTypes[0] = MyriadState::getOscBank(0);
   oscBankTypes[1] = MyriadState::getOscBank(1);
   oscBankTypes[2] = MyriadState::getOscBank(2);
-  Serial.println(oscBankTypes[2]);
+  // Serial.println(oscBankTypes[2]);
   
   //on this unit
   assignOscModels(oscBankTypes[2]);
