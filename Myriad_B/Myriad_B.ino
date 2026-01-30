@@ -619,9 +619,9 @@ void __not_in_flash_func(loop)() {
       new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
 
 
-      new_wavelen3_fixed = currentOctaveShifts[0] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[0] : new_wavelen3_fixed << -currentOctaveShifts[0];
+      new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed << -currentOctaveShifts[1];
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
-      new_wavelen5_fixed = currentOctaveShifts[2] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[2] : new_wavelen5_fixed << -currentOctaveShifts[2];
+      new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed << -currentOctaveShifts[1];
 
       currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
       currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
@@ -716,8 +716,8 @@ void __not_in_flash_func(loop1)() {
       new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
 
 
-      new_wavelen6_fixed = currentOctaveShifts[0] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[0] : new_wavelen6_fixed << -currentOctaveShifts[0];
-      new_wavelen7_fixed = currentOctaveShifts[1] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[1] : new_wavelen7_fixed << -currentOctaveShifts[1];
+      new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed << -currentOctaveShifts[2];
+      new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed << -currentOctaveShifts[2];
       new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
 
       currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
