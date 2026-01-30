@@ -442,7 +442,7 @@ void setup() {
     //     verify_calibration(settle>>1);
     //     verify_calibration(settle>>2);
     // }
-    measure_step_response();
+    // measure_step_response();
 }
 
 void loop() {

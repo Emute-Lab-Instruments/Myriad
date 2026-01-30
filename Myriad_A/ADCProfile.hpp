@@ -2,6 +2,8 @@
 #define ADC_PROFILE_HPP
 
 #include "fixedpoint.hpp"
+#include "ADCCalDefault.hpp"
+
 using namespace FixedPoint;
 namespace ADCProfile {
 
@@ -72,15 +74,40 @@ bool load_calibration_from_file(void) {
                    cal_data.adc_min, cal_data.adc_max);
             smooth_correction_table();
             adcVRangeInv = Q16_16(10) / Q16_16(cal_data.adc_max); 
+
+            //deleteme
+            // Serial.printf("PASTESTART\n");
+            // for (size_t i = 0; i < 4096; i++) {
+            //     Serial.printf("%d,", histogram[i]);
+            // }
+            // Serial.println();
+            // Serial.printf("PASTEEND\n");
+            // Serial.printf("PASTESTART\n");
+            // for (size_t i = 0; i < 4096; i++) {
+            //     Serial.printf("%d,", cal_data.correction[i]);
+            // }
+            // Serial.println();
+            // Serial.printf("%d,%d\n", cal_data.adc_min, cal_data.adc_max);
+            // Serial.printf("PASTEEND\n");
+
             return true;
         }
         Serial.printf("Binary file corrupt or incomplete\n");
     }
     
     Serial.printf("No valid calibration in LittleFS\n");
+
+    //load from defaults
+    for (size_t i = 0; i < 4096; i++) {
+        histogram[i] = calDefaultHisto[i];
+        cal_data.correction[i] = calDefaultCorrections[i];
+    }
+    cal_data.adc_min = calDefaultADCMin;
+    cal_data.adc_max = calDefaultADCMax;
+    adcVRangeInv = Q16_16(10) / Q16_16(cal_data.adc_max); 
     return false;
 }
-}
 
+}
 
 #endif // ADC_PROFILE_HPP
