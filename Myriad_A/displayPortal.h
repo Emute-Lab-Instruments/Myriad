@@ -24,7 +24,9 @@ static SineTableQ16_16 __not_in_flash("sinestable") sine_table;
 template<size_t N_OSCS, size_t N_OSC_BANKS, size_t N_OSCILLATOR_MODELS>
 class displayPortal {
 public:
-  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY, QUANTISE, PITCHCALIBRATE};
+  enum SCREENMODES {OSCBANKS, METAOSCVIS, TUNING, CALIBRATE, UTILITY, QUANTISE
+    // , PITCHCALIBRATE
+  };
 
   // std::vector<oscDisplayModes*> oscvis;
 
@@ -112,7 +114,7 @@ public:
   using iconDrawFunction = std::function<void(eSpritePtr&, int)>;
   std::map<String, iconDrawFunction> iconDrawFunctions;
 
-  std::array<String, 121> pcalpoints = {"C-5 (-5.00V)", "C#-5 (-4.92V)", "D-5 (-4.83V)", "D#-5 (-4.75V)", "E-5 (-4.67V)", "F-5 (-4.58V)", "F#-5 (-4.50V)", "G-5 (-4.42V)", "G#-5 (-4.33V)", "A-5 (-4.25V)", "A#-5 (-4.17V)", "B-5 (-4.08V)", "C-4 (-4.00V)", "C#-4 (-3.92V)", "D-4 (-3.83V)", "D#-4 (-3.75V)", "E-4 (-3.67V)", "F-4 (-3.58V)", "F#-4 (-3.50V)", "G-4 (-3.42V)", "G#-4 (-3.33V)", "A-4 (-3.25V)", "A#-4 (-3.17V)", "B-4 (-3.08V)", "C-3 (-3.00V)", "C#-3 (-2.92V)", "D-3 (-2.83V)", "D#-3 (-2.75V)", "E-3 (-2.67V)", "F-3 (-2.58V)", "F#-3 (-2.50V)", "G-3 (-2.42V)", "G#-3 (-2.33V)", "A-3 (-2.25V)", "A#-3 (-2.17V)", "B-3 (-2.08V)", "C-2 (-2.00V)", "C#-2 (-1.92V)", "D-2 (-1.83V)", "D#-2 (-1.75V)", "E-2 (-1.67V)", "F-2 (-1.58V)", "F#-2 (-1.50V)", "G-2 (-1.42V)", "G#-2 (-1.33V)", "A-2 (-1.25V)", "A#-2 (-1.17V)", "B-2 (-1.08V)", "C-1 (-1.00V)", "C#-1 (-0.92V)", "D-1 (-0.83V)", "D#-1 (-0.75V)", "E-1 (-0.67V)", "F-1 (-0.58V)", "F#-1 (-0.50V)", "G-1 (-0.42V)", "G#-1 (-0.33V)", "A-1 (-0.25V)", "A#-1 (-0.17V)", "B-1 (-0.08V)", "C0 (0.00V)", "C#0 (0.08V)", "D0 (0.17V)", "D#0 (0.25V)", "E0 (0.33V)", "F0 (0.42V)", "F#0 (0.50V)", "G0 (0.58V)", "G#0 (0.67V)", "A0 (0.75V)", "A#0 (0.83V)", "B0 (0.92V)", "C1 (1.00V)", "C#1 (1.08V)", "D1 (1.17V)", "D#1 (1.25V)", "E1 (1.33V)", "F1 (1.42V)", "F#1 (1.50V)", "G1 (1.58V)", "G#1 (1.67V)", "A1 (1.75V)", "A#1 (1.83V)", "B1 (1.92V)", "C2 (2.00V)", "C#2 (2.08V)", "D2 (2.17V)", "D#2 (2.25V)", "E2 (2.33V)", "F2 (2.42V)", "F#2 (2.50V)", "G2 (2.58V)", "G#2 (2.67V)", "A2 (2.75V)", "A#2 (2.83V)", "B2 (2.92V)", "C3 (3.00V)", "C#3 (3.08V)", "D3 (3.17V)", "D#3 (3.25V)", "E3 (3.33V)", "F3 (3.42V)", "F#3 (3.50V)", "G3 (3.58V)", "G#3 (3.67V)", "A3 (3.75V)", "A#3 (3.83V)", "B3 (3.92V)", "C4 (4.00V)", "C#4 (4.08V)", "D4 (4.17V)", "D#4 (4.25V)", "E4 (4.33V)", "F4 (4.42V)", "F#4 (4.50V)", "G4 (4.58V)", "G#4 (4.67V)", "A4 (4.75V)", "A#4 (4.83V)", "B4 (4.92V)", "C5 (5.00V)"};
+  // std::array<String, 121> pcalpoints = {"C-5 (-5.00V)", "C#-5 (-4.92V)", "D-5 (-4.83V)", "D#-5 (-4.75V)", "E-5 (-4.67V)", "F-5 (-4.58V)", "F#-5 (-4.50V)", "G-5 (-4.42V)", "G#-5 (-4.33V)", "A-5 (-4.25V)", "A#-5 (-4.17V)", "B-5 (-4.08V)", "C-4 (-4.00V)", "C#-4 (-3.92V)", "D-4 (-3.83V)", "D#-4 (-3.75V)", "E-4 (-3.67V)", "F-4 (-3.58V)", "F#-4 (-3.50V)", "G-4 (-3.42V)", "G#-4 (-3.33V)", "A-4 (-3.25V)", "A#-4 (-3.17V)", "B-4 (-3.08V)", "C-3 (-3.00V)", "C#-3 (-2.92V)", "D-3 (-2.83V)", "D#-3 (-2.75V)", "E-3 (-2.67V)", "F-3 (-2.58V)", "F#-3 (-2.50V)", "G-3 (-2.42V)", "G#-3 (-2.33V)", "A-3 (-2.25V)", "A#-3 (-2.17V)", "B-3 (-2.08V)", "C-2 (-2.00V)", "C#-2 (-1.92V)", "D-2 (-1.83V)", "D#-2 (-1.75V)", "E-2 (-1.67V)", "F-2 (-1.58V)", "F#-2 (-1.50V)", "G-2 (-1.42V)", "G#-2 (-1.33V)", "A-2 (-1.25V)", "A#-2 (-1.17V)", "B-2 (-1.08V)", "C-1 (-1.00V)", "C#-1 (-0.92V)", "D-1 (-0.83V)", "D#-1 (-0.75V)", "E-1 (-0.67V)", "F-1 (-0.58V)", "F#-1 (-0.50V)", "G-1 (-0.42V)", "G#-1 (-0.33V)", "A-1 (-0.25V)", "A#-1 (-0.17V)", "B-1 (-0.08V)", "C0 (0.00V)", "C#0 (0.08V)", "D0 (0.17V)", "D#0 (0.25V)", "E0 (0.33V)", "F0 (0.42V)", "F#0 (0.50V)", "G0 (0.58V)", "G#0 (0.67V)", "A0 (0.75V)", "A#0 (0.83V)", "B0 (0.92V)", "C1 (1.00V)", "C#1 (1.08V)", "D1 (1.17V)", "D#1 (1.25V)", "E1 (1.33V)", "F1 (1.42V)", "F#1 (1.50V)", "G1 (1.58V)", "G#1 (1.67V)", "A1 (1.75V)", "A#1 (1.83V)", "B1 (1.92V)", "C2 (2.00V)", "C#2 (2.08V)", "D2 (2.17V)", "D#2 (2.25V)", "E2 (2.33V)", "F2 (2.42V)", "F#2 (2.50V)", "G2 (2.58V)", "G#2 (2.67V)", "A2 (2.75V)", "A#2 (2.83V)", "B2 (2.92V)", "C3 (3.00V)", "C#3 (3.08V)", "D3 (3.17V)", "D#3 (3.25V)", "E3 (3.33V)", "F3 (3.42V)", "F#3 (3.50V)", "G3 (3.58V)", "G#3 (3.67V)", "A3 (3.75V)", "A#3 (3.83V)", "B3 (3.92V)", "C4 (4.00V)", "C#4 (4.08V)", "D4 (4.17V)", "D#4 (4.25V)", "E4 (4.33V)", "F4 (4.42V)", "F#4 (4.50V)", "G4 (4.58V)", "G#4 (4.67V)", "A4 (4.75V)", "A#4 (4.83V)", "B4 (4.92V)", "C5 (5.00V)"};
 
 
   displayPortal() {
@@ -335,11 +337,11 @@ public:
         drawUtilityScreen(currState.utilityState, nextState.utilityState, redraw);
         break;
       }
-      case SCREENMODES::PITCHCALIBRATE:
-      {
-        drawPitchCalibScreen(currState.pitchCalibState, nextState.pitchCalibState, redraw);
-        break;
-      }
+      // case SCREENMODES::PITCHCALIBRATE:
+      // {
+      //   drawPitchCalibScreen(currState.pitchCalibState, nextState.pitchCalibState, redraw);
+      //   break;
+      // }
 
     }
     currState = nextState;
@@ -782,7 +784,7 @@ private:
       tft.drawString(str.c_str(), filtColX, adcy4);
     }
     //----------
-    const int minColX = 100;
+    // const int minColX = 100;
     // if (fullRedraw || currState.adcMin0 != nextState.adcMin0) {
     //   tft.setTextColor(ELI_PINK, ELI_BLUE);
     //   tft.setFreeFont(&FreeMono9pt7b);
@@ -790,30 +792,30 @@ private:
     //   std::string str=padNumberWithZeros(nextState.adcMin0,3);
     //   tft.drawString(str.c_str(), minColX, adcy1);
     // }
-    if (fullRedraw || currState.adcMin1 != nextState.adcMin1) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMin1,3);
-      tft.drawString(str.c_str(), minColX, adcy2);
-    }
-    if (fullRedraw || currState.adcMin2 != nextState.adcMin2) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMin2,3);
-      tft.drawString(str.c_str(), minColX, adcy3);
-    }
-    if (fullRedraw || currState.adcMin3 != nextState.adcMin3) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMin3,3);
-      tft.drawString(str.c_str(), minColX, adcy4);
-    }
+    // if (fullRedraw || currState.adcMin1 != nextState.adcMin1) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMin1,3);
+    //   tft.drawString(str.c_str(), minColX, adcy2);
+    // }
+    // if (fullRedraw || currState.adcMin2 != nextState.adcMin2) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMin2,3);
+    //   tft.drawString(str.c_str(), minColX, adcy3);
+    // }
+    // if (fullRedraw || currState.adcMin3 != nextState.adcMin3) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMin3,3);
+    //   tft.drawString(str.c_str(), minColX, adcy4);
+    // }
 
     //-------------
-    const int maxColX = 140;
+    // const int maxColX = 140;
     // if (fullRedraw || currState.adcMax0 != nextState.adcMax0) {
     //   tft.setTextColor(ELI_PINK, ELI_BLUE);
     //   tft.setFreeFont(&FreeMono9pt7b);
@@ -821,27 +823,27 @@ private:
     //   std::string str=padNumberWithZeros(nextState.adcMax0,5);
     //   tft.drawString(str.c_str(), maxColX, adcy1);
     // }
-    if (fullRedraw || currState.adcMax1 != nextState.adcMax1) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMax1,5);
-      tft.drawString(str.c_str(), maxColX, adcy2);
-    }
-    if (fullRedraw || currState.adcMax2 != nextState.adcMax2) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMax2,5);
-      tft.drawString(str.c_str(), maxColX, adcy3);
-    }
-    if (fullRedraw || currState.adcMax3 != nextState.adcMax3) {
-      tft.setTextColor(ELI_PINK, ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(TL_DATUM);
-      std::string str=padNumberWithZeros(nextState.adcMax3,5);
-      tft.drawString(str.c_str(), maxColX, adcy4);
-    }
+    // if (fullRedraw || currState.adcMax1 != nextState.adcMax1) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMax1,5);
+    //   tft.drawString(str.c_str(), maxColX, adcy2);
+    // }
+    // if (fullRedraw || currState.adcMax2 != nextState.adcMax2) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMax2,5);
+    //   tft.drawString(str.c_str(), maxColX, adcy3);
+    // }
+    // if (fullRedraw || currState.adcMax3 != nextState.adcMax3) {
+    //   tft.setTextColor(ELI_PINK, ELI_BLUE);
+    //   tft.setFreeFont(&FreeMono9pt7b);
+    //   tft.setTextDatum(TL_DATUM);
+    //   std::string str=padNumberWithZeros(nextState.adcMax3,5);
+    //   tft.drawString(str.c_str(), maxColX, adcy4);
+    // }
 
     //rotary encs
     for (auto &j: {0,1,2}) {
@@ -993,60 +995,60 @@ private:
     }
   }
 
-  void drawPitchCalibScreen(const PitchCalibrationStates &currState, const PitchCalibrationStates &nextState, const bool fullRedraw) {
-    if (fullRedraw) {
-      tft.fillRect(0,0,240,240,ELI_BLUE);
-      tft.setFreeFont(&FreeMono9pt7b);
-      tft.setTextDatum(CC_DATUM);
-      tft.drawString("1V/Oct Cal", 120,20);
-      // tft.drawString("Save State", 120,100);
-      // tft.drawString("Exit", 120,140);
+  // void drawPitchCalibScreen(const PitchCalibrationStates &currState, const PitchCalibrationStates &nextState, const bool fullRedraw) {
+  //   if (fullRedraw) {
+  //     tft.fillRect(0,0,240,240,ELI_BLUE);
+  //     tft.setFreeFont(&FreeMono9pt7b);
+  //     tft.setTextDatum(CC_DATUM);
+  //     tft.drawString("1V/Oct Cal", 120,20);
+  //     // tft.drawString("Save State", 120,100);
+  //     // tft.drawString("Exit", 120,140);
 
-      // iconZPush.pushSprite(114,82);
-      // iconXPush.pushSprite(114,122);
-      // tft.drawString("0010", 180, 100);
-      // tft.drawString("0015", 180, 150);
+  //     // iconZPush.pushSprite(114,82);
+  //     // iconXPush.pushSprite(114,122);
+  //     // tft.drawString("0010", 180, 100);
+  //     // tft.drawString("0015", 180, 150);
 
-    }
-    if (fullRedraw || currState.point != nextState.point || currState.pcalRunning != nextState.pcalRunning)
-    {
-      TFT_eSprite textSprite(&tft);
-      textSprite.createSprite(100, 20);
-      textSprite.setTextFont(2);
-      textSprite.setTextDatum(TL_DATUM);
-      if (nextState.pcalRunning) {
-        textSprite.setTextColor(TFT_GREEN, ELI_BLUE);      
-      }else{
-        textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
-      }
-      textSprite.fillSprite(ELI_BLUE);
-      textSprite.drawString(pcalpoints.at(nextState.point), 0,0);
-      textSprite.pushSprite(40,100);
-    }
-    if (fullRedraw || currState.value != nextState.value)
-    {
-      TFT_eSprite textSprite(&tft);
-      textSprite.createSprite(60, 20);
-      textSprite.setTextFont(2);
-      textSprite.setTextDatum(TL_DATUM);
-      textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
-      textSprite.fillSprite(ELI_BLUE);
-      textSprite.drawString(String(nextState.value).c_str(), 0,0);
-      textSprite.pushSprite(140,100);
-    }
-    if (fullRedraw || currState.reading != nextState.reading)
-    {
-      TFT_eSprite textSprite(&tft);
-      textSprite.createSprite(60, 20);
-      textSprite.setTextFont(2);
-      textSprite.setTextDatum(TL_DATUM);
-      textSprite.setTextColor(TFT_SILVER, ELI_BLUE);      
-      textSprite.fillSprite(ELI_BLUE);
-      textSprite.drawString(String(nextState.reading).c_str(), 0,0);
-      textSprite.pushSprite(140,140);
-    }
+  //   }
+  //   if (fullRedraw || currState.point != nextState.point || currState.pcalRunning != nextState.pcalRunning)
+  //   {
+  //     TFT_eSprite textSprite(&tft);
+  //     textSprite.createSprite(100, 20);
+  //     textSprite.setTextFont(2);
+  //     textSprite.setTextDatum(TL_DATUM);
+  //     if (nextState.pcalRunning) {
+  //       textSprite.setTextColor(TFT_GREEN, ELI_BLUE);      
+  //     }else{
+  //       textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+  //     }
+  //     textSprite.fillSprite(ELI_BLUE);
+  //     textSprite.drawString(pcalpoints.at(nextState.point), 0,0);
+  //     textSprite.pushSprite(40,100);
+  //   }
+  //   if (fullRedraw || currState.value != nextState.value)
+  //   {
+  //     TFT_eSprite textSprite(&tft);
+  //     textSprite.createSprite(60, 20);
+  //     textSprite.setTextFont(2);
+  //     textSprite.setTextDatum(TL_DATUM);
+  //     textSprite.setTextColor(TFT_WHITE, ELI_BLUE);      
+  //     textSprite.fillSprite(ELI_BLUE);
+  //     textSprite.drawString(String(nextState.value).c_str(), 0,0);
+  //     textSprite.pushSprite(140,100);
+  //   }
+  //   if (fullRedraw || currState.reading != nextState.reading)
+  //   {
+  //     TFT_eSprite textSprite(&tft);
+  //     textSprite.createSprite(60, 20);
+  //     textSprite.setTextFont(2);
+  //     textSprite.setTextDatum(TL_DATUM);
+  //     textSprite.setTextColor(TFT_SILVER, ELI_BLUE);      
+  //     textSprite.fillSprite(ELI_BLUE);
+  //     textSprite.drawString(String(nextState.reading).c_str(), 0,0);
+  //     textSprite.pushSprite(140,140);
+  //   }
     
-  }
+  // }
 
 
   displayStates currState, nextState;

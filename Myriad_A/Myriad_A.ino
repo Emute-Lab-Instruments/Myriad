@@ -58,8 +58,8 @@ using namespace FixedPoint;
 
 
 #define FRAC_BITS 16
-using ADCCalibType = ADCCalibrator<12,121, int32_t, FRAC_BITS>;
-ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(CalibrationSettings::pitchCalPoints);
+// using ADCCalibType = ADCCalibrator<12,121, int32_t, FRAC_BITS>;
+// ADCCalibType __not_in_flash("pitchadclookup") pitchADCMap(CalibrationSettings::pitchCalPoints);
 
 
 bool core1_separate_stack = true;
@@ -404,7 +404,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     controlValues[1] = filteredADC1_Q16.to_int();
 
     //detuning
-    Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1_Q16);
+    Fixed<0,18> ctrlValFixed = Fixed<0,18>(1.f/4096.f).mulWith(filteredADC1_Q16);
+    // Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1_Q16);
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
     Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(Fixed<0,18>(0.016f));
     detuneFixed = new_wavelen0_fixed.mulWith(ctrlValScaled);
@@ -596,18 +597,18 @@ void setup_adcs() {
 
 
 
-inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
-  //get the value
-  uint32_t save = spin_lock_blocking(adcSpinlock);  
-  const float val = controlValues[adcIndex];
-  spin_unlock(adcSpinlock, save);
+// inline float __not_in_flash_func(adcMap)(const size_t adcIndex) {
+//   //get the value
+//   uint32_t save = spin_lock_blocking(adcSpinlock);  
+//   const float val = controlValues[adcIndex];
+//   spin_unlock(adcSpinlock, save);
 
-  //mapping
-  float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
-  if (mappedVal < 0.f) mappedVal = 0.f;
+//   //mapping
+//   float mappedVal = (val - (CalibrationSettings::adcMins[adcIndex])) * CalibrationSettings::adcRangesInv[adcIndex];
+//   if (mappedVal < 0.f) mappedVal = 0.f;
 
-  return mappedVal;
-}
+//   return mappedVal;
+// }
 
 void __not_in_flash_func(resetMetaMods)() {
   metaModWavelenMul0 = Q16_16(1);
@@ -841,15 +842,15 @@ void __isr encoder1_callback() {
 
         break;
       }
-      case CONTROLMODES::CALIBRATEPITCHMODE: 
-      {
-        int newVal = CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] + change;
-        if (newVal >=0 && newVal < 5000) {
-          CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = newVal;
-          display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
-        }
-        break;
-      }
+      // case CONTROLMODES::CALIBRATEPITCHMODE: 
+      // {
+      //   int newVal = CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] + change;
+      //   if (newVal >=0 && newVal < 5000) {
+      //     CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = newVal;
+      //     display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+      //   }
+      //   break;
+      // }
 
     }
   }
@@ -971,16 +972,16 @@ void __isr encoder2_callback() {
 
           break;
         }
-        case CONTROLMODES::CALIBRATEPITCHMODE: 
-        {
-          int newVal = PITCHCALSCREEEN::pointIndex + change;
-          if (newVal >=0 && newVal < pitchADCMap.NPoints) {
-            PITCHCALSCREEEN::pointIndex = newVal;
-            display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
-            display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
-          }
-          break;
-        }
+        // case CONTROLMODES::CALIBRATEPITCHMODE: 
+        // {
+        //   int newVal = PITCHCALSCREEEN::pointIndex + change;
+        //   if (newVal >=0 && newVal < pitchADCMap.NPoints) {
+        //     PITCHCALSCREEEN::pointIndex = newVal;
+        //     display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+        //     display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+        //   }
+        //   break;
+        // }
 
       }
     }
@@ -1123,7 +1124,7 @@ void __isr encoder1_switch_callback() {
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
   {
-    CalibrationSettings::reset();
+    // CalibrationSettings::reset();
     display.setCalibEncoderSwitch(0, controls::encoderSwitches[0]);
   }
 
@@ -1170,11 +1171,11 @@ void __isr encoder2_switch_callback() {
         // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], controlValues[0], CalibrationSettings::adcMaxs[0]);
         break;
       }
-      case CONTROLMODES::CALIBRATEPITCHMODE:
-      {
-        pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
-        break;
-      }
+      // case CONTROLMODES::CALIBRATEPITCHMODE:
+      // {
+      //   pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+      //   break;
+      // }
 
     }
   }
@@ -1258,23 +1259,23 @@ void __isr encoder3_switch_callback() {
         spin_unlock(displaySpinlock, save);
         break;
       }
-      case CONTROLMODES::CALIBRATEPITCHMODE:
-      {
-        //rebuild pitch table
-        if (!PITCHCALSCREEEN::calRunning) {
-          PITCHCALSCREEEN::calRunning = true;
-          PITCHCALSCREEEN::lastPitchADC = controlValues[0];
-          //store current reading
-          CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
-          display.setPitchCalibValue(controlValues[0]);
+      // case CONTROLMODES::CALIBRATEPITCHMODE:
+      // {
+      //   //rebuild pitch table
+      //   if (!PITCHCALSCREEEN::calRunning) {
+      //     PITCHCALSCREEEN::calRunning = true;
+      //     PITCHCALSCREEEN::lastPitchADC = controlValues[0];
+      //     //store current reading
+      //     CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
+      //     display.setPitchCalibValue(controlValues[0]);
 
-        }else{
-          PITCHCALSCREEEN::calRunning = false;
-          pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
-        }
-        display.setPitchCalibRunning(PITCHCALSCREEEN::calRunning);
-        break;
-      }
+      //   }else{
+      //     PITCHCALSCREEEN::calRunning = false;
+      //     pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+      //   }
+      //   display.setPitchCalibRunning(PITCHCALSCREEEN::calRunning);
+      //   break;
+      // }
 
     }
   }
@@ -1320,17 +1321,17 @@ void calibrate_button_callback() {
     }else{
       switch(controlMode) {
         case CONTROLMODES::CALIBRATEMODE: {
-          controlMode = CONTROLMODES::CALIBRATEPITCHMODE;
-          display.setScreen(portal::SCREENMODES::PITCHCALIBRATE);
-          display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
-          display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+        //   controlMode = CONTROLMODES::CALIBRATEPITCHMODE;
+        //   display.setScreen(portal::SCREENMODES::PITCHCALIBRATE);
+        //   display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+        //   display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
 
-          break;
-        }
-        case CONTROLMODES::CALIBRATEPITCHMODE: {
-          PITCHCALSCREEEN::calRunning = false;
-          display.setPitchCalibRunning(false);          
-          CalibrationSettings::save();
+        //   break;
+        // }
+        // case CONTROLMODES::CALIBRATEPITCHMODE: {
+        //   PITCHCALSCREEEN::calRunning = false;
+        //   display.setPitchCalibRunning(false);          
+          // CalibrationSettings::save();
           switchToOSCMode();
           break;
         }
@@ -1457,11 +1458,11 @@ void setup() {
   // dump_midscale_correction();
   // check_correction_discontinuities();
   find_pitch_discontinuity();
-  CalibrationSettings::load();
+  // CalibrationSettings::load();
 
   // pitchADCMap.rebuildFromThreePointEstimate(CalibrationSettings::adcMins[0], CalibrationSettings::adc0Mid, CalibrationSettings::adcMaxs[0]);
-  CalibrationSettings::init();
-  pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
+  // CalibrationSettings::init();
+  // pitchADCMap.rebuildLookupTable(CalibrationSettings::pitchCalPoints);
 
   TuningSettings::load();
   MyriadState::load();
@@ -1695,54 +1696,53 @@ void __not_in_flash_func(loop)() {
       spin_unlock(displaySpinlock, save);
 
     }else if (controlMode == CONTROLMODES::CALIBRATEMODE) {
-      //pitch is done on next screen
-      for(size_t i=1; i < 4; i++) {
-        uint32_t save = spin_lock_blocking(adcSpinlock);  
-        if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
-          CalibrationSettings::adcMins[i] = controlValues[i];
-        }
-        if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
-          CalibrationSettings::adcMaxs[i] = controlValues[i];
-        }
-        CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
-        if (CalibrationSettings::adcRanges[i]==0) CalibrationSettings::adcRanges[i]=1;
-        CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
-        spin_unlock(adcSpinlock, save);
-      }
+      // for(size_t i=1; i < 4; i++) {
+      //   uint32_t save = spin_lock_blocking(adcSpinlock);  
+      //   if (controlValues[i] < CalibrationSettings::adcMins[i] && controlValues[i] >= 0) {
+      //     CalibrationSettings::adcMins[i] = controlValues[i];
+      //   }
+      //   if (controlValues[i] > CalibrationSettings::adcMaxs[i] && controlValues[i] < 4096) {
+      //     CalibrationSettings::adcMaxs[i] = controlValues[i];
+      //   }
+      //   CalibrationSettings::adcRanges[i] = CalibrationSettings::adcMaxs[i] - CalibrationSettings::adcMins[i];
+      //   if (CalibrationSettings::adcRanges[i]==0) CalibrationSettings::adcRanges[i]=1;
+      //   CalibrationSettings::adcRangesInv[i] = 1.f / CalibrationSettings::adcRanges[i];
+      //   spin_unlock(adcSpinlock, save);
+      // }
       // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
       display.setCalibADCValues(0,0,0,0);
-      display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
-      display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
+      // display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+      // display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
     }
-    else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
-    {
-        display.setPitchCalibReading(controlValues[0]);
-        int diff = controlValues[0] - PITCHCALSCREEEN::lastPitchADC;
-        bool change=false;
+    // else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)
+    // {
+    //     display.setPitchCalibReading(controlValues[0]);
+    //     int diff = controlValues[0] - PITCHCALSCREEEN::lastPitchADC;
+    //     bool change=false;
 
-        if (diff >15) {
-          PITCHCALSCREEEN::lastPitchADC = controlValues[0];
-          change=true;
-        }
+    //     if (diff >15) {
+    //       PITCHCALSCREEEN::lastPitchADC = controlValues[0];
+    //       change=true;
+    //     }
 
-        if (PITCHCALSCREEEN::calRunning) {
-          if (change) {
-            int newVal = PITCHCALSCREEEN::pointIndex+1;
-            if (newVal < pitchADCMap.NPoints) {
-              PITCHCALSCREEEN::pointIndex = newVal;
-              //set display
-              display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
-              display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
+    //     if (PITCHCALSCREEEN::calRunning) {
+    //       if (change) {
+    //         int newVal = PITCHCALSCREEEN::pointIndex+1;
+    //         if (newVal < pitchADCMap.NPoints) {
+    //           PITCHCALSCREEEN::pointIndex = newVal;
+    //           //set display
+    //           display.setPitchCalibPoint(PITCHCALSCREEEN::pointIndex);
+    //           display.setPitchCalibValue(CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex]);
 
-              //record calibration
-              CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
-            }else{
-              // PITCHCALSCREEEN::calRunning = false;
-              // display.setPitchCalibRunning(false);
-            }
-          }
-        }
-    }
+    //           //record calibration
+    //           CalibrationSettings::pitchCalPoints[PITCHCALSCREEEN::pointIndex] = controlValues[0];
+    //         }else{
+    //           // PITCHCALSCREEEN::calRunning = false;
+    //           // display.setPitchCalibRunning(false);
+    //         }
+    //       }
+    //     }
+    // }
 
     uint32_t save = spin_lock_blocking(displaySpinlock);  
     display.update();
