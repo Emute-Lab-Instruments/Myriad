@@ -413,19 +413,36 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     ////////////////////////  epsilon
 
     adcLpf2.play(adcReadings[2]);
-    int filteredADC2 = adcLpf2.value();
-    controlValues[2] = filteredADC2;
-    filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
-    if (filteredADC2<0) filteredADC2=0;
-    if (filteredADC2>4095) filteredADC2=4095;
-    Fixed<16,16> filteredADC2Fixed = Fixed<16,16>(filteredADC2);
-    epsilon_fixed = filteredADC2Fixed.mulWith(CalibrationSettings::adcRangesInvFP[2]);
+    Q16_16 filteredADC2_Q16 = Q16_16(adcLpf2.value()) + Q16_16(0.5f);
+    if (filteredADC2_Q16 > Q16_16(4095)) {
+      filteredADC2_Q16 = Q16_16(4095);
+    }
+    int correctionADC2 = ADCProfile::cal_data.correction[filteredADC2_Q16.to_int()];
+    filteredADC2_Q16 = filteredADC2_Q16 + Q16_16(correctionADC2);
+    controlValues[2] = filteredADC2_Q16.to_int();
+
+
+    // int filteredADC2 = adcLpf2.value();
+    // controlValues[2] = filteredADC2;
+    // filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
+    // if (filteredADC2<0) filteredADC2=0;
+    // if (filteredADC2>4095) filteredADC2=4095;
+    // Fixed<16,16> filteredADC2Fixed = Fixed<16,16>(filteredADC2);
+    epsilon_fixed = filteredADC2_Q16 * Q16_16(1.f/4096.f);
+    // epsilon_fixed = filteredADC2Fixed.mulWith(CalibrationSettings::adcRangesInvFP[2]);
     epsilon_fixed *= metaModCtrlMul;
 
     //octaves
     adcLpf3.play(adcReadings[3]);
-    const size_t octControl = adcLpf3.value();
+    Q16_16 filteredADC3_Q16 = Q16_16(adcLpf3.value()) + Q16_16(0.5f);
+    if (filteredADC3_Q16 > Q16_16(4095)) {
+      filteredADC3_Q16 = Q16_16(4095);
+    }
+    size_t octControl = filteredADC3_Q16.to_int();
+    int correctionADC3 = ADCProfile::cal_data.correction[octControl];
+    octControl = octControl + correctionADC3;
     controlValues[3] = octControl;
+    
     const size_t octaveIdx = octControl >> 8;  // 16 divisions
 
     if (octaveIdx != lastOctaveIdx) {
@@ -433,7 +450,6 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       octReady = true;
       sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdx);
       currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
-      // Serial.printf("oct %d\n", octaveIdx);
     }
 
     oscsReadyToStart = true;
