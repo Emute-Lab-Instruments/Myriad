@@ -305,8 +305,8 @@ public:
         // Two PI in fixed-point
         constexpr FixedType TWOPI_FIXED = FixedType::from_float_ct(6.28318530718);
 
-        // Initialize with equally spread phases (0, 2π/N, 4π/N, ...)
-        const FixedType phaseGap = TWOPI_FIXED / FixedType(N);
+        // Initialize with equally spread phases (0, 2π/N, 4π/N, ...), make sure doesn't sum to 0 to offset a bit
+        const FixedType phaseGap = TWOPI_FIXED / FixedType(N-1);
 
         for(size_t i = 0; i < N; i++) {
             phasors[i] = phaseGap * FixedType(i);
