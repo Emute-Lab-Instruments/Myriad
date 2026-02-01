@@ -313,7 +313,7 @@ public:
         }
         this->modspeed.setMax(FixedType(0.1));
         this->modspeed.setScale(FixedType(0.001));
-        this->moddepth.setMax(FixedType(0.1));
+        this->moddepth.setMax(FixedType(0.095));
         this->moddepth.setScale(FixedType(0.0009));
 
     }
@@ -413,9 +413,9 @@ public:
         for(size_t i = 0; i < N; i++) {
             phasors[i] = phaseGap * FixedType(i);
         }
-        this->modspeed.setMax(FixedType(0.1));
+        this->modspeed.setMax(FixedType(0.06));
         this->modspeed.setScale(FixedType(0.001));
-        this->moddepth.setMax(FixedType(0.1));
+        this->moddepth.setMax(FixedType(0.095));
         this->moddepth.setScale(FixedType(0.0009));
 
     }
@@ -509,10 +509,10 @@ public:
         for(size_t i=0; i < N; i++) {
             phasors[i] = i*phaseGap;
         }
-        this->modspeed.setMax(0.1);
+        this->modspeed.setMax(0.05);
         this->modspeed.setScale(0.001);
-        this->moddepth.setMax(0.1);
-        this->moddepth.setScale(0.0009);
+        this->moddepth.setMax(0.095);
+        this->moddepth.setScale(0.0001);
     }
 
     String getName() override {return "speedy sines";}
