@@ -1192,10 +1192,11 @@ public:
         centerY = sumY * Q16_16(1.f/N);
 
         // Fixed-point constants
-        const Q16_16 cohesionRadius = Q16_16(30.0);
-        const Q16_16 separationRadius = Q16_16(20.0);
-        const Q16_16 alignmentRadius = Q16_16(25.0);
-        const Q16_16 cohesionStrength = Q16_16(0.005);
+        const Q16_16 cohesionRadius = Q16_16(40.0);
+        const Q16_16 separationRadius = Q16_16(25.0);
+        const Q16_16 alignmentRadius = Q16_16(30.0);
+        Q16_16 cohesionStrength = Q16_16(0.003);
+        cohesionStrength += (this->moddepth.getValue() * Q16_16(0.003)); // modulate cohesion strength
         const Q16_16 separationMul = Q16_16(0.5);
         const Q16_16 minSeparationDist = Q16_16(1.0);
         const Q16_16 alignmentStrength = Q16_16(0.04);
@@ -1206,7 +1207,7 @@ public:
         const Q16_16 sqwidthFP = Q16_16(sqwidth);
         const Q16_16 friction = Q16_16(0.99);
 
-        Q16_16 modvel = Q16_16(0.1) + this->modspeed.getValue();
+        Q16_16 modvel = Q16_16(0.05) + this->modspeed.getValue();
 
         // Neighbor cache for optimization
         struct NeighborInfo {
@@ -1229,7 +1230,7 @@ public:
 
             // Rule 1: Cohesion - move towards center of mass
             Q16_16 dcxr1 = (centerX - v.x) * (cohesionStrength);
-            Q16_16 dcyr1 = (centerY - v.y)* (cohesionStrength);
+            Q16_16 dcyr1 = (centerY - v.y) * (cohesionStrength);
 
             // Rule 2 & 3: Separation and Alignment
             Q16_16 dcxr2 = Q16_16(0);
@@ -1306,8 +1307,15 @@ public:
                 v.vy += pushForce;
             }
             // Output: speed scaled by depth
-            // mods[idx] = speed * this->moddepth.getValue();
-            mods[idx] = this->moddepth.getValue();
+            Q16_16 absVx = FixedPoint::abs(v.vx);  // Make positive
+            Q16_16 absVy = FixedPoint::abs(v.vy);  // Make positive
+
+            Q16_16 maxVal = FixedPoint::max(absVx, absVy);  // Larger component
+            Q16_16 minVal = FixedPoint::min(absVx, absVy);  // Smaller component
+
+            // The magic formula
+            Q16_16 speed = maxVal + minVal * Q16_16(0.4);            
+            mods[idx] = speed * this->moddepth.getValue();
             idx++;
         }
         // Serial.printf("Bds %f\n", mods[0].to_float());
@@ -1696,7 +1704,6 @@ private:
 };
 
 
-//hopefully this is more stable than Aizawa?
 template<size_t N>
 class metaRossler : public metaLorenz<N> {
 public:
@@ -1945,255 +1952,255 @@ private:
 // ============================================================================
 
 // Q16.16 fixed-point (LEGACY - use Q16_16 for new code)
-typedef int32_t fixed_t;
-constexpr int FIXED_SHIFT = 16;
-constexpr fixed_t FIXED_ONE = 1 << FIXED_SHIFT;
+// typedef int32_t fixed_t;
+// constexpr int FIXED_SHIFT = 16;
+// constexpr fixed_t FIXED_ONE = 1 << FIXED_SHIFT;
 
-inline fixed_t float_to_fixed(float f) {
-    return (fixed_t)(f * FIXED_ONE + (f >= 0 ? 0.5f : -0.5f));
-}
+// inline fixed_t float_to_fixed(float f) {
+//     return (fixed_t)(f * FIXED_ONE + (f >= 0 ? 0.5f : -0.5f));
+// }
 
-inline float fixed_to_float(fixed_t f) {
-    return (float)f / FIXED_ONE;
-}
+// inline float fixed_to_float(fixed_t f) {
+//     return (float)f / FIXED_ONE;
+// }
 
-inline fixed_t fixed_mul(fixed_t a, fixed_t b) {
-    return (fixed_t)(((int64_t)a * b) >> FIXED_SHIFT);
-}
+// inline fixed_t fixed_mul(fixed_t a, fixed_t b) {
+//     return (fixed_t)(((int64_t)a * b) >> FIXED_SHIFT);
+// }
 
-inline fixed_t fixed_div(fixed_t a, fixed_t b) {
-    return (fixed_t)(((int64_t)a << FIXED_SHIFT) / b);
-}
+// inline fixed_t fixed_div(fixed_t a, fixed_t b) {
+//     return (fixed_t)(((int64_t)a << FIXED_SHIFT) / b);
+// }
 
-// Integer sqrt
-inline uint32_t isqrt32(uint32_t n) {
-    if (n == 0) return 0;
-    uint32_t x = n;
-    uint32_t y = (x + 1) >> 1;
-    while (y < x) {
-        x = y;
-        y = (x + n / x) >> 1;
-    }
-    return x;
-}
+// // Integer sqrt
+// inline uint32_t isqrt32(uint32_t n) {
+//     if (n == 0) return 0;
+//     uint32_t x = n;
+//     uint32_t y = (x + 1) >> 1;
+//     while (y < x) {
+//         x = y;
+//         y = (x + n / x) >> 1;
+//     }
+//     return x;
+// }
 
-inline fixed_t fixed_sqrt(fixed_t x) {
-    if (x <= 0) return 0;
-    return isqrt32(x) << 8;
-}
+// inline fixed_t fixed_sqrt(fixed_t x) {
+//     if (x <= 0) return 0;
+//     return isqrt32(x) << 8;
+// }
 
-struct boid_fixed {
-    fixed_t x, y;
-    fixed_t px, py;
-    fixed_t vx, vy;
-    fixed_t pvx, pvy;
-};
+// struct boid_fixed {
+//     fixed_t x, y;
+//     fixed_t px, py;
+//     fixed_t vx, vy;
+//     fixed_t pvx, pvy;
+// };
 
-template<size_t N>
-class metaOscBoids : public metaOsc<N> {
-public:
-    metaOscBoids() {
-        boids = std::vector<boid_fixed>(N);
+// template<size_t N>
+// class metaOscBoids : public metaOsc<N> {
+// public:
+//     metaOscBoids() {
+//         boids = std::vector<boid_fixed>(N);
         
-        for(auto &v: boids) {
-            v.x = float_to_fixed(random(sqbound, sqboundBR));
-            v.y = float_to_fixed(random(sqbound, sqboundBR));
-            v.px = v.x;
-            v.py = v.y;
-            v.vx = float_to_fixed(((random(1000) / 1000.f) - 0.5f) * 0.8f);
-            v.vy = float_to_fixed(((random(1000) / 1000.f) - 0.5f) * 0.8f);
-            v.pvx = v.vx;
-            v.pvy = v.vy;
-        }
+//         for(auto &v: boids) {
+//             v.x = float_to_fixed(random(sqbound, sqboundBR));
+//             v.y = float_to_fixed(random(sqbound, sqboundBR));
+//             v.px = v.x;
+//             v.py = v.y;
+//             v.vx = float_to_fixed(((random(1000) / 1000.f) - 0.5f) * 0.8f);
+//             v.vy = float_to_fixed(((random(1000) / 1000.f) - 0.5f) * 0.8f);
+//             v.pvx = v.vx;
+//             v.pvy = v.vy;
+//         }
         
-        centerX = float_to_fixed(120);
-        centerY = float_to_fixed(120);
+//         centerX = float_to_fixed(120);
+//         centerY = float_to_fixed(120);
         
-        this->modspeed.setMax(1.f);
-        this->modspeed.setScale(0.01);
-        this->moddepth.setMax(0.03f);
-        this->moddepth.setScale(0.0003f);
-    }
+//         this->modspeed.setMax(1.f);
+//         this->modspeed.setScale(0.01);
+//         this->moddepth.setMax(0.03f);
+//         this->moddepth.setScale(0.0003f);
+//     }
 
-    String getName() override { return "boids"; }
-    MetaOscType getType() const override { return MetaOscType::BOIDS; }
+//     String getName() override { return "boids"; }
+//     MetaOscType getType() const override { return MetaOscType::BOIDS; }
 
-    inline fixed_t distBetween(fixed_t x1, fixed_t y1, fixed_t x2, fixed_t y2) {
-        fixed_t dx = x2 - x1;
-        fixed_t dy = y2 - y1;
-        fixed_t dx2 = fixed_mul(dx, dx);
-        fixed_t dy2 = fixed_mul(dy, dy);
-        return fixed_sqrt(dx2 + dy2);
-    }
+//     inline fixed_t distBetween(fixed_t x1, fixed_t y1, fixed_t x2, fixed_t y2) {
+//         fixed_t dx = x2 - x1;
+//         fixed_t dy = y2 - y1;
+//         fixed_t dx2 = fixed_mul(dx, dx);
+//         fixed_t dy2 = fixed_mul(dy, dy);
+//         return fixed_sqrt(dx2 + dy2);
+//     }
 
-    std::array<float, N> update(const size_t (adcs)[4]) override {
-        // Calculate center of mass
-        int64_t sumX = 0, sumY = 0;
-        for(auto &v: boids) {
-            sumX += v.x;
-            sumY += v.y;
-        }
-        centerX = (fixed_t)(sumX / N);
-        centerY = (fixed_t)(sumY / N);
+//     std::array<float, N> update(const size_t (adcs)[4]) override {
+//         // Calculate center of mass
+//         int64_t sumX = 0, sumY = 0;
+//         for(auto &v: boids) {
+//             sumX += v.x;
+//             sumY += v.y;
+//         }
+//         centerX = (fixed_t)(sumX / N);
+//         centerY = (fixed_t)(sumY / N);
         
-        // Fixed-point constants
-        const fixed_t cohesionRadius = float_to_fixed(45.0f);
-        const fixed_t separationRadius = float_to_fixed(30.0f);
-        const fixed_t alignmentRadius = float_to_fixed(40.0f);
+//         // Fixed-point constants
+//         const fixed_t cohesionRadius = float_to_fixed(45.0f);
+//         const fixed_t separationRadius = float_to_fixed(30.0f);
+//         const fixed_t alignmentRadius = float_to_fixed(40.0f);
         
-        const fixed_t cohesionStrength = float_to_fixed(0.005f);
-        const fixed_t separationMul = float_to_fixed(0.02f);
-        const fixed_t alignmentStrength = float_to_fixed(0.05f);
-        const fixed_t maxSpeed = float_to_fixed(2.5f);
+//         const fixed_t cohesionStrength = float_to_fixed(0.005f);
+//         const fixed_t separationMul = float_to_fixed(0.02f);
+//         const fixed_t alignmentStrength = float_to_fixed(0.05f);
+//         const fixed_t maxSpeed = float_to_fixed(2.5f);
         
-        const fixed_t sqboundFixed = float_to_fixed(sqbound);
-        const fixed_t sqboundBRFixed = float_to_fixed(sqboundBR);
-        const fixed_t sqwidthFixed = float_to_fixed(sqwidth);
+//         const fixed_t sqboundFixed = float_to_fixed(sqbound);
+//         const fixed_t sqboundBRFixed = float_to_fixed(sqboundBR);
+//         const fixed_t sqwidthFixed = float_to_fixed(sqwidth);
 
-        size_t idx = 0;
-        fixed_t modvel = float_to_fixed(0.1f + this->modspeed.getValue());
+//         size_t idx = 0;
+//         fixed_t modvel = float_to_fixed(0.1f + this->modspeed.getValue());
         
-        // Temporary storage for neighbor info
-        struct NeighborInfo {
-            fixed_t dist;
-            boid_fixed* ptr;
-        };
-        NeighborInfo neighbors[N];
+//         // Temporary storage for neighbor info
+//         struct NeighborInfo {
+//             fixed_t dist;
+//             boid_fixed* ptr;
+//         };
+//         NeighborInfo neighbors[N];
         
-        for(auto &v: boids) {
-            // Cache all distances once
-            int neighborCount = 0;
-            for(auto &otherBoid: boids) {
-                if (&v != &otherBoid) {
-                    fixed_t dist = distBetween(v.x, v.y, otherBoid.x, otherBoid.y);
-                    neighbors[neighborCount].dist = dist;
-                    neighbors[neighborCount].ptr = &otherBoid;
-                    neighborCount++;
-                }
-            }
+//         for(auto &v: boids) {
+//             // Cache all distances once
+//             int neighborCount = 0;
+//             for(auto &otherBoid: boids) {
+//                 if (&v != &otherBoid) {
+//                     fixed_t dist = distBetween(v.x, v.y, otherBoid.x, otherBoid.y);
+//                     neighbors[neighborCount].dist = dist;
+//                     neighbors[neighborCount].ptr = &otherBoid;
+//                     neighborCount++;
+//                 }
+//             }
             
-            // Rule 1: Move towards center of mass
-            fixed_t dcxr1 = fixed_mul(centerX - v.x, cohesionStrength);
-            fixed_t dcyr1 = fixed_mul(centerY - v.y, cohesionStrength);
+//             // Rule 1: Move towards center of mass
+//             fixed_t dcxr1 = fixed_mul(centerX - v.x, cohesionStrength);
+//             fixed_t dcyr1 = fixed_mul(centerY - v.y, cohesionStrength);
             
-            // Rules 2 & 3: Process all neighbors in one loop
-            fixed_t dcxr2 = 0, dcyr2 = 0;
-            fixed_t dcxr3 = 0, dcyr3 = 0;
-            int64_t avgVx = 0, avgVy = 0;
-            int alignCount = 0;
+//             // Rules 2 & 3: Process all neighbors in one loop
+//             fixed_t dcxr2 = 0, dcyr2 = 0;
+//             fixed_t dcxr3 = 0, dcyr3 = 0;
+//             int64_t avgVx = 0, avgVy = 0;
+//             int alignCount = 0;
             
-            for(int i = 0; i < neighborCount; i++) {
-                auto& info = neighbors[i];
-                auto* other = info.ptr;
+//             for(int i = 0; i < neighborCount; i++) {
+//                 auto& info = neighbors[i];
+//                 auto* other = info.ptr;
                 
-                // Rule 2: Separation
-                if (info.dist < separationRadius && info.dist > 0) {
-                    fixed_t force = fixed_div(FIXED_ONE, info.dist);
-                    dcxr2 += fixed_mul(v.x - other->x, force);
-                    dcyr2 += fixed_mul(v.y - other->y, force);
-                }
+//                 // Rule 2: Separation
+//                 if (info.dist < separationRadius && info.dist > 0) {
+//                     fixed_t force = fixed_div(FIXED_ONE, info.dist);
+//                     dcxr2 += fixed_mul(v.x - other->x, force);
+//                     dcyr2 += fixed_mul(v.y - other->y, force);
+//                 }
                 
-                // Rule 3: Alignment
-                if (info.dist < alignmentRadius) {
-                    avgVx += other->vx;
-                    avgVy += other->vy;
-                    alignCount++;
-                }
-            }
+//                 // Rule 3: Alignment
+//                 if (info.dist < alignmentRadius) {
+//                     avgVx += other->vx;
+//                     avgVy += other->vy;
+//                     alignCount++;
+//                 }
+//             }
             
-            dcxr2 = fixed_mul(dcxr2, separationMul);
-            dcyr2 = fixed_mul(dcyr2, separationMul);
+//             dcxr2 = fixed_mul(dcxr2, separationMul);
+//             dcyr2 = fixed_mul(dcyr2, separationMul);
             
-            if (alignCount > 0) {
-                avgVx /= alignCount;
-                avgVy /= alignCount;
-                dcxr3 = fixed_mul((fixed_t)avgVx - v.vx, alignmentStrength);
-                dcyr3 = fixed_mul((fixed_t)avgVy - v.vy, alignmentStrength);
-            }
+//             if (alignCount > 0) {
+//                 avgVx /= alignCount;
+//                 avgVy /= alignCount;
+//                 dcxr3 = fixed_mul((fixed_t)avgVx - v.vx, alignmentStrength);
+//                 dcyr3 = fixed_mul((fixed_t)avgVy - v.vy, alignmentStrength);
+//             }
             
-            // Update velocity
-            v.vx += (dcxr1 + dcxr2 + dcxr3);
-            v.vy += (dcyr1 + dcyr2 + dcyr3);
+//             // Update velocity
+//             v.vx += (dcxr1 + dcxr2 + dcxr3);
+//             v.vy += (dcyr1 + dcyr2 + dcyr3);
             
-            // Speed limiting
-            fixed_t vx2 = fixed_mul(v.vx, v.vx);
-            fixed_t vy2 = fixed_mul(v.vy, v.vy);
-            fixed_t speed = fixed_sqrt(vx2 + vy2);
+//             // Speed limiting
+//             fixed_t vx2 = fixed_mul(v.vx, v.vx);
+//             fixed_t vy2 = fixed_mul(v.vy, v.vy);
+//             fixed_t speed = fixed_sqrt(vx2 + vy2);
             
-            if (speed > maxSpeed) {
-                v.vx = fixed_mul(fixed_div(v.vx, speed), maxSpeed);
-                v.vy = fixed_mul(fixed_div(v.vy, speed), maxSpeed);
-                speed = maxSpeed;
-            }
+//             if (speed > maxSpeed) {
+//                 v.vx = fixed_mul(fixed_div(v.vx, speed), maxSpeed);
+//                 v.vy = fixed_mul(fixed_div(v.vy, speed), maxSpeed);
+//                 speed = maxSpeed;
+//             }
             
-            // Update position
-            v.x += fixed_mul(v.vx, modvel);
-            v.y += fixed_mul(v.vy, modvel);
+//             // Update position
+//             v.x += fixed_mul(v.vx, modvel);
+//             v.y += fixed_mul(v.vy, modvel);
             
-            // Wrapping
-            if (v.x > sqboundBRFixed) {
-                v.x -= sqwidthFixed;
-            } else if (v.x < sqboundFixed) {
-                v.x += sqwidthFixed;
-            }
+//             // Wrapping
+//             if (v.x > sqboundBRFixed) {
+//                 v.x -= sqwidthFixed;
+//             } else if (v.x < sqboundFixed) {
+//                 v.x += sqwidthFixed;
+//             }
             
-            if (v.y > sqboundBRFixed) {
-                v.y -= sqwidthFixed;
-            } else if (v.y < sqboundFixed) {
-                v.y += sqwidthFixed;
-            }
+//             if (v.y > sqboundBRFixed) {
+//                 v.y -= sqwidthFixed;
+//             } else if (v.y < sqboundFixed) {
+//                 v.y += sqwidthFixed;
+//             }
             
-            mods[idx] = fixed_to_float(speed) * this->moddepth.getValue();
-            idx++;
-        }
-        return mods;
-    }
+//             mods[idx] = fixed_to_float(speed) * this->moddepth.getValue();
+//             idx++;
+//         }
+//         return mods;
+//     }
 
-    std::array<float, N>& getValues() override {
-        return mods;
-    }
+//     std::array<float, N>& getValues() override {
+//         return mods;
+//     }
 
-    inline int constraini(int val, int minVal, int maxVal) {
-        if (val < minVal) return minVal;
-        if (val > maxVal) return maxVal;
-        return val;
-    }
+//     inline int constraini(int val, int minVal, int maxVal) {
+//         if (val < minVal) return minVal;
+//         if (val > maxVal) return maxVal;
+//         return val;
+//     }
 
-    void draw(TFT_eSPI &tft) override {
-        constexpr int lineLength = 4;
-        const fixed_t lineLengthFixed = lineLength << FIXED_SHIFT;
-        const int sqboundInt = (int)sqbound;
-        const int sqboundBRInt = (int)sqboundBR;
+//     void draw(TFT_eSPI &tft) override {
+//         constexpr int lineLength = 4;
+//         const fixed_t lineLengthFixed = lineLength << FIXED_SHIFT;
+//         const int sqboundInt = (int)sqbound;
+//         const int sqboundBRInt = (int)sqboundBR;
         
-        for(auto &v: boids) {
-            int px = v.px >> FIXED_SHIFT;
-            int py = v.py >> FIXED_SHIFT;
-            int x = v.x >> FIXED_SHIFT;
-            int y = v.y >> FIXED_SHIFT;
+//         for(auto &v: boids) {
+//             int px = v.px >> FIXED_SHIFT;
+//             int py = v.py >> FIXED_SHIFT;
+//             int x = v.x >> FIXED_SHIFT;
+//             int y = v.y >> FIXED_SHIFT;
             
-            tft.drawCircle(px, py, 3, ELI_BLUE);
-            int tx = constraini(px + (fixed_mul(v.pvx, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
-            int ty = constraini(py + (fixed_mul(v.pvy, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
-            tft.drawLine(px, py, tx, ty, ELI_BLUE);
+//             tft.drawCircle(px, py, 3, ELI_BLUE);
+//             int tx = constraini(px + (fixed_mul(v.pvx, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
+//             int ty = constraini(py + (fixed_mul(v.pvy, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
+//             tft.drawLine(px, py, tx, ty, ELI_BLUE);
             
-            tft.drawCircle(x, y, 3, TFT_GREENYELLOW);
-            tx = constraini(x + (fixed_mul(v.vx, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
-            ty = constraini(y + (fixed_mul(v.vy, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
-            tft.drawLine(x, y, tx, ty, TFT_YELLOW);
+//             tft.drawCircle(x, y, 3, TFT_GREENYELLOW);
+//             tx = constraini(x + (fixed_mul(v.vx, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
+//             ty = constraini(y + (fixed_mul(v.vy, lineLengthFixed) >> FIXED_SHIFT), sqboundInt, sqboundBRInt);
+//             tft.drawLine(x, y, tx, ty, TFT_YELLOW);
             
-            v.pvx = v.vx;
-            v.pvy = v.vy;
-            v.px = v.x;
-            v.py = v.y;
-        }
-    }
+//             v.pvx = v.vx;
+//             v.pvy = v.vy;
+//             v.px = v.x;
+//             v.py = v.y;
+//         }
+//     }
 
-private:
-    std::array<float, N> mods;
-    std::vector<boid_fixed> boids;
-    fixed_t centerX;
-    fixed_t centerY;
-};
+// private:
+//     std::array<float, N> mods;
+//     std::vector<boid_fixed> boids;
+//     fixed_t centerX;
+//     fixed_t centerY;
+// };
 
 template <size_t N>
 using metaOscPtr = std::shared_ptr<metaOsc<N>>;
