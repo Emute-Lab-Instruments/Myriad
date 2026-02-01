@@ -725,7 +725,7 @@ private:
 template<size_t N>
 class metaDrunkenWalkersFP : public metaOscFP<N> {
 public:
-    using FixedType = Fixed<10,22>;
+    using FixedType = Fixed<10,21>;
 
     struct pointFP {
         FixedType x;
@@ -747,8 +747,8 @@ public:
         // Set parameter limits (matching float version)
         this->modspeed.setMax(Q16_16(0.1));
         this->modspeed.setScale(Q16_16(0.001));
-        this->moddepth.setMax(Q16_16(0.1));
-        this->moddepth.setScale(Q16_16(0.0009));
+        this->moddepth.setMax(Q16_16(1.0));
+        this->moddepth.setScale(Q16_16(0.01));
 
         pastStates.resize(N);
     }
@@ -776,7 +776,7 @@ public:
         const FixedType sqwidthFP = FixedType(sqwidth);
         const FixedType centerX = FixedType(120);
         const FixedType centerY = FixedType(120);
-        const FixedType depthScale = FixedType(0.01f);
+        // const FixedType depthScale = FixedType(0.01f);
 
 
         for(size_t i=0; i < N; i++) {
@@ -811,13 +811,11 @@ public:
             const FixedType dx2 = dx * dx;
             const FixedType dy2 = dy * dy;
 
-            const FixedType distance = FixedPoint::sqrt(dx2 + dy2);
-            // const FixedType distance = distL1(centerX, centerY, walkers[i].x, walkers[i].y);
-            
+            const FixedType distance = FixedPoint::sqrt(dx2 + dy2);            
 
             // Modulation output: distance scaled by depth
-             FixedType modVal = distance * FixedType(this->moddepth.getValue()) * depthScale;
-             mods[i] = Q16_16(modVal); // convert to q16_16
+             FixedType modVal = distance.mulWith(this->moddepth.getValue());
+             mods[i] = Q16_16(modVal * FixedType(0.003)); // convert to q16_16
         }
 
         return mods;

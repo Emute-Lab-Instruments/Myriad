@@ -642,18 +642,22 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
     }
 
     if (modTarget == MODTARGETS::PITCH_AND_EPSILON || modTarget == MODTARGETS::EPSILON ) {
-        metaModCtrlMul = (Q16_16(1) + (
-          metamods[0]
-          + metamods[1]
-          + metamods[2]
-          + metamods[3]
-          + metamods[4]
-          + metamods[5]
-          + metamods[6]
-          + metamods[7]
-          + metamods[8]
-        )
-        * Q16_16(5));
+        metaModCtrlMul = (
+          Q16_16(1) 
+            + (
+                (
+                  metamods[0]
+                  + metamods[1]
+                  + metamods[2]
+                  + metamods[3]
+                  + metamods[4]
+                  + metamods[5]
+                  + metamods[6]
+                  + metamods[7]
+                  + metamods[8]
+                ) * Q16_16(7/9.f)
+              )
+          ); 
     }
 
     metaModReady = true;
