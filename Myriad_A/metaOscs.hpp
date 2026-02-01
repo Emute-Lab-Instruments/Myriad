@@ -1192,17 +1192,19 @@ public:
         centerY = sumY * Q16_16(1.f/N);
 
         // Fixed-point constants
-        const Q16_16 cohesionRadius = Q16_16(45.0);
-        const Q16_16 separationRadius = Q16_16(30.0);
-        const Q16_16 alignmentRadius = Q16_16(38.0);
+        const Q16_16 cohesionRadius = Q16_16(30.0);
+        const Q16_16 separationRadius = Q16_16(20.0);
+        const Q16_16 alignmentRadius = Q16_16(25.0);
         const Q16_16 cohesionStrength = Q16_16(0.005);
-        const Q16_16 separationMul = Q16_16(0.2);
-        const Q16_16 alignmentStrength = Q16_16(0.05);
+        const Q16_16 separationMul = Q16_16(0.5);
+        const Q16_16 minSeparationDist = Q16_16(1.0);
+        const Q16_16 alignmentStrength = Q16_16(0.04);
         const Q16_16 maxSpeed = Q16_16(1.5);
 
         const Q16_16 sqboundFP = Q16_16(sqbound);
         const Q16_16 sqboundBRFP = Q16_16(sqboundBR);
         const Q16_16 sqwidthFP = Q16_16(sqwidth);
+        const Q16_16 friction = Q16_16(0.99);
 
         Q16_16 modvel = Q16_16(0.1) + this->modspeed.getValue();
 
@@ -1226,8 +1228,8 @@ public:
             }
 
             // Rule 1: Cohesion - move towards center of mass
-            Q16_16 dcxr1 = (centerX - v.x).mul_fast(cohesionStrength);
-            Q16_16 dcyr1 = (centerY - v.y).mul_fast(cohesionStrength);
+            Q16_16 dcxr1 = (centerX - v.x) * (cohesionStrength);
+            Q16_16 dcyr1 = (centerY - v.y)* (cohesionStrength);
 
             // Rule 2 & 3: Separation and Alignment
             Q16_16 dcxr2 = Q16_16(0);
@@ -1244,9 +1246,10 @@ public:
 
                 // Rule 2: Separation - keep away from other boids
                 if (info.dist < separationRadius && info.dist > Q16_16(0)) {
-                    Q16_16 force = Q16_16(1) / info.dist;
-                    dcxr2 += (v.x - other->x) * force;
-                    dcyr2 += (v.y - other->y) * force;
+                    Q16_16 effectiveDist = FixedPoint::max(info.dist, minSeparationDist);                    
+                    Q16_16 force = Q16_16(1) / effectiveDist;
+                    dcxr2 += (v.x - other->x)* (force);
+                    dcyr2 += (v.y - other->y)* (force);
                 }
 
                 // Rule 3: Alignment - match velocity with nearby boids
@@ -1257,57 +1260,62 @@ public:
                 }
             }
 
-            dcxr2 = dcxr2 * separationMul;
-            dcyr2 = dcyr2 * separationMul;
+            dcxr2 = dcxr2 * (separationMul);
+            dcyr2 = dcyr2 * (separationMul);
 
             if (alignCount > 0) {
                 // auto alignCountInv =Q16_16(1.f) / Q16_16(alignCount);
                 avgVx = avgVx.div_int(alignCount);
                 avgVy = avgVy.div_int(alignCount);
-                dcxr3 = (avgVx - v.vx).mul_fast(alignmentStrength);
-                dcyr3 = (avgVy - v.vy).mul_fast(alignmentStrength);
+                dcxr3 = (avgVx - v.vx)* (alignmentStrength);
+                dcyr3 = (avgVy - v.vy)* (alignmentStrength);
             }
 
             // Update velocity
             v.vx += dcxr1 + dcxr2 + dcxr3;
             v.vy += dcyr1 + dcyr2 + dcyr3;
 
-            // Speed limiting
-            Q16_16 speed = FixedPoint::sqrt(v.vx.mul_fast(v.vx) + v.vy.mul_fast(v.vy));
-
-            if (speed > maxSpeed) {
-                v.vx = (v.vx / speed) * maxSpeed;
-                v.vy = (v.vy / speed) * maxSpeed;
-                speed = maxSpeed;
-            }
+            //friction
+            v.vx = v.vx * (friction);
+            v.vy = v.vy * (friction);
 
             // Update position
             v.x += v.vx * modvel;
             v.y += v.vy * modvel;
 
-            // Toroidal wrapping
-            if (v.x > sqboundBRFP) {
-                v.x -= sqwidthFP;
-            } else if (v.x < sqboundFP) {
-                v.x += sqwidthFP;
+
+            // After all other forces, before updating velocity:
+            const Q16_16 boundaryMargin = Q16_16(15.0);  // start pushing at this distance from edge
+            const Q16_16 boundaryStrength = Q16_16(0.1);
+
+            // Left/Right boundaries
+            if (v.x < sqboundFP + boundaryMargin) {
+                Q16_16 pushForce = (sqboundFP + boundaryMargin - v.x) * boundaryStrength;
+                v.vx += pushForce;
+            } else if (v.x > sqboundBRFP - boundaryMargin) {
+                Q16_16 pushForce = (sqboundBRFP - boundaryMargin - v.x) * boundaryStrength;
+                v.vx += pushForce;
             }
 
-            if (v.y > sqboundBRFP) {
-                v.y -= sqwidthFP;
-            } else if (v.y < sqboundFP) {
-                v.y += sqwidthFP;
+            // Top/Bottom boundaries  
+            if (v.y < sqboundFP + boundaryMargin) {
+                Q16_16 pushForce = (sqboundFP + boundaryMargin - v.y) * boundaryStrength;
+                v.vy += pushForce;
+            } else if (v.y > sqboundBRFP - boundaryMargin) {
+                Q16_16 pushForce = (sqboundBRFP - boundaryMargin - v.y) * boundaryStrength;
+                v.vy += pushForce;
             }
-
             // Output: speed scaled by depth
-            mods[idx] = speed * this->moddepth.getValue();
+            // mods[idx] = speed * this->moddepth.getValue();
+            mods[idx] = this->moddepth.getValue();
             idx++;
         }
-
+        // Serial.printf("Bds %f\n", mods[0].to_float());
         return mods;
     }
 
     void draw(TFT_eSPI &tft) override {
-        const Q16_16 lineLength = Q16_16(4);
+        const Q16_16 lineLength = Q16_16(2);
         const int sqboundInt = (int)sqbound;
         const int sqboundBRInt = (int)sqboundBR;
 
@@ -2034,7 +2042,7 @@ public:
         const fixed_t alignmentRadius = float_to_fixed(40.0f);
         
         const fixed_t cohesionStrength = float_to_fixed(0.005f);
-        const fixed_t separationMul = float_to_fixed(0.2f);
+        const fixed_t separationMul = float_to_fixed(0.02f);
         const fixed_t alignmentStrength = float_to_fixed(0.05f);
         const fixed_t maxSpeed = float_to_fixed(2.5f);
         
@@ -2192,164 +2200,4 @@ using metaOscPtr = std::shared_ptr<metaOsc<N>>;
 
 template <size_t N>
 using metaOscFPPtr = std::shared_ptr<metaOscFP<N>>;
-
-// ============================================================================
-// COMPILE-TIME METAOSC VARIANT (eliminates heap allocation)
-// ============================================================================
-
-template<size_t N>
-using MetaOscFPVariant = std::variant<
-    metaOscNoneFP<N>,
-    metaOscSinesFP<N>
->;
-
-// Visitor helper for accessing variant members without type-switching
-// Note: All FP oscillators use Q16_16 as their FixedType
-template<size_t N>
-struct MetaOscVisitor {
-    static auto& getValues(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) -> auto& {
-            return osc.getValues();
-        }, var);
-    }
-
-    static std::array<Q16_16, N> update(MetaOscFPVariant<N>& var, const size_t adcs[4]) {
-        return std::visit([&adcs](auto& osc) {
-            return osc.update(adcs);
-        }, var);
-    }
-
-    static void draw(MetaOscFPVariant<N>& var, const std::array<Q16_16, N>& vals) {
-        std::visit([&vals](auto& osc) {
-            osc.draw(vals);
-        }, var);
-    }
-
-    static const char* getName(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getName();
-        }, var);
-    }
-
-    static void setDepth(MetaOscFPVariant<N>& var, Q16_16 value) {
-        std::visit([value](auto& osc) {
-            osc.setDepth(value);
-        }, var);
-    }
-
-    static Q16_16 getDepth(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getDepth();
-        }, var);
-    }
-
-    static void setSpeed(MetaOscFPVariant<N>& var, Q16_16 value) {
-        std::visit([value](auto& osc) {
-            osc.setSpeed(value);
-        }, var);
-    }
-
-    static Q16_16 getSpeed(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getSpeed();
-        }, var);
-    }
-
-    static uint32_t getTimerMS(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getTimerMS();
-        }, var);
-    }
-
-    static float getNormalisedDepth(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getNormalisedDepth();
-        }, var);
-    }
-
-    static float getNormalisedSpeed(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) {
-            return osc.getNormalisedSpeed();
-        }, var);
-    }
-
-    static void restoreDepth(MetaOscFPVariant<N>& var, Q16_16 value) {
-        std::visit([value](auto& osc) {
-            osc.restoreDepth(value);
-        }, var);
-    }
-
-    static void restoreSpeed(MetaOscFPVariant<N>& var, Q16_16 value) {
-        std::visit([value](auto& osc) {
-            osc.restoreSpeed(value);
-        }, var);
-    }
-
-    // Direct access to moddepth/modspeed parameters
-    static auto& getModDepth(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) -> auto& {
-            return osc.moddepth;
-        }, var);
-    }
-
-    static auto& getModSpeed(MetaOscFPVariant<N>& var) {
-        return std::visit([](auto& osc) -> auto& {
-            return osc.modspeed;
-        }, var);
-    }
-};
-
-// ============================================================================
-// VARIANT STORAGE WRAPPER (deferred construction for RP2040 compatibility)
-// ============================================================================
-// Provides compile-time allocated storage for std::variant without triggering
-// global constructor crashes on ARM Cortex-M0+. The variant is constructed
-// in setup() after C++ runtime initialization completes.
-
-template<size_t N>
-class MetaOscFPVariantStorage {
-private:
-    using VariantType = MetaOscFPVariant<N>;
-    alignas(VariantType) std::byte storage[sizeof(VariantType)];
-    bool constructed = false;
-
-public:
-    // Trivial constructor - no variant construction at global init
-    constexpr MetaOscFPVariantStorage() : storage{}, constructed(false) {}
-
-    // Destructor - properly destroy variant if it was constructed
-    ~MetaOscFPVariantStorage() {
-        if (constructed) {
-            get()->~VariantType();
-        }
-    }
-
-    // Construct variant in-place using placement new
-    template<typename T, typename... Args>
-    void emplace(Args&&... args) {
-        if (constructed) {
-            get()->~VariantType();
-        }
-        new (storage) VariantType(std::in_place_type<T>, std::forward<Args>(args)...);
-        constructed = true;
-    }
-
-    // Access the variant (assumes constructed - caller must check)
-    VariantType* get() {
-        return reinterpret_cast<VariantType*>(storage);
-    }
-
-    const VariantType* get() const {
-        return reinterpret_cast<const VariantType*>(storage);
-    }
-
-    // Convenience operators
-    VariantType& operator*() { return *get(); }
-    const VariantType& operator*() const { return *get(); }
-    VariantType* operator->() { return get(); }
-    const VariantType* operator->() const { return get(); }
-
-    // Check if variant has been constructed
-    bool isConstructed() const { return constructed; }
-};
 
