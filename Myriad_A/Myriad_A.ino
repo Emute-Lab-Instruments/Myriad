@@ -436,27 +436,16 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     int correctionADC3 = ADCProfile::cal_data.correction[filteredADC3_Q16.to_int()];
     filteredADC3_Q16 = filteredADC3_Q16 + Q16_16(correctionADC3);
     controlValues[3] = filteredADC3_Q16.to_int();
-    static Q16_16 octIdxScale = Q16_16(22.9999f/4095.f);
+    static Q16_16 octIdxScale = Q16_16(18.9999f/4095.f);
     size_t octaveIdx = (filteredADC3_Q16 * octIdxScale).to_int(); 
 
-    static size_t octaveCtrlMap[23] = {
+    static size_t octaveCtrlMap[19] = {
       0, 1, 2, 3, 4, 5, 6, 7, 
-      8,8,8,8,8,8,8, 
-      9,10,11,12,13,14,15,16
+      8,8,8, 
+      9,10,11,12, 13,14,15,16
     };
 
     octaveIdx = octaveCtrlMap[octaveIdx];
-    // if (octaveIdx > 7) {
-    //   if (octaveIdx < 15) {
-    //     octaveIdx = 8;
-    //   } else {
-    //     octaveIdx = octaveIdx - 6;
-    //   }
-    // }
-    // int inMiddle = (octaveIdx >= 8) & (octaveIdx < 15);
-    // int inUpper = (octaveIdx >= 15);
-    // octaveIdx = octaveIdx - (inUpper * 6) + (inMiddle * (8 - octaveIdx));
-
 
     if (octaveIdx != lastOctaveIdx) {
       lastOctaveIdx = octaveIdx;
