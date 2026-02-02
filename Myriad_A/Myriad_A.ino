@@ -273,6 +273,7 @@ FixedLpf<12,6> FAST_MEM adcLpf2;
 FixedLpf<12,6> FAST_MEM adcLpf3;
 using WvlenFPType = Fixed<20,11>;
 
+WvlenFPType __not_in_flash("adc") new_base_frequency(0);
 WvlenFPType __not_in_flash("adc") new_wavelen0_fixed(0);
 WvlenFPType __not_in_flash("adc") new_wavelen1_fixed(0);
 WvlenFPType __not_in_flash("adc") new_wavelen2_fixed(0);
@@ -390,7 +391,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       
     const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
 
-    new_wavelen0_fixed = wvlenFixed.mulWith(wavelenScale);
+    new_base_frequency = wvlenFixed.mulWith(wavelenScale);
 
 
     ///////////////////////// detune 
@@ -412,8 +413,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
     static Fixed<0,18> detuneScale = Fixed<0,18>(0.016f);
     Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(detuneScale);
-    detuneFixed = new_wavelen0_fixed.mulWith(ctrlValScaled);
-
+    detuneFixed = new_base_frequency.mulWith(ctrlValScaled);
 
     ////////////////////////  epsilon
 
@@ -458,7 +458,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     newFrequenciesReady = true;
 
     PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_wavelen0_fixed.raw());
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_base_frequency.raw());
     PERF_END(SERIALTX);
     PERF_END(ADC);
 
@@ -1851,6 +1851,7 @@ void __not_in_flash_func(loop1)() {
       currOscModels[2]->ctrl(epsilon_fixed);
     , 1000);
     if (newFrequenciesReady) {
+      new_wavelen0_fixed = new_base_frequency;
       new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);
       new_wavelen2_fixed = (new_wavelen1_fixed - detuneFixed);
 
