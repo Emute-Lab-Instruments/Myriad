@@ -575,17 +575,17 @@ convert(const Fixed<FromIntBits, FromFracBits, FromStorage>& from) {
 // ============================================================================
 
 template<FixedPointType T>
-constexpr T abs(const T& x) {
+__force_inline constexpr T abs(const T& x) {
     return (x.value < 0) ? T::from_raw(-x.value) : x;
 }
 
 template<FixedPointType T>
-constexpr T min(const T& a, const T& b) {
+__force_inline constexpr T min(const T& a, const T& b) {
     return (a.value < b.value) ? a : b;
 }
 
 template<FixedPointType T>
-constexpr T max(const T& a, const T& b) {
+__force_inline constexpr T max(const T& a, const T& b) {
     return (a.value > b.value) ? a : b;
 }
 

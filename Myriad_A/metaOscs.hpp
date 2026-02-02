@@ -769,6 +769,19 @@ public:
         return FixedPoint::abs(dx) + FixedPoint::abs(dy);
     } 
 
+    inline FixedType distOctagonal(FixedType x1, FixedType y1, FixedType x2, FixedType y2) {
+        FixedType dx = FixedPoint::abs(x2 - x1);
+        FixedType dy = FixedPoint::abs(y2 - y1);
+        
+        FixedType min_val = FixedPoint::min(dx, dy);
+        FixedType max_val = FixedPoint::max(dx, dy);
+        
+        static FixedType factor = FixedType(0.414); 
+        return max_val + (min_val * factor);
+    }
+
+
+
     std::array<Q16_16, N> update(const size_t adcs[4]) override {
         // Fixed-point constants for spatial bounds
         const FixedType sqboundFP = FixedType(sqbound);
@@ -804,14 +817,14 @@ public:
             }
 
             // Calculate distance from center
-            const FixedType dx = centerX - walkers[i].x;
-            const FixedType dy = centerY - walkers[i].y;
+            // const FixedType dx = centerX - walkers[i].x;
+            // const FixedType dy = centerY - walkers[i].y;
 
             // Distance = sqrt(dx^2 + dy^2)
-            const FixedType dx2 = dx * dx;
-            const FixedType dy2 = dy * dy;
+            // const FixedType dx2 = dx * dx;
+            // const FixedType dy2 = dy * dy;
 
-            const FixedType distance = FixedPoint::sqrt(dx2 + dy2);            
+            const FixedType distance = distOctagonal(centerX,centerY,walkers[i].x,walkers[i].y);//FixedPoint::sqrt(dx2 + dy2);            
 
             // Modulation output: distance scaled by depth
              FixedType modVal = distance.mulWith(this->moddepth.getValue());
@@ -1172,6 +1185,18 @@ public:
         return FixedPoint::sqrt(dx * dx + dy * dy);
     }
 
+    inline Q16_16 distOctagonal(Q16_16 x1, Q16_16 y1, Q16_16 x2, Q16_16 y2) {
+        Q16_16 dx = FixedPoint::abs(x2 - x1);
+        Q16_16 dy = FixedPoint::abs(y2 - y1);
+        
+        Q16_16 min_val = FixedPoint::min(dx, dy);
+        Q16_16 max_val = FixedPoint::max(dx, dy);
+        
+        static Q16_16 factor = Q16_16(0.414); 
+        return max_val + (min_val * factor);
+    }
+
+
     inline Q16_16 distL1(Q16_16 x1, Q16_16 y1, Q16_16 x2, Q16_16 y2) {
         Q16_16 dx = x2 - x1;
         Q16_16 dy = y2 - y1;
@@ -1180,14 +1205,18 @@ public:
  
     std::array<Q16_16, N> update(const size_t adcs[4]) override {
         // Calculate center of mass
-        Q16_16 sumX = Q16_16(0);
-        Q16_16 sumY = Q16_16(0);
+        static Q16_16 zero_q16 = Q16_16(0);
+        static Q16_16 one_q16 = Q16_16(1);
+
+        Q16_16 sumX = zero_q16;
+        Q16_16 sumY = zero_q16;
         for(auto &v: boids) {
             sumX += v.x;
             sumY += v.y;
         }
-        centerX = sumX * Q16_16(1.f/N);
-        centerY = sumY * Q16_16(1.f/N);
+        const Q16_16 oneOverN = Q16_16(1.f/N);
+        centerX = sumX * oneOverN;
+        centerY = sumY * oneOverN;
 
         // Fixed-point constants
         static Q16_16 cohesionRadius = Q16_16(40.0);
@@ -1212,7 +1241,7 @@ public:
             Q16_16 dist;
             boidFP* ptr;
         };
-        NeighborInfo neighbors[N];
+        static NeighborInfo neighbors[N];
 
         size_t idx = 0;
         for(auto &v: boids) {
@@ -1220,7 +1249,7 @@ public:
             int neighborCount = 0;
             for(auto &other: boids) {
                 if (&v != &other) {
-                    neighbors[neighborCount].dist = distBetween(v.x, v.y, other.x, other.y);
+                    neighbors[neighborCount].dist = distOctagonal(v.x, v.y, other.x, other.y);
                     neighbors[neighborCount].ptr = &other;
                     neighborCount++;
                 }
@@ -1231,8 +1260,6 @@ public:
             Q16_16 dcyr1 = (centerY - v.y) * (cohesionStrength);
 
             // Rule 2 & 3: Separation and Alignment
-            static Q16_16 zero_q16 = Q16_16(0);
-            static Q16_16 one_q16 = Q16_16(1);
             Q16_16 dcxr2 = zero_q16;
             Q16_16 dcyr2 = zero_q16;
             Q16_16 dcxr3 = zero_q16;
