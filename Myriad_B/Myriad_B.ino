@@ -84,12 +84,12 @@ uint32_t CORE0_FAST_MEM smOsc1_dma_chan_bit;
 uint32_t CORE0_FAST_MEM smOsc2_dma_chan;
 uint32_t CORE0_FAST_MEM smOsc2_dma_chan_bit;
 
-volatile bool FAST_MEM bufSent0 = false;
-volatile bool FAST_MEM bufSent1 = false;
-volatile bool FAST_MEM bufSent2 = false;
-volatile bool FAST_MEM bufSent3 = false;
-volatile bool FAST_MEM bufSent4 = false;
-volatile bool FAST_MEM bufSent5 = false;
+bool FAST_MEM bufSent0 = false;
+bool FAST_MEM bufSent1 = false;
+bool FAST_MEM bufSent2 = false;
+bool FAST_MEM bufSent3 = false;
+bool FAST_MEM bufSent4 = false;
+bool FAST_MEM bufSent5 = false;
 
 
 
@@ -128,8 +128,8 @@ uint32_t CORE1_FAST_MEM smOsc4_dma_chan_bit;
 uint32_t CORE1_FAST_MEM smOsc5_dma_chan;
 uint32_t CORE1_FAST_MEM smOsc5_dma_chan_bit;
 
-volatile bool FAST_MEM oscsRunning0 = false;
-volatile bool FAST_MEM oscsRunning1 = false;
+bool FAST_MEM oscsRunning0 = false;
+bool FAST_MEM oscsRunning1 = false;
 
 // float ctrlVal = 0.f;
 Fixed<16,16> FAST_MEM epsilon_fixed(0);
