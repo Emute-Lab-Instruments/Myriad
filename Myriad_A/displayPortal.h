@@ -104,13 +104,13 @@ public:
   std::array<oscModelSprites, N_OSC_BANKS> oscModelIcons;
 
   
-  constexpr static int iconw = 17;
-  constexpr static int iconh = 15;
-  static constexpr int colBank0 = ELI_PINK;
-  static constexpr int colBank1 = ELI_PINK3;
-  static constexpr int colBank2 = ELI_PINK2;
+  int iconw = 17;
+  int iconh = 15;
+  int colBank0 = ELI_PINK;
+  int colBank1 = ELI_PINK3;
+  int colBank2 = ELI_PINK2;
 
-  static constexpr int bankColArray[3] = {colBank0, colBank1, colBank2};
+  int bankColArray[3] = {colBank0, colBank1, colBank2};
   using iconDrawFunction = std::function<void(eSpritePtr&, int)>;
   std::map<String, iconDrawFunction> iconDrawFunctions;
 
@@ -153,38 +153,38 @@ public:
       
 
 
-    iconDrawFunctions["saw"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["saw"] = [this](eSpritePtr& sprite, int col) {
         // sprite->fillSprite(TFT_RED);
         // sprite->drawLine(0,0,0,iconh, col);
         sprite->drawLine(0,iconh-1,iconw-1,0, col);
         sprite->drawLine(iconw-1,0, iconw-1,iconh-1, col);
     };
 
-    iconDrawFunctions["sdt10"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["sdt10"] = [this](eSpritePtr& sprite, int col) {
         sprite->drawLine(0,iconh-1,iconw>>1,0, col);
         sprite->drawLine(iconw>>1,0, iconw>>1,iconh-1, col);
         sprite->drawLine(iconw>>1,iconh-1, iconw-1,iconh-1, col);
     };
     
-    auto drawPulse = [](eSpritePtr& sprite, int col, int top, int pw) {
+    auto drawPulse = [this](eSpritePtr& sprite, int col, int top, int pw) {
         sprite->drawLine(0,iconh-1,0,top, col);
         sprite->drawLine(0,top,pw,top, col);
         sprite->drawLine(pw,top,pw,iconh-1, col);
         sprite->drawLine(pw,iconh-1,iconw-1,iconh-1, col);
     };
 
-    iconDrawFunctions["pulsesd"] = [drawPulse](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["pulsesd"] = [drawPulse,this](eSpritePtr& sprite, int col) {
       drawPulse(sprite, col, 0, iconw>>1);
     };
 
-    iconDrawFunctions["sq2"] = [drawPulse](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["sq2"] = [drawPulse,this](eSpritePtr& sprite, int col) {
       drawPulse(sprite, col, 0, 3);
       drawPulse(sprite, col, iconh*0.25, 6);
       drawPulse(sprite, col, iconh*0.5, 9);
       drawPulse(sprite, col, iconh*0.75, 12);
     };
 
-    iconDrawFunctions["sq14"] = [drawPulse](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["sq14"] = [drawPulse,this](eSpritePtr& sprite, int col) {
       drawPulse(sprite, col, 0, iconw * 0.2);
       drawPulse(sprite, col, 0.25, iconw * 0.4);
       drawPulse(sprite, col, 0, iconw * 0.6);
@@ -192,12 +192,12 @@ public:
       drawPulse(sprite, col, 0, iconw -1);
     };
 
-    iconDrawFunctions["tri"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["tri"] = [this](eSpritePtr& sprite, int col) {
         sprite->drawLine(0,iconh-1,iconw>>1,0, col);
         sprite->drawLine(iconw>>1,0, iconw-1,iconh-1, col);
     };
 
-    iconDrawFunctions["trv10"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["trv10"] = [this](eSpritePtr& sprite, int col) {
         sprite->drawLine(0,iconh-1,iconw>>1,0, col);
         sprite->drawLine(iconw>>1,0, iconw-1,iconh-1, col);
         // sprite->drawLine(0,iconh-1,iconw>>1,iconh*0.33, col);
@@ -206,14 +206,14 @@ public:
         sprite->drawLine(iconw>>1,iconh*0.66, iconw-1,iconh-1, col);
     };
 
-    iconDrawFunctions["slide"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["slide"] = [this](eSpritePtr& sprite, int col) {
         sprite->drawLine(0,iconh-1,0,0, col);
         sprite->drawLine(iconw-1,iconh-1,iconw-1,0, col);
         sprite->drawLine(0,iconh>>1, iconw-1,iconh>>1, col);
         sprite->fillCircle(iconw*0.33,iconh>>1,3, col);
     };
 
-    iconDrawFunctions["exp1"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["exp1"] = [this](eSpritePtr& sprite, int col) {
         for(float i=1; i >0; i-= 0.2) {
           float offset = (1.0-i) * iconw;
           sprite->drawLine(offset,iconh-1, offset, iconh-(i*i*iconh), col);
@@ -221,19 +221,19 @@ public:
     };
 
 
-    iconDrawFunctions["p100"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["p100"] = [this](eSpritePtr& sprite, int col) {
       sprite->drawRect(0,(iconh>>1) - (iconh * 0.5), iconw * 0.3, iconh, col);
       sprite->drawRect(0,(iconh>>1) - (iconh * 0.3), iconw * 0.7, iconh * 0.6, col);
       sprite->drawRect(0,(iconh>>1) - (iconh * 0.1), iconw * 0.99, iconh * 0.2, col);
     };
 
-    iconDrawFunctions["n2"] = [](eSpritePtr& sprite, int col) {
-      constexpr std::array<float, 30> randomFloats = {
+    iconDrawFunctions["n2"] = [this](eSpritePtr& sprite, int col) {
+      const std::array<float, 30> randomFloats = {
           0.374f, 0.950f, 0.731f, 0.598f, 0.156f, 0.058f, 0.455f, 0.206f, 0.828f, 0.976f,
           0.004f, 0.373f, 0.513f, 0.952f, 0.916f, 0.635f, 0.717f, 0.141f, 0.606f, 0.817f,
           0.314f, 0.585f, 0.479f, 0.860f, 0.123f, 0.752f, 0.492f, 0.018f, 0.394f, 0.681f
       };
-      constexpr std::array<float, 30> randomFloats2 = {
+      const std::array<float, 30> randomFloats2 = {
           0.287f, 0.574f, 0.861f, 0.148f, 0.435f, 0.722f, 0.009f, 0.296f, 0.583f, 0.870f,
           0.157f, 0.444f, 0.731f, 0.018f, 0.305f, 0.592f, 0.879f, 0.166f, 0.453f, 0.740f,
           0.027f, 0.314f, 0.601f, 0.888f, 0.175f, 0.462f, 0.749f, 0.036f, 0.323f, 0.610f
@@ -245,18 +245,18 @@ public:
     };
 
 
-    iconDrawFunctions["sil"] = [](eSpritePtr& sprite, int col) {
+    iconDrawFunctions["sil"] = [this](eSpritePtr& sprite, int col) {
       auto smallest = std::min(iconw, iconh);
       sprite->drawCircle(iconw>>1,iconh>>1,smallest>>1, col);
     };
 
-    iconDrawFunctions["wn"] = [](eSpritePtr& sprite, int col) {
-      constexpr std::array<float, 30> randomFloats = {
+    iconDrawFunctions["wn"] = [this](eSpritePtr& sprite, int col) {
+      const std::array<float, 30> randomFloats = {
           0.642f, 0.108f, 0.795f, 0.321f, 0.967f, 0.453f, 0.089f, 0.736f, 0.274f, 0.851f,
           0.418f, 0.063f, 0.729f, 0.395f, 0.982f, 0.527f, 0.164f, 0.810f, 0.346f, 0.923f,
           0.559f, 0.195f, 0.772f, 0.408f, 0.034f, 0.681f, 0.217f, 0.864f, 0.490f, 0.126f
       };
-      constexpr std::array<float, 30> randomFloats2 = {
+      const std::array<float, 30> randomFloats2 = {
           0.913f, 0.247f, 0.584f, 0.028f, 0.765f, 0.392f, 0.819f, 0.156f, 0.693f, 0.430f,
           0.067f, 0.804f, 0.541f, 0.178f, 0.715f, 0.452f, 0.089f, 0.826f, 0.263f, 0.600f,
           0.937f, 0.374f, 0.711f, 0.048f, 0.785f, 0.322f, 0.659f, 0.096f, 0.833f, 0.570f
@@ -634,7 +634,7 @@ private:
         // iconZTurn.pushSprite(120+20, 120-110);
 
     }
-    constexpr float innerArc = 117;
+    static float innerArc = 117;
     if (fullRedraw || currState.moddepth != nextState.moddepth) {
       // const int h = (84+84) * nextState.moddepth;
       // Serial.printf("depth redraw %d\n", h);
@@ -718,11 +718,11 @@ private:
     }
 
 
-    constexpr int textgap = 23;
-    constexpr int adcy4 = 155;
-    constexpr int adcy3 = adcy4 - textgap;
-    constexpr int adcy2 = adcy3 - textgap;
-    constexpr int adcy1 = adcy2 - textgap;
+    int textgap = 23;
+    int adcy4 = 155;
+    int adcy3 = adcy4 - textgap;
+    int adcy2 = adcy3 - textgap;
+    int adcy1 = adcy2 - textgap;
 
     // if (fullRedraw || currState.adc0 != nextState.adc0) {
     //   tft.setTextColor(ELI_PINK, ELI_BLUE);
@@ -754,7 +754,7 @@ private:
     // }
     //---------
 
-    const int filtColX = 30;
+    static int filtColX = 30;
     if (fullRedraw || currState.adcfilt0 != nextState.adcfilt0) {
       tft.setTextColor(ELI_PINK, ELI_BLUE);
       tft.setFreeFont(&FreeMono9pt7b);

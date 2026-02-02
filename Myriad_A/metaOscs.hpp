@@ -272,9 +272,6 @@ public:
     };
 
     void draw(TFT_eSPI &tft) override { 
-      const int32_t barwidth=4;
-      constexpr float step = sqwidth / N;
-      constexpr float stepoffset = (step+barwidth) / 2.f;
       for(size_t i=0; i < N; i++) {
         const int h = sines[i] * sqhalfwidth * 10.f;
         const int left = sqbound + (step*i) + stepoffset;
@@ -290,6 +287,9 @@ public:
 private:
     std::array<float, N> phasors;
     std::array<float, N> sines{0};
+    int32_t barwidth=4;
+    float step = sqwidth / N;
+    float stepoffset = (step+barwidth) / 2.f;
 
 };
 
@@ -343,9 +343,6 @@ public:
     }
 
     void draw(TFT_eSPI &tft) override { 
-      const int32_t barwidth=4;
-      constexpr int step = sqwidth / N;
-      constexpr int stepoffset = (step+barwidth) / 2;
       for(size_t i=0; i < N; i++) {
         const int h = (sines[i] * sqhalfwidthFP * Q16_16(10)).to_int();
         const int left = sqbound + (step*i) + stepoffset;
@@ -392,6 +389,9 @@ private:
     // Oscillator state
     std::array<FixedType, N> phasors;   // Current phase for each oscillator
     std::array<FixedType, N> sines;     // Current sine values
+    int32_t barwidth=4;
+    float step = sqwidth / N;
+    float stepoffset = (step+barwidth) / 2.f;
 
 };
 
@@ -448,9 +448,6 @@ public:
     }
 
     void draw(TFT_eSPI &tft) override {
-      const int32_t barwidth=4;
-      constexpr int step = sqwidth / N;
-      constexpr int stepoffset = (step+barwidth) / 2;
       for(size_t i=0; i < N; i++) {
         const int h = (sines[i] * sqhalfwidthFP * Q16_16(10)).to_int();
         const int left = sqbound + (step*i) + stepoffset;
@@ -497,6 +494,9 @@ private:
     // Oscillator state
     std::array<FixedType, N> phasors;   // Current phase for each oscillator
     std::array<FixedType, N> sines;     // Current sine values
+    int32_t barwidth=4;
+    float step = sqwidth / N;
+    float stepoffset = (step+barwidth) / 2.f;
 
 };
 
@@ -1190,20 +1190,20 @@ public:
         centerY = sumY * Q16_16(1.f/N);
 
         // Fixed-point constants
-        const Q16_16 cohesionRadius = Q16_16(40.0);
-        const Q16_16 separationRadius = Q16_16(25.0);
-        const Q16_16 alignmentRadius = Q16_16(30.0);
+        static Q16_16 cohesionRadius = Q16_16(40.0);
+        static Q16_16 separationRadius = Q16_16(25.0);
+        static Q16_16 alignmentRadius = Q16_16(30.0);
         Q16_16 cohesionStrength = Q16_16(0.003);
         cohesionStrength += (this->moddepth.getValue() * Q16_16(0.003)); // modulate cohesion strength
-        const Q16_16 separationMul = Q16_16(0.5);
-        const Q16_16 minSeparationDist = Q16_16(1.0);
-        const Q16_16 alignmentStrength = Q16_16(0.04);
-        const Q16_16 maxSpeed = Q16_16(1.5);
+        static Q16_16 separationMul = Q16_16(0.5);
+        static Q16_16 minSeparationDist = Q16_16(1.0);
+        static Q16_16 alignmentStrength = Q16_16(0.04);
+        static Q16_16 maxSpeed = Q16_16(1.5);
 
-        const Q16_16 sqboundFP = Q16_16(sqbound);
-        const Q16_16 sqboundBRFP = Q16_16(sqboundBR);
-        const Q16_16 sqwidthFP = Q16_16(sqwidth);
-        const Q16_16 friction = Q16_16(0.99);
+        static Q16_16 sqboundFP = Q16_16(sqbound);
+        static Q16_16 sqboundBRFP = Q16_16(sqboundBR);
+        static Q16_16 sqwidthFP = Q16_16(sqwidth);
+        static Q16_16 friction = Q16_16(0.99);
 
         Q16_16 modvel = Q16_16(0.05) + this->modspeed.getValue();
 
@@ -1231,12 +1231,14 @@ public:
             Q16_16 dcyr1 = (centerY - v.y) * (cohesionStrength);
 
             // Rule 2 & 3: Separation and Alignment
-            Q16_16 dcxr2 = Q16_16(0);
-            Q16_16 dcyr2 = Q16_16(0);
-            Q16_16 dcxr3 = Q16_16(0);
-            Q16_16 dcyr3 = Q16_16(0);
-            Q16_16 avgVx = Q16_16(0);
-            Q16_16 avgVy = Q16_16(0);
+            static Q16_16 zero_q16 = Q16_16(0);
+            static Q16_16 one_q16 = Q16_16(1);
+            Q16_16 dcxr2 = zero_q16;
+            Q16_16 dcyr2 = zero_q16;
+            Q16_16 dcxr3 = zero_q16;
+            Q16_16 dcyr3 = zero_q16;
+            Q16_16 avgVx = zero_q16;
+            Q16_16 avgVy = zero_q16;
             int alignCount = 0;
 
             for(int i = 0; i < neighborCount; i++) {
@@ -1244,9 +1246,9 @@ public:
                 auto* other = info.ptr;
 
                 // Rule 2: Separation - keep away from other boids
-                if (info.dist < separationRadius && info.dist > Q16_16(0)) {
+                if (info.dist < separationRadius && info.dist > zero_q16) {
                     Q16_16 effectiveDist = FixedPoint::max(info.dist, minSeparationDist);                    
-                    Q16_16 force = Q16_16(1) / effectiveDist;
+                    Q16_16 force = one_q16 / effectiveDist;
                     dcxr2 += (v.x - other->x)* (force);
                     dcyr2 += (v.y - other->y)* (force);
                 }
@@ -1284,8 +1286,8 @@ public:
 
 
             // After all other forces, before updating velocity:
-            const Q16_16 boundaryMargin = Q16_16(15.0);  // start pushing at this distance from edge
-            const Q16_16 boundaryStrength = Q16_16(0.1);
+            static Q16_16 boundaryMargin = Q16_16(15.0);  // start pushing at this distance from edge
+            static Q16_16 boundaryStrength = Q16_16(0.1);
 
             // Left/Right boundaries
             if (v.x < sqboundFP + boundaryMargin) {
@@ -1312,7 +1314,8 @@ public:
             Q16_16 minVal = FixedPoint::min(absVx, absVy);  // Smaller component
 
             // The magic formula
-            Q16_16 speed = maxVal + minVal * Q16_16(0.4);            
+            static Q16_16 magicScale = Q16_16(0.4);
+            Q16_16 speed = maxVal + minVal * magicScale;            
             mods[idx] = speed * this->moddepth.getValue();
             idx++;
         }
@@ -1321,9 +1324,9 @@ public:
     }
 
     void draw(TFT_eSPI &tft) override {
-        const Q16_16 lineLength = Q16_16(2);
-        const int sqboundInt = (int)sqbound;
-        const int sqboundBRInt = (int)sqboundBR;
+        static Q16_16 lineLength = Q16_16(2);
+        static int sqboundInt = (int)sqbound;
+        static int sqboundBRInt = (int)sqboundBR;
 
         for(auto &v: boids) {
             // Convert fixed-point to screen coordinates

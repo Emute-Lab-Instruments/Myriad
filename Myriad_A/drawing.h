@@ -12,27 +12,27 @@ constexpr uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b) {
 
 #define ELI_BLUE 0x0007
 #define ELI_PINK 0xFC9F
-constexpr uint16_t ELI_PINK2 = rgbTo565(216, 180, 250);
-constexpr uint16_t ELI_PINK3 = rgbTo565(167, 122, 222);
-constexpr uint16_t GREYED_OUT_COL = rgbTo565(64,64,64);
+static uint16_t ELI_PINK2 = rgbTo565(216, 180, 250);
+static uint16_t ELI_PINK3 = rgbTo565(167, 122, 222);
+static uint16_t GREYED_OUT_COL = rgbTo565(64,64,64);
 
 
-constexpr size_t sqhalfwidth=80;
-constexpr size_t sqwidth = sqhalfwidth+sqhalfwidth; //dim of the largest square that fits in the circle
-constexpr size_t sqbound = (240 - sqwidth) / 2; //left/top of the largest square that fits in the circle
-constexpr size_t sqboundBR = sqbound + sqwidth; //right/bottom X of the largest square that fits in the circle
+static size_t sqhalfwidth=80;
+static size_t sqwidth = sqhalfwidth+sqhalfwidth; //dim of the largest square that fits in the circle
+static size_t sqbound = (240 - sqwidth) / 2; //left/top of the largest square that fits in the circle
+static size_t sqboundBR = sqbound + sqwidth; //right/bottom X of the largest square that fits in the circle
 
 
-constexpr Q16_16 sqhalfwidthFP=Q16_16(80);
-constexpr Q16_16 sqwidthFP = sqhalfwidthFP+sqhalfwidthFP; //dim of the largest square that fits in the circle
-constexpr Q16_16 sqboundFP = (Q16_16(240) - sqwidthFP) / Q16_16(2); //left/top of the largest square that fits in the circle
-constexpr Q16_16 sqboundBRFP = sqboundFP + sqwidthFP; //right/bottom X of the largest square that fits in the circle
+static Q16_16 sqhalfwidthFP=Q16_16(80);
+static Q16_16 sqwidthFP = sqhalfwidthFP+sqhalfwidthFP; //dim of the largest square that fits in the circle
+static Q16_16 sqboundFP = (Q16_16(240) - sqwidthFP) / Q16_16(2); //left/top of the largest square that fits in the circle
+static Q16_16 sqboundBRFP = sqboundFP + sqwidthFP; //right/bottom X of the largest square that fits in the circle
 
 // 64-color gradient array from dark green to light pink
 // Using 16-bit RGB565 format for TFT_eSPI
 // Format: RGB565 = RRRRR GGGGGG BBBBB
 
-const uint16_t GFX_MEM gradient_colors[64] = {
+static uint16_t GFX_MEM gradient_colors[64] = {
     0x0200,  // Dark green
     0x0220,
     0x0240,
