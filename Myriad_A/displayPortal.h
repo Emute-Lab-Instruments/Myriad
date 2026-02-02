@@ -472,21 +472,21 @@ private:
       tft.fillScreen(ELI_BLUE);
     }
     
-    static constexpr float slowestWavelen = sampleClock/10.f;
-    static constexpr float fastestWavelen = sampleClock/20000.f;
-    static constexpr float rangeWavelen = slowestWavelen - fastestWavelen;
-    static constexpr float rangeWavelenRcpFloat = 1.0/rangeWavelen;
+    static float slowestWavelen = sampleClock/10.f;
+    static float fastestWavelen = sampleClock/20000.f;
+    static float rangeWavelen = slowestWavelen - fastestWavelen;
+    static float rangeWavelenRcpFloat = 1.0/rangeWavelen;
     // static constexpr float slowestOscVisSpeed = 0.001;
     // static constexpr float fastestOscVisSpeed = 0.03;
     // static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
     // static constexpr float unitR=7;
-    static constexpr Fixed<0,24> rangeWavelenRcp(rangeWavelenRcpFloat);
-    static constexpr Q16_16 slowestOscVisSpeed = Q16_16(0.0005f);
-    static constexpr Q16_16 fastestOscVisSpeed = Q16_16(0.04f);
-    static constexpr Q16_16 rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
-    static constexpr Q16_16 unitR=Q16_16(7);
+    static Fixed<0,24> rangeWavelenRcp(rangeWavelenRcpFloat);
+    static Q16_16 slowestOscVisSpeed = Q16_16(0.0005f);
+    static Q16_16 fastestOscVisSpeed = Q16_16(0.04f);
+    static Q16_16 rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
+    static Q16_16 unitR=Q16_16(7);
     // auto modVals = nextState.ptr->getValues();
-    static constexpr int __not_in_flash("oscdisp") oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
+    static int __not_in_flash("oscdisp") oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
 
     // for(size_t i=0; i < 1; i++) {
     for(size_t i=0; i < N_OSCS; i++) {
@@ -549,8 +549,8 @@ private:
     } 
     // Serial.println();
 
-    constexpr float angleRange = 120.f/ N_OSCILLATOR_MODELS;
-    constexpr std::array<size_t, 15> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE, TFT_SKYBLUE, TFT_VIOLET, TFT_PINK, TFT_LIGHTGREY, TFT_WHITE};
+    static float angleRange = 120.f/ N_OSCILLATOR_MODELS;
+    static std::array<size_t, 15> colours = {TFT_RED, TFT_GREEN, TFT_MAGENTA, TFT_CYAN, TFT_YELLOW,TFT_ORANGE, TFT_GOLD,  TFT_GREENYELLOW,TFT_BLUE,TFT_PURPLE, TFT_SKYBLUE, TFT_VIOLET, TFT_PINK, TFT_LIGHTGREY, TFT_WHITE};
 
     // icon.deleteSprite();
     // icon.createSprite(50,50);
@@ -566,16 +566,16 @@ private:
       // icon.pushRotated(120, TFT_BLACK);
 
 
-        static const int bankTxtX[3] = {120-87, 120,120+87};
-        static const int bankTxtY[3] = {120+49,20,120+49};
+        static int bankTxtX[3] = {120-87, 120,120+87};
+        static int bankTxtY[3] = {120+49,20,120+49};
         tft.setFreeFont(&FreeMono9pt7b);
         tft.setTextDatum(CC_DATUM);
         const int textWidth00 = tft.textWidth("00");
         tft.fillRect(bankTxtX[i]-(textWidth00>>1), bankTxtY[i]-(tft.fontHeight()>>1), textWidth00, tft.fontHeight(), ELI_BLUE);
         tft.setTextColor(bankColArray[i], ELI_BLUE);
         tft.drawString(String(nextState.oscModel[i]), bankTxtX[i], bankTxtY[i]);
-        static const int iconX[3] = {120-79, 133,120+67};
-        static const int iconY[3] = {120+61,15,120+61};
+        static int iconX[3] = {120-79, 133,120+67};
+        static int iconY[3] = {120+61,15,120+61};
         // tft.fillRect(iconX[i], iconY[i], iconw, iconh, ELI_BLUE);
         oscModelIcons[i][nextState.oscModel[i]]->pushSprite(iconX[i], iconY[i]);
         // icon.fillSprite(TFT_RED);

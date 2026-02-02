@@ -77,8 +77,8 @@ enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, CALIBRATEPITCHMODE, TUNI
 
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
 
-volatile bool FAST_MEM oscsReadyToStart=false;
-volatile bool FAST_MEM restartOscsFlag=false;
+bool FAST_MEM oscsReadyToStart=false;
+// volatile bool FAST_MEM restartOscsFlag=false;
 
 metaOscNoneFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscNone;
 metaOscSinesFP<N_OSCILLATORS> __not_in_flash("mydata") staticMetaOscSines;
@@ -119,9 +119,9 @@ uint32_t CORE1_FAST_MEM smOsc1_dma_chan_bit;
 uint32_t CORE1_FAST_MEM smOsc2_dma_chan;
 uint32_t CORE1_FAST_MEM smOsc2_dma_chan_bit;
 
-volatile bool FAST_MEM bufSent0 = false;
-volatile bool FAST_MEM bufSent1 = false;
-volatile bool FAST_MEM bufSent2 = false;
+bool FAST_MEM bufSent0 = false;
+bool FAST_MEM bufSent1 = false;
+bool FAST_MEM bufSent2 = false;
 
 
 struct repeating_timer FAST_MEM timerMetaModUpdate;
@@ -185,7 +185,7 @@ smBitStreamOsc FAST_MEM smOsc0;
 smBitStreamOsc FAST_MEM smOsc1;
 smBitStreamOsc FAST_MEM smOsc2;
 
-volatile bool FAST_MEM oscsRunning = false;
+bool FAST_MEM oscsRunning = false;
 // static spin_lock_t FAST_MEM *calcOscsSpinlock;
 static spin_lock_t FAST_MEM *displaySpinlock;
 static spin_lock_t FAST_MEM *adcSpinlock;
@@ -298,7 +298,7 @@ constexpr size_t systemUpdateFreq = 8000; //kkkkkkkkkkk
 
 size_t __not_in_flash("adc") metaUpdateCounter = 0;
 
-volatile bool __not_in_flash("adc") newFrequenciesReady = false;
+bool __not_in_flash("adc") newFrequenciesReady = false;
 
 static size_t __not_in_flash("adc") adcCount = 0;
 static size_t __not_in_flash("adc") adcAccumulator0=0;
@@ -318,6 +318,8 @@ size_t __scratch_y("adc") pitchCVAccumulator=0;
 Fixed<14,18> pitchCopy;
 Q16_16 pitchVCopy;
 Q16_16 wavelenScaleCopy;
+
+
 void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     //oversampling pitch
     pitchCVAccumulator += adcReadings[0];
@@ -382,8 +384,8 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     
     // Q16_16 freq_Q16 = exp_fast(pitchCV_Q16); 
     // pitchVExpCopy = freq_Q16;
-
-    Q16_16 wavelenScale = exp2_fast(Q16_16(-1) * pitchCV_Q16); //1/freq
+    static Q16_16 minusOne_q16 = Q16_16(-1.0f);
+    Q16_16 wavelenScale = exp2_fast(minusOne_q16 * pitchCV_Q16); //1/freq
     wavelenScaleCopy = wavelenScale;
       
     const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
@@ -392,59 +394,69 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
 
     ///////////////////////// detune 
+    static Q16_16 mask4095 = Q16_16::from_raw(0x0FFF0000);
+    static Q16_16 half_q16 = Q16_16(0.5f);
 
     adcLpf1.play(adcReadings[1]);
-    Q16_16 filteredADC1_Q16 = Q16_16(adcLpf1.value()) + Q16_16(0.5f);
-    if (filteredADC1_Q16 > Q16_16(4095)) {
-      filteredADC1_Q16 = Q16_16(4095);
-    }
+    Q16_16 filteredADC1_Q16 = Q16_16(adcLpf1.value()) + half_q16;
+    filteredADC1_Q16  &= mask4095; 
+
     int correctionADC1 = ADCProfile::cal_data.correction[filteredADC1_Q16.to_int()];
     filteredADC1_Q16 = filteredADC1_Q16 + Q16_16(correctionADC1);
 
     controlValues[1] = filteredADC1_Q16.to_int();
 
     //detuning
-    Fixed<0,18> ctrlValFixed = Fixed<0,18>(1.f/4096.f).mulWith(filteredADC1_Q16);
-    // Fixed<0,18> ctrlValFixed = CalibrationSettings::adcRangesInvFP[1].mulWith(filteredADC1_Q16);
+    static Fixed<0,18> inv4096_q0_18 = Fixed<0,18>(1.f/4096.f);
+    Fixed<0,18> ctrlValFixed = inv4096_q0_18.mulWith(filteredADC1_Q16);
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
-    Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(Fixed<0,18>(0.016f));
+    static Fixed<0,18> detuneScale = Fixed<0,18>(0.016f);
+    Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(detuneScale);
     detuneFixed = new_wavelen0_fixed.mulWith(ctrlValScaled);
 
 
     ////////////////////////  epsilon
 
     adcLpf2.play(adcReadings[2]);
-    Q16_16 filteredADC2_Q16 = Q16_16(adcLpf2.value()) + Q16_16(0.5f);
-    if (filteredADC2_Q16 > Q16_16(4095)) {
-      filteredADC2_Q16 = Q16_16(4095);
-    }
+    Q16_16 filteredADC2_Q16 = Q16_16(adcLpf2.value()) + half_q16;
+    filteredADC2_Q16  &= mask4095; 
     int correctionADC2 = ADCProfile::cal_data.correction[filteredADC2_Q16.to_int()];
     filteredADC2_Q16 = filteredADC2_Q16 + Q16_16(correctionADC2);
     controlValues[2] = filteredADC2_Q16.to_int();
 
-
-    // int filteredADC2 = adcLpf2.value();
-    // controlValues[2] = filteredADC2;
-    // filteredADC2 = filteredADC2 - (CalibrationSettings::adcMins[2]);
-    // if (filteredADC2<0) filteredADC2=0;
-    // if (filteredADC2>4095) filteredADC2=4095;
-    // Fixed<16,16> filteredADC2Fixed = Fixed<16,16>(filteredADC2);
-    epsilon_fixed = filteredADC2_Q16 * Q16_16(1.f/4096.f);
-    // epsilon_fixed = filteredADC2Fixed.mulWith(CalibrationSettings::adcRangesInvFP[2]);
+    static Q16_16 inv4096_q16 = Q16_16(1.f/4096.f);
+    epsilon_fixed = filteredADC2_Q16 * inv4096_q16;
     epsilon_fixed *= metaModCtrlMul;
 
     //octaves
     adcLpf3.play(adcReadings[3]);
-    Q16_16 filteredADC3_Q16 = Q16_16(adcLpf3.value()) + Q16_16(0.5f);
-    if (filteredADC3_Q16 > Q16_16(4095)) {
-      filteredADC3_Q16 = Q16_16(4095);
-    }
-    size_t octControl = filteredADC3_Q16.to_int();
-    int correctionADC3 = ADCProfile::cal_data.correction[octControl];
-    octControl = octControl + correctionADC3;
-    controlValues[3] = octControl;
-    
-    const size_t octaveIdx = octControl >> 8;  // 16 divisions
+    Q16_16 filteredADC3_Q16 = Q16_16(adcLpf3.value()); // + Q16_16(0.5f);
+    filteredADC3_Q16  &= mask4095; 
+
+    int correctionADC3 = ADCProfile::cal_data.correction[filteredADC3_Q16.to_int()];
+    filteredADC3_Q16 = filteredADC3_Q16 + Q16_16(correctionADC3);
+    controlValues[3] = filteredADC3_Q16.to_int();
+    static Q16_16 octIdxScale = Q16_16(22.9999f/4095.f);
+    size_t octaveIdx = (filteredADC3_Q16 * octIdxScale).to_int(); 
+
+    static size_t octaveCtrlMap[23] = {
+      0, 1, 2, 3, 4, 5, 6, 7, 
+      8,8,8,8,8,8,8, 
+      9,10,11,12,13,14,15,16
+    };
+
+    octaveIdx = octaveCtrlMap[octaveIdx];
+    // if (octaveIdx > 7) {
+    //   if (octaveIdx < 15) {
+    //     octaveIdx = 8;
+    //   } else {
+    //     octaveIdx = octaveIdx - 6;
+    //   }
+    // }
+    // int inMiddle = (octaveIdx >= 8) & (octaveIdx < 15);
+    // int inUpper = (octaveIdx >= 15);
+    // octaveIdx = octaveIdx - (inUpper * 6) + (inMiddle * (8 - octaveIdx));
+
 
     if (octaveIdx != lastOctaveIdx) {
       lastOctaveIdx = octaveIdx;
@@ -666,9 +678,6 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
   return true;
 }
 
-size_t FAST_MEM msgCt=0;
-volatile bool FAST_MEM adcReadyFlag = false;
-
 // inline bool __not_in_flash_func(displayUpdate)(__unused struct repeating_timer *t) {
 //   display.update();
 //   return true;
@@ -731,7 +740,7 @@ void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
 size_t FAST_MEM oscModeBankChangeTS[3] = {0,0,0};
 // size_t FAST_MEM oscModeBankChange[3] = {0,0,0};
 
-volatile bool FAST_MEM changeBankFlag = false;
+bool FAST_MEM changeBankFlag = false;
 
 // inline bool __not_in_flash_func(oscModeChangeMonitor)(__unused struct repeating_timer *t) {
 inline bool __not_in_flash_func(oscModeChangeMonitor)() {

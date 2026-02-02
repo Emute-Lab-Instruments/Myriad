@@ -210,6 +210,98 @@ public:
         value >>= shift;
         return *this;
     }
+
+    // ========================================================================
+    // BITWISE OPERATORS
+    // ========================================================================
+
+    // Bitwise AND with another Fixed
+    constexpr Fixed operator&(const Fixed& other) const {
+        return Fixed::from_raw(value & other.value);
+    }
+
+    // Bitwise AND with raw integer type
+    constexpr Fixed operator&(storage_type mask) const {
+        return Fixed::from_raw(value & mask);
+    }
+
+    // Bitwise OR with another Fixed
+    constexpr Fixed operator|(const Fixed& other) const {
+        return Fixed::from_raw(value | other.value);
+    }
+
+    // Bitwise OR with raw integer type
+    constexpr Fixed operator|(storage_type mask) const {
+        return Fixed::from_raw(value | mask);
+    }
+
+    // Bitwise XOR with another Fixed
+    constexpr Fixed operator^(const Fixed& other) const {
+        return Fixed::from_raw(value ^ other.value);
+    }
+
+    // Bitwise XOR with raw integer type
+    constexpr Fixed operator^(storage_type mask) const {
+        return Fixed::from_raw(value ^ mask);
+    }
+
+    // Bitwise NOT
+    constexpr Fixed operator~() const {
+        return Fixed::from_raw(~value);
+    }
+
+    // Compound assignment operators
+    constexpr Fixed& operator&=(const Fixed& other) {
+        value &= other.value;
+        return *this;
+    }
+
+    constexpr Fixed& operator&=(storage_type mask) {
+        value &= mask;
+        return *this;
+    }
+
+    constexpr Fixed& operator|=(const Fixed& other) {
+        value |= other.value;
+        return *this;
+    }
+
+    constexpr Fixed& operator|=(storage_type mask) {
+        value |= mask;
+        return *this;
+    }
+
+    constexpr Fixed& operator^=(const Fixed& other) {
+        value ^= other.value;
+        return *this;
+    }
+
+    constexpr Fixed& operator^=(storage_type mask) {
+        value ^= mask;
+        return *this;
+    }    
+
+    // Test if specific bits are set
+    constexpr bool test_bit(int bit_position) const {
+        return (value & (storage_type(1) << bit_position)) != 0;
+    }
+
+    // Set a specific bit
+    constexpr Fixed set_bit(int bit_position) const {
+        return Fixed::from_raw(value | (storage_type(1) << bit_position));
+    }
+
+    // Clear a specific bit
+    constexpr Fixed clear_bit(int bit_position) const {
+        return Fixed::from_raw(value & ~(storage_type(1) << bit_position));
+    }
+
+    // Extract bits in a range [low, high]
+    constexpr storage_type extract_bits(int low, int high) const {
+        int width = high - low + 1;
+        storage_type mask = (storage_type(1) << width) - 1;
+        return (value >> low) & mask;
+    }    
     
     // ========================================================================
     // FAST ARITHMETIC (NO OVERFLOW PROTECTION)
