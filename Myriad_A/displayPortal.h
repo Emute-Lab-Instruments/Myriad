@@ -472,10 +472,10 @@ private:
       tft.fillScreen(ELI_BLUE);
     }
     
-    static float slowestWavelen = sampleClock/10.f;
+    static float slowestWavelen = sampleClock/16.f;
     static float fastestWavelen = sampleClock/20000.f;
     static float rangeWavelen = slowestWavelen - fastestWavelen;
-    static float rangeWavelenRcpFloat = 1.0/rangeWavelen;
+    static float rangeWavelenRcpFloat = 1.0f/rangeWavelen;
     // static constexpr float slowestOscVisSpeed = 0.001;
     // static constexpr float fastestOscVisSpeed = 0.03;
     // static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
@@ -504,7 +504,7 @@ private:
 
       WvlenFPType normwavelen = WvlenFPType(1) - (nextState.oscWavelengths[i] - minWavelenFP).mulWith(rangeWavelenRcp);
       normwavelen = normwavelen < WvlenFPType(0) ? WvlenFPType(0) : normwavelen;
-      normwavelen= normwavelen * normwavelen * normwavelen;
+      normwavelen= normwavelen * normwavelen;
       // if (i==0) {
       //   Serial.printf("%f %f %f %f %f\n", nextState.oscWavelengths[i].to_float(), minWavelenFP.to_float(), rangeWavelenRcp.to_float(), rangeWavelen, normwavelen.to_float());
       // }
