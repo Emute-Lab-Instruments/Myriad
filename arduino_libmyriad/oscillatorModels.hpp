@@ -852,77 +852,82 @@ class pulsePMSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
-// class sinetableSDOscillatorModel : public virtual oscillatorModel {
-//   public:
+class sinetableSDOscillatorModel : public virtual oscillatorModel {
+  public:
 
-//     sinetableSDOscillatorModel() : oscillatorModel(){
-//       loopLength=16;
-//       prog=bitbybit_program;
-//       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-//       setClockModShift(1);
-//     }
+    sinetableSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
+    }
 
-//     inline void fillBuffer(uint32_t* bufferA) {
-//       const size_t wlen = this->wavelen;
-//       const size_t subWaveLen = wlen * sampleRatio;
-//       for (size_t i = 0; i < loopLength; ++i) {
-//         size_t word=0U;
-//         for(size_t bit=0U; bit < 32U; bit++) {
-//           phase = phase >= wlen ? 0 : phase; // wrap around
-
-//           // size_t amp =  phase > pulselen ? 0 : wlen; 
-
-//           subsampleIndex = subsampleIndex < subWaveLen ? subsampleIndex : 0;
-//           if (subsampleIndex==0) {
-//             amp = wlen-amp;
-//           }
-//           subsampleIndex++;
-
-//           int32_t y = amp >= err0 ? 1 : 0;
-//           err0 = (y ? wlen : 0) - amp + err0;
-
-//           word |= (y << bit);
-
-//           phase++;
-//         }
-//         *(bufferA + i) = word;
-
-//       }
-//     }
-
-
-//     void ctrl(const Q16_16 v) override {
-//     }
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const size_t half_wlen = wlen >> 1;
+      
+      
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word = 0U;
+        for(size_t bit = 0U; bit < 32U; bit++) {
+          phase = phase >= wlen ? 0 : phase; // wrap around
+          
+          // Parabolic sine approximation with asymmetric shaping
+          int32_t sine_val;
+          if (phase < half_wlen) {
+            // Calculate base parabola (integer math)
+            int32_t base = (4 * phase * (half_wlen - phase)) / half_wlen;
+            // Apply shape factor (one fixed-point multiply)
+            sine_val = (shape_pos.raw() * base) >> WvlenFPType::FRACTIONAL_BITS;
+          } else {
+            // Second half: different shape for asymmetry
+            size_t p = phase - half_wlen;
+            int32_t base = (4 * p * (half_wlen - p)) / half_wlen;
+            sine_val = -((shape_neg.raw() * base) >> WvlenFPType::FRACTIONAL_BITS);
+          }
+          
+          // Convert from [-half_wlen, +half_wlen] to [0, wlen]
+          auto amp = (size_t)(half_wlen + sine_val);
+          
+          int32_t y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wlen : 0) - amp + err0;
+          word |= (y << bit);
+          phase++;
+        }
+        *(bufferA + i) = word;
+      }
+    }
+    void ctrl(const Q16_16 v) override {
+      shape_pos = WvlenFPType(1.f) - WvlenFPType(0.1f).mulWith(v);
+      shape_neg = WvlenFPType(1.f) - WvlenFPType(0.9f).mulWith(v);
+    }
       
   
-//     pio_sm_config getBaseConfig(uint offset) {
-//       return bitbybit_program_get_default_config(offset);
-//     }
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
 
-//     String getIdentifier() override {
-//       return "pulsesd";
-//     }
+    String getIdentifier() override {
+      return "sinesd";
+    }
 
   
-//   private:
-//     size_t phase=0;
-//     bool y=0;
-//     int err0=0;
+  private:
+    int phase = 0;
+    bool y=0;
+    int err0 = 0;
 
-//     SineTableQ16_16 sinetab;
-//     // size_t subsampleCount = static_cast<size_t>(sampleClock / 40000.f);
-//     size_t sampleRatio = sampleClock / 40000.f;
-//     size_t subsampleIndex=0;
-//     size_t subsampleCount= sampleRatio;
-//     int32_t amp=0;
+    WvlenFPType shape_pos = WvlenFPType::from_float_ct(1.0);  
+    WvlenFPType shape_neg = WvlenFPType::from_float_ct(1.0);  
 
-// };
+
+};
 
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 10;
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 11;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -931,15 +936,14 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
 
-  // []() { return std::make_shared<sinetableSDOscillatorModel>(); } 
-  // ,
   []() { return std::make_shared<sawOscillatorModel>(); } 
   ,
   []() { return std::make_shared<expPulseSDOscillatorModel>(); } 
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
-
+  []() { return std::make_shared<sinetableSDOscillatorModel>(); } 
+  ,
   //squares
   []() { return std::make_shared<pulseSDOscillatorModel>(); }
   ,

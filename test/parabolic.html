@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Parabolic Sine Waveform</title>
+<style>
+body { 
+  font-family: monospace; 
+  padding: 20px;
+  background: #1e1e1e;
+  color: #fff;
+}
+canvas { 
+  background: #2d2d2d; 
+  border: 2px solid #444;
+  display: block;
+  margin: 20px auto;
+}
+.info {
+  text-align: center;
+  margin: 10px;
+  color: #aaa;
+}
+</style>
+</head>
+<body>
+
+<canvas id="waveform" width="800" height="400"></canvas>
+<div class="info">Blue: Parabolic Approximation | Red: True Sine | Green: Amplitude Range</div>
+
+<script>
+const canvas = document.getElementById('waveform');
+const ctx = canvas.getContext('2d');
+
+const width = canvas.width;
+const height = canvas.height;
+const centerY = height / 2;
+
+// Simulate wavelength
+const wlen = 1000; // arbitrary units
+const half_wlen = wlen / 2;
+
+// Number of samples to plot
+const samples = 800;
+
+// Draw grid
+ctx.strokeStyle = '#444';
+ctx.lineWidth = 1;
+// Center line
+ctx.beginPath();
+ctx.moveTo(0, centerY);
+ctx.lineTo(width, centerY);
+ctx.stroke();
+// Top/bottom bounds
+ctx.strokeStyle = '#2a4';
+ctx.setLineDash([5, 5]);
+ctx.beginPath();
+ctx.moveTo(0, centerY - 150);
+ctx.lineTo(width, centerY - 150);
+ctx.moveTo(0, centerY + 150);
+ctx.lineTo(width, centerY + 150);
+ctx.stroke();
+ctx.setLineDash([]);
+
+// Function for parabolic sine
+function parabolicSine(phase) {
+  let sine_val;
+  
+  if (phase < half_wlen) {
+    // First half: 4*phase*(half_wlen - phase) / half_wlen
+    let diff = half_wlen - phase;
+    let product = phase * diff;
+    sine_val = (4 * product) / half_wlen;
+  } else {
+    // Second half: inverted parabola
+    let p = phase - half_wlen;
+    let diff = half_wlen - p;
+    let product = p * diff;
+    sine_val = -(4 * product) / half_wlen;
+  }
+  
+  // Convert from [-half_wlen, +half_wlen] to [0, wlen]
+  let amp = half_wlen + sine_val;
+  
+  // Normalize to [-1, 1] for plotting
+  return (amp / half_wlen) - 1;
+}
+
+// Draw parabolic approximation
+ctx.strokeStyle = '#4af';
+ctx.lineWidth = 2;
+ctx.beginPath();
+for (let i = 0; i < samples; i++) {
+  let phase = (i / samples) * wlen;
+  let val = parabolicSine(phase);
+  let x = (i / samples) * width;
+  let y = centerY - (val * 150);
+  
+  if (i === 0) ctx.moveTo(x, y);
+  else ctx.lineTo(x, y);
+}
+ctx.stroke();
+
+// Draw true sine for comparison
+ctx.strokeStyle = '#f44';
+ctx.lineWidth = 1.5;
+ctx.globalAlpha = 0.6;
+ctx.beginPath();
+for (let i = 0; i < samples; i++) {
+  let angle = (i / samples) * 2 * Math.PI;
+  let val = Math.sin(angle);
+  let x = (i / samples) * width;
+  let y = centerY - (val * 150);
+  
+  if (i === 0) ctx.moveTo(x, y);
+  else ctx.lineTo(x, y);
+}
+ctx.stroke();
+ctx.globalAlpha = 1;
+
+// Labels
+ctx.fillStyle = '#4af';
+ctx.font = '14px monospace';
+ctx.fillText('Parabolic', 10, 30);
+ctx.fillStyle = '#f44';
+ctx.fillText('True Sine', 10, 50);
+ctx.fillStyle = '#2a4';
+ctx.fillText('wlen (max)', width - 100, centerY - 160);
+ctx.fillText('0 (min)', width - 80, centerY + 170);
+ctx.fillText('half_wlen', width - 100, centerY + 10);
+
+// Phase markers
+ctx.fillStyle = '#888';
+ctx.fillText('0', 10, centerY + 20);
+ctx.fillText('half_wlen', width/2 - 40, centerY + 20);
+ctx.fillText('wlen', width - 50, centerY + 20);
+
+</script>
+</body>
+</html>

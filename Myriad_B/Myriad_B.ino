@@ -634,11 +634,11 @@ void __not_in_flash_func(loop)() {
     // spin_unlock(calcOscsSpinlock0, save);
   }
 
-  auto now = millis();
-  if (now - serialts > 500) {
-    Serial.print(".");
-    serialts=now;
-  }
+  // auto now = millis();
+  // if (now - serialts > 500) {
+  //   Serial.print(".");
+  //   serialts=now;
+  // }
   // delay(1);
   // __wfi();
 }

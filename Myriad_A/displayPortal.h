@@ -220,6 +220,16 @@ public:
         }
     };
 
+    iconDrawFunctions["sinesd"] = [this](eSpritePtr& sprite, int col) {
+        float lastHeight = iconh>>1;
+        for(float i=1; i <iconw; i++) {
+          float angle = (i / iconw) * 2.0f * 3.14159f;
+          float s = (sinf(angle) + 1.0f) * 0.5f; //normalize to 0-1
+          float y = s * iconh;
+          sprite->drawLine(i-1, lastHeight, i, iconh - y, col);
+          lastHeight = iconh - y;
+        }
+    };
 
     iconDrawFunctions["p100"] = [this](eSpritePtr& sprite, int col) {
       sprite->drawRect(0,(iconh>>1) - (iconh * 0.5), iconw * 0.3, iconh, col);
