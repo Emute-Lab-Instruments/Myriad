@@ -682,7 +682,6 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
     size_t phase=0;
     bool y=0;
     int err0=0;
-
     int pulselen=10000;
 
 };
@@ -835,7 +834,7 @@ class pulsePMSDOscillatorModel : public virtual oscillatorModel {
 
 
     void ctrl(const Q16_16 v) override {
-      WvlenFPType modIdx = WvlenFPType(0.95f).mulWith(v);
+      WvlenFPType modIdx = WvlenFPType(0.6f).mulWith(v);
       phaseIncLow = WvlenFPType(1) - modIdx;
       phaseIncHigh = WvlenFPType(1) + modIdx;
     }
