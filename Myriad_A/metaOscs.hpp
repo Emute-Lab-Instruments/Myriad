@@ -1120,15 +1120,15 @@ public:
         // Convert modspeed (Q16_16) to Q12_20 for calculation
         float speed = this->modspeed.getValue().to_float();
 
-        a = FixedType(0.2 + speed * 0.5);
-        b = FixedType(0.2 + speed * (-0.1));
-        c = FixedType(5.7 + speed * (-2.4));
-        this->dt = FixedType(0.001 + speed * 0.3);
+        a = FixedType(0.05f + speed * 1.f);
+        b = FixedType(0.1f + speed * (1.f));
+        c = FixedType(14.f + speed * (-40.f));
+        this->dt = FixedType(0.001 + speed * 0.2);
     }
 
     point project2D(const std::array<FixedType, 3>& state) override {
         point p;
-        p.x = 120.0f + (state[0].to_float() * 7.0f);
+        p.x = 120.0f + (state[0].to_float() * 4.0f);
         p.y = 120.0f + (state[1].to_float() * 4.0f);
         return p;
     }
