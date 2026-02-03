@@ -956,6 +956,8 @@ void __isr encoder2_callback() {
         case CONTROLMODES::TUNINGMODE:
         {
           TuningSettings::octaves += change;
+          TuningSettings::octaves = max(-3, TuningSettings::octaves);
+          TuningSettings::octaves = min(3, TuningSettings::octaves);
           updateTuning();
           break;
         }
