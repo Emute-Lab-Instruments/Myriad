@@ -11,7 +11,7 @@
 
 //core B0
 #define OSC1_PIN 2 //R
-#define OSC2_PIN 3 //R
+#define OSC2_PIN 16 //L
 #define OSC3_PIN 5 //R
 #define OSC1_PIN_DUP 7  //not used
 
