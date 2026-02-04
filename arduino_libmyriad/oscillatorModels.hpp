@@ -52,39 +52,37 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
-      const size_t wlen = this->wavelen;
-      const uint32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
-      const uint32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+      const int32_t wlen = this->wavelen;
+      const int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
+      const int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
             
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
-        size_t loopbits = 1;
-        do {
-          // if (phase>=wavelen) {
-          //   phase = 0U;
-          // }
+        for (uint32_t bit = 0; bit < 32; ++bit) {
           phase++;
-          const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
-          phase &= phasemask;
+          if (phase>=wlen) {
+            phase = 0U;
+          }
+          // const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
+          // phase &= phasemask;
 
-          int32_t amp = phase * pm_int + (((uint32_t)phase * pm_frac) >> 15);        
-          // int32_t amp = (phase * phaseMul) >> 15U;
-          // size_t amp = ((uint64_t)phase * phaseMul) >> 15U;
-          // if (amp >= wavelen) {
-          //   amp = 0U; // wrap around
-          // }
-          const int32_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
-          amp &= mask;
+          int32_t amp = phase * pm_int + ((phase * pm_frac) >> 15);        
 
-          // static size_t allOnesBin = 0xFFFFFFFF;
-          size_t y = -(amp >= err0);
-          err0 = (y ? wlen : 0) - amp + err0;
+          // const int32_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+          // amp &= mask;
+          if (amp >= wlen) {
+            amp = 0;
+          }
+          // uint32_t y = -(amp >= err0);
+          // err0 = (y ? wlen : 0) - amp + err0;
 
           // word |= (y << bit);
-          word |= loopbits & y;  // Set bit if either is true
-
-          loopbits <<= 1;
-        } while (loopbits);
+          int32_t y = amp >= err0 ? 1 : 0;
+          err0 = (y ? wlen : 0) - amp + err0;
+          // word |= (y << bit);
+          word |= y;
+          word <<= 1;
+        } 
 
         *(bufferA + i) = word;
 
@@ -178,7 +176,9 @@ class triOscillatorModel : public virtual oscillatorModel {
           err0 = (y ? wlen : 0) - amp + err0;
 
 
-          word |= (y << bit);
+          // word |= (y << bit);
+          word |= y;
+          word <<= 1;
 
           phase++;
 
@@ -265,7 +265,9 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
             counter = 1 + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();                     
           }
           counter--;
-          word |= (on << bit);
+          // word |= (on << bit);
+          word |= on;
+          word <<= 1;
         }
         
         *(bufferA + i) = word;
@@ -325,7 +327,9 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
           err0 = (err0 * mul) >> qfp;
 
 
-          word |= (y << bit);
+          // word |= (y << bit);
+          word |= y;
+          word <<= 1;
 
           phase++;
         }
