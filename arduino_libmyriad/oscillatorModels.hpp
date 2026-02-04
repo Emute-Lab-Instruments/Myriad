@@ -80,11 +80,6 @@ size_t debugcount=0;
 class sawOscillatorModel : public virtual oscillatorModel {
   public:
 
-    constexpr uint32_t generate_multiplier(int index) {
-        // Convert (1.0 + index * 9.0/99.0) to 16.16 fixed point
-        return (uint32_t)((2.0 + index * 9.0/990.0) * 32768.0 + 0.5);
-    }  
-
     sawOscillatorModel() : oscillatorModel(){
       loopLength=8;
       prog=bitbybit_program;
@@ -94,31 +89,39 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
     inline void fillBuffer(uint32_t* bufferA) {
       const size_t wlen = this->wavelen;
+      const uint32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
+      const uint32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+            
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
-        for(size_t bit=0U; bit < 32U; bit++) {
+        size_t loopbits = 1;
+        do {
           // if (phase>=wavelen) {
           //   phase = 0U;
           // }
+          phase++;
           const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
           phase &= phasemask;
-          phase++;
 
-        
-          size_t amp = (phase * phaseMul) >> 15U;
+          int32_t amp = phase * pm_int + (((uint32_t)phase * pm_frac) >> 15);        
+          // int32_t amp = (phase * phaseMul) >> 15U;
+          // size_t amp = ((uint64_t)phase * phaseMul) >> 15U;
           // if (amp >= wavelen) {
           //   amp = 0U; // wrap around
           // }
-          const size_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
+          const int32_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
           amp &= mask;
 
-          const bool y = amp >= err0 ? 1 : 0;
+          // static size_t allOnesBin = 0xFFFFFFFF;
+          size_t y = -(amp >= err0);
           err0 = (y ? wlen : 0) - amp + err0;
 
-          word |= (y << bit);
+          // word |= (y << bit);
+          word |= loopbits & y;  // Set bit if either is true
 
-        }
-        // word = word << 1U;
+          loopbits <<= 1;
+        } while (loopbits);
+
         *(bufferA + i) = word;
 
       }
@@ -141,8 +144,8 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
   
   private:
-    size_t phase=0;
-    size_t phaseMul = 0;
+    int32_t phase=0;
+    int32_t phaseMul = 2 << 15;
     bool y=0;
     int err0=0;
     size_t val=0;
