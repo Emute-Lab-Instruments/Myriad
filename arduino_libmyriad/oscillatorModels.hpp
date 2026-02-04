@@ -520,7 +520,9 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
           int32_t y = amp >= err0 ? 1 : 0;
           err0 = (y ? wlen : 0) - amp + err0;
 
-          word |= (y << bit);
+          // word |= (y << bit);
+          word |= y;
+          word <<= 1;
 
           phase++;
         }
@@ -762,7 +764,9 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
           
           int32_t y = amp >= err0 ? 1 : 0;
           err0 = (y ? wlen : 0) - amp + err0;
-          word |= (y << bit);
+          // word |= (y << bit);
+          word |= y;
+          word <<= 1;
           phase++;
         }
         *(bufferA + i) = word;
