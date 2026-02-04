@@ -629,6 +629,129 @@ class triSDFBVar1OscillatorModel : public virtual oscillatorModel {
 
 };
 
+
+//bit by bit square wave oscillator
+//better latency at lower frequencies than the timing buffer model
+//but hf gets load of aliasing - need special case if wavelen high
+class squareBBBOscillatorModel : public virtual oscillatorModel {
+  public:
+    squareBBBOscillatorModel() : oscillatorModel(){
+      loopLength=32;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const size_t halfwavelen = wlen / 2;
+      for (size_t i = 0; i < loopLength; ++i) {
+        if (phase >= halfwavelen) {
+            val = 4294967295U;
+        }else{
+          val = 0;
+        }
+        *(bufferA + i) = val;
+        phase+=32;
+        if (phase >= wlen) {
+          phase  -=wlen; // wrap around
+        }
+      }
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+  
+    String getIdentifier() override {
+      return "sqbbb";
+    }
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0;
+    size_t val=0;
+
+  };
+
+//sharktooth
+//rate limiting causes some zipper noise
+class rateLimSDOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    rateLimSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          phase = phase >= wlen ? 0 : phase; // wrap around
+
+          size_t amp = phase << 1;
+          amp =  amp > wlen ? phase : amp; 
+
+
+          const bool y = amp >= err0 ? 1 : 0;
+          size_t newerr = (y ? wlen : 0) - amp + err0;
+          
+          if ((newerr)> lim) {
+              newerr = lim;
+          }
+          err0=newerr;
+
+          word |= (y << bit);
+
+          phase++;
+        }
+        *(bufferA + i) = word;
+
+      }
+
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      // lim = this->wavelen * (0.05f + (v * 0.95f));
+      
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    void reset() override {
+      oscillatorModel::reset();
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      mul = 1;
+      lim=this->wavelen;
+    }
+
+    String getIdentifier() override {
+      return "sdr10";
+    }
+
+  
+  private:
+    size_t phase=0;
+    bool y=0;
+    int err0=0;
+
+    size_t mul=1;
+    size_t lim;
+
+    static constexpr size_t qfp = 14U;
+    static constexpr float qfpMul = 1U << qfp;
+
+};
+
 #endif //if 0
 
 #endif // OSCEXPTS_HPP
