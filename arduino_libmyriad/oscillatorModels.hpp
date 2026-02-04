@@ -187,6 +187,11 @@ class triOscillatorModel : public virtual oscillatorModel {
 
       const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
+      const uint32_t rising_int = phaseRisingMul >> qfp;     // 2..9
+      const uint32_t rising_frac = phaseRisingMul & 0x3FFF;  // 14-bit fractional
+      const uint32_t falling_int = phaseFallingMul >> qfp;
+      const uint32_t falling_frac = phaseFallingMul & 0x3FFF;      
+
       for (size_t i = 0; i < loopLength; ++i) {
         uint32_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
@@ -194,9 +199,13 @@ class triOscillatorModel : public virtual oscillatorModel {
           int32_t amp=0;
 
           if (phase <= triPeakPoint) {
-            amp = ( phase * phaseRisingMul) >> qfp; 
+            // amp = ( phase * phaseRisingMul) >> qfp; 
+            amp = phase * rising_int + (((uint32_t)phase * rising_frac) >> qfp);
           }else{
-            const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
+            const int32_t delta = phase - triPeakPoint;            
+            const int32_t fallingPhase = delta * falling_int + 
+                                      (((uint32_t)delta * falling_frac) >> qfp);
+            // const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
             // fallingPhase = (fallingPhase * phaseFallingMul) >> qfp;
             amp = wavelen - fallingPhase; 
           }
