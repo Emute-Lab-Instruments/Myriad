@@ -36,52 +36,16 @@ private:
   static constexpr uint32_t halfWaveLen = sampleClock / 100000;
 };
 
-class noiseOscillatorModel : public virtual oscillatorModel {
-public:
-  noiseOscillatorModel() : oscillatorModel(){
-    loopLength=16;
-    prog=pulse_program;
-    randBaseMin = randMin = sampleClock/20000;
-    randBaseMax = randMax = sampleClock/20;
-    randRange = randMax - randBaseMin;
-    updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-
-  }
-  inline void fillBuffer(uint32_t* bufferA) {
-    // randMax = randBaseMax - wavelen;
-    // randRange = randMax - randMin;
-    for (size_t i = 0; i < loopLength; ++i) {
-        *(bufferA + i) = static_cast<uint32_t>(random(randMin,randMax));
-    }
-  }
-  pio_sm_config getBaseConfig(uint offset) {
-    return pulse_program_get_default_config(offset);
-  }
-  void ctrl(const Q16_16 v) override {
-    // randMax = randBaseMin + (v * randRange);
-  }
-
-  String getIdentifier() override {
-    return "n1";
-  }
-
-
-
-private:
-  long randMin, randMax, randBaseMin, randRange, randBaseMax;
-};
 
 
   
 
 
-size_t debugcount=0;
-
 class sawOscillatorModel : public virtual oscillatorModel {
   public:
 
     sawOscillatorModel() : oscillatorModel(){
-      loopLength=8;
+      loopLength=16;
       prog=bitbybit_program;
 
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA

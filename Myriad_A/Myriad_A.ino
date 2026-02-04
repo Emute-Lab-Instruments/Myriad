@@ -355,7 +355,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     Fixed<14,18> val1 = Fixed<14,18>(ADCProfile::cal_data.correction[adcProfileIdx + 1]);
 
     Fixed<14,18> diff = val1 - val0;
-    Fixed<14,18> interpolated = (diff * frac) ; 
+    Fixed<14,18> interpolated = diff * frac; 
 
     Fixed<14,18> correction = val0 + interpolated;
 
@@ -409,7 +409,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     //detuning
     static Fixed<0,18> inv4096_q0_18 = Fixed<0,18>(1.f/4096.f);
-    Fixed<0,18> ctrlValFixed = inv4096_q0_18.mulWith(filteredADC1_Q16);
+    Fixed<0,18> ctrlValFixed = inv4096_q0_18.mulWith_split(filteredADC1_Q16);
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
     static Fixed<0,18> detuneScale = Fixed<0,18>(0.016f);
     Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(detuneScale);
@@ -1763,10 +1763,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+  //   dotTS = now;
+  // }
 }
 
 
