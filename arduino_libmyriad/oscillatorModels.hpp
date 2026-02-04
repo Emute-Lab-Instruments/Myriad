@@ -280,27 +280,40 @@ class triOscillatorModel : public virtual oscillatorModel {
 
     
 
-class noiseOscillatorModel2 : public virtual oscillatorModel {
-  public:
-    noiseOscillatorModel2() : oscillatorModel(){
-      loopLength=4;
-      prog=pulse_program;
   
+class noiseOscillatorModelSD : public virtual oscillatorModel {
+  public:
+    noiseOscillatorModelSD() : oscillatorModel(){
+      loopLength=8;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true;
+      setClockModShift(1);
     }
+    
     inline void fillBuffer(uint32_t* bufferA) {
       for (size_t i = 0; i < loopLength; ++i) {
-          Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);
-
-          *(bufferA + i) = (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();//static_cast<uint32_t>(rnd * wavelen * 0.01f);
+        uint32_t word = 0U;
+        
+        for(uint32_t bit = 0; bit < 32; ++bit) {
+          if (counter == 0) {
+            on = !on;  // Toggle state
+            Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);   
+            counter = 1 + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();                     
+          }
+          counter--;
+          word |= (on << bit);
+        }
+        
+        *(bufferA + i) = word;
       }
     }
 
     pio_sm_config getBaseConfig(uint offset) {
-      return pulse_program_get_default_config(offset);
+      return bitbybit_program_get_default_config(offset);
     }
     
     void ctrl(const Q16_16 v) override {
-      randMult = Q16_16(0) + (v.mul_fast(Q16_16(500)));
+      randMult = Q16_16(-1) + (v.mul_split(v).mul_split(Q16_16(500)));
     }
   
     String getIdentifier() override {
@@ -308,12 +321,11 @@ class noiseOscillatorModel2 : public virtual oscillatorModel {
     }
   
   private:
+    uint32_t densityThreshold = 0x80000000;  // 50% density by default
     Q16_16 randMult = Q16_16(100);
-    // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
-  
-  
-  };
-  
+    bool on=0;
+    size_t counter=0;
+};
 
 
 //error scaling, sounds good with ctrl
@@ -481,7 +493,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
       for (size_t i = 0; i < loopLength; ++i) {
         if ((rand() % 200000) > alpha) {
           int inc = beta>>2;
-          acc += (rand() & 1) ? inc : -inc;
+          acc += (get_rand_32() & 1) ? inc : -inc;
         }
         if (rand() % 1000 > beta)
           acc ^= (rand() & 127U);
@@ -849,7 +861,7 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
 
   // //noise
-  []() { return std::make_shared<noiseOscillatorModel2>();} 
+  []() { return std::make_shared<noiseOscillatorModelSD>();} 
   ,
   []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
   ,

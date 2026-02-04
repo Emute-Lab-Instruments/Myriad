@@ -752,6 +752,40 @@ class rateLimSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class noiseOscillatorModel2 : public virtual oscillatorModel {
+  public:
+    noiseOscillatorModel2() : oscillatorModel(){
+      loopLength=4;
+      prog=pulse_program;
+  
+    }
+    inline void fillBuffer(uint32_t* bufferA) {
+      for (size_t i = 0; i < loopLength; ++i) {
+          Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);
+
+          *(bufferA + i) = (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();//static_cast<uint32_t>(rnd * wavelen * 0.01f);
+      }
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+      return pulse_program_get_default_config(offset);
+    }
+    
+    void ctrl(const Q16_16 v) override {
+      randMult = Q16_16(0) + (v.mul_fast(Q16_16(500)));
+    }
+  
+    String getIdentifier() override {
+      return "n2";
+    }
+  
+  private:
+    Q16_16 randMult = Q16_16(100);
+    // const std::vector<float> oscTemplate {0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5};
+  
+  
+  };
+
 #endif //if 0
 
 #endif // OSCEXPTS_HPP

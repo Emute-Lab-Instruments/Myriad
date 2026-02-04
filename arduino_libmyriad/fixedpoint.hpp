@@ -177,6 +177,43 @@ public:
         *this = *this / other;
         return *this;
     }
+
+    // ========================================================================
+    // SPLIT MULTIPLY - Fast on M0+, avoids 64-bit math
+    // ========================================================================
+
+    // Split multiply: fast alternative to mul_fast for M0+ when ranges allow
+    // Requirements: 
+    //   - value * (other >> FRACTIONAL_BITS) must fit in storage_type
+    //   - value * (other & FRAC_MASK) must fit in storage_type
+    constexpr Fixed mul_split(const Fixed& other) const {
+        constexpr storage_type FRAC_MASK = (storage_type(1) << FRACTIONAL_BITS) - 1;
+        
+        // Split other into integer and fractional parts
+        const storage_type other_int = other.value >> FRACTIONAL_BITS;
+        const storage_type other_frac = other.value & FRAC_MASK;
+        
+        // Compute: result = value * other_int + (value * other_frac) >> FRACTIONAL_BITS
+        // Two 32-bit multiplies instead of one 64-bit multiply
+        return Fixed::from_raw(
+            value * other_int + 
+            ((value * other_frac) >> FRACTIONAL_BITS)
+        );
+    }
+
+    // Split multiply with different format - keeps this format
+    template<int IntBits2, int FracBits2, typename StorageT2>
+    constexpr Fixed mulWith_split(const Fixed<IntBits2, FracBits2, StorageT2>& other) const {
+        constexpr auto FRAC_MASK = (StorageT2(1) << FracBits2) - 1;
+        
+        const auto other_int = other.raw() >> FracBits2;
+        const auto other_frac = other.raw() & FRAC_MASK;
+        
+        return Fixed::from_raw(
+            value * other_int + 
+            ((static_cast<int64_t>(value) * other_frac) >> FracBits2)
+        );
+    }    
     
     // ========================================================================
     // COMPARISON OPERATORS
