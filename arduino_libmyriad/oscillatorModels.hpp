@@ -739,6 +739,9 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
       const size_t wlen = this->wavelen;
       const size_t half_wlen = wlen >> 1;
       
+      // Precompute reciprocal: (4 / half_wlen) as fixed-point
+      // This replaces TWO divisions per bit with ONE precomputed multiply
+      const int32_t inv_half_wlen_x4 = (static_cast<int64_t>(4) << WvlenFPType::FRACTIONAL_BITS) / half_wlen;
       
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word = 0U;
@@ -748,30 +751,32 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
           // Parabolic sine approximation with asymmetric shaping
           int32_t sine_val;
           if (phase < half_wlen) {
-            // Calculate base parabola (integer math)
-            int32_t base = (4 * phase * (half_wlen - phase)) / half_wlen;
-            // Apply shape factor (one fixed-point multiply)
+            // base = (4 * phase * (half_wlen - phase)) / half_wlen
+            // becomes: base = (phase * (half_wlen - phase) * inv_half_wlen_x4) >> FRAC_BITS
+            int32_t temp = phase * (half_wlen - phase);
+            int32_t base = (temp * inv_half_wlen_x4) >> WvlenFPType::FRACTIONAL_BITS;
             sine_val = (shape_pos.raw() * base) >> WvlenFPType::FRACTIONAL_BITS;
           } else {
-            // Second half: different shape for asymmetry
             size_t p = phase - half_wlen;
-            int32_t base = (4 * p * (half_wlen - p)) / half_wlen;
+            int32_t temp = p * (half_wlen - p);
+            int32_t base = (temp * inv_half_wlen_x4) >> WvlenFPType::FRACTIONAL_BITS;
             sine_val = -((shape_neg.raw() * base) >> WvlenFPType::FRACTIONAL_BITS);
           }
           
           // Convert from [-half_wlen, +half_wlen] to [0, wlen]
-          auto amp = (size_t)(half_wlen + sine_val);
+          auto amp = (half_wlen + sine_val);
           
           int32_t y = amp >= err0 ? 1 : 0;
           err0 = (y ? wlen : 0) - amp + err0;
-          // word |= (y << bit);
           word |= y;
           word <<= 1;
+
           phase++;
         }
         *(bufferA + i) = word;
       }
     }
+
     void ctrl(const Q16_16 v) override {
       shape_pos = WvlenFPType(1.f) - WvlenFPType(0.1f).mulWith(v);
       shape_neg = WvlenFPType(1.f) - WvlenFPType(0.9f).mulWith(v);
