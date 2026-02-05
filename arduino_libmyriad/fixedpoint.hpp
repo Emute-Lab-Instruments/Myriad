@@ -632,6 +632,40 @@ constexpr T clamp(const T& value, const T& min_val, const T& max_val) {
 }
 
 template<FixedPointType T>
+__force_inline constexpr T floor(const T& x) {
+    // Clear fractional bits using shift operations instead of mask
+    // This avoids loading a large constant from flash
+    return T::from_raw((x.value >> T::FRACTIONAL_BITS) << T::FRACTIONAL_BITS);
+}
+
+template<FixedPointType T>
+__force_inline constexpr T ceil(const T& x) {
+    // Extract integer part by shifting
+    typename T::storage_type int_part = x.value >> T::FRACTIONAL_BITS;
+    typename T::storage_type reconstructed = int_part << T::FRACTIONAL_BITS;
+    
+    // Check if there's a fractional part
+    if (x.value == reconstructed) {
+        return x;  // No fractional part, already at ceiling
+    }
+    
+    // Has fractional part: ceil is always floor + 1 (for both positive and negative)
+    // For positive: -2.3 has floor=-3, ceil=-2 (floor + 1)
+    // For negative: 2.3 has floor=2, ceil=3 (floor + 1)
+    return T::from_raw((int_part + 1) << T::FRACTIONAL_BITS);
+}
+
+template<FixedPointType T>
+__force_inline constexpr T round(const T& x) {
+    // Add 0.5 using shift (1 << (FRACTIONAL_BITS - 1))
+    // Then floor by shift round-trip
+    // This avoids loading T::HALF from memory
+    typename T::storage_type half_bit = typename T::storage_type(1) << (T::FRACTIONAL_BITS - 1);
+    typename T::storage_type with_half = x.value + half_bit;
+    return T::from_raw((with_half >> T::FRACTIONAL_BITS) << T::FRACTIONAL_BITS);
+}
+
+template<FixedPointType T>
 inline T sqrt(const T& x) {
     if (x.value <= 0) return T::from_int(0);
     
