@@ -52,34 +52,30 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
-      const int32_t wlen = this->wavelen;
-      const int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
-      const int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+      int32_t wlen = this->wavelen;
+      int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
+      int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+            
+      int32_t local_phase = phase;     // Load once
+      int32_t local_err0 = err0;       // Load once
             
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for (uint32_t bit = 0; bit < 32; ++bit) {
-          phase++;
-          if (phase>=wlen) {
-            phase = 0U;
+          local_phase++;
+          if (local_phase>=wlen) {
+            local_phase = 0U;
           }
-          // const size_t phasemask = -(phase < wlen);  // 0xFFFFFFFF if phase < wavelen, 0 otherwise
-          // phase &= phasemask;
 
-          int32_t amp = phase * pm_int + ((phase * pm_frac) >> 15);        
+          int32_t amp = local_phase * pm_int + ((local_phase * pm_frac) >> 15);        
 
-          // const int32_t mask = -(amp < wlen);  // 0xFFFFFFFF if amp < wavelen, 0 otherwise
-          // amp &= mask;
           if (amp >= wlen) {
             amp = 0;
           }
-          // uint32_t y = -(amp >= err0);
-          // err0 = (y ? wlen : 0) - amp + err0;
 
-          // word |= (y << bit);
-          int32_t y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wlen : 0) - amp + err0;
-          // word |= (y << bit);
+          int32_t y = amp >= local_err0 ? 1 : 0;
+          local_err0 = (y ? wlen : 0) - amp + local_err0;
+
           word |= y;
           word <<= 1;
         } 
@@ -88,11 +84,14 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
       }
 
+      phase = local_phase;   // Store once at end
+      err0 = local_err0;     // Store once at end      
+
     }
 
     void ctrl(const Q16_16 v) override {
       using fptype = Fixed<17,15>;
-      fptype newPhaseMul = fptype(2) + (fptype(40).mulWith(v));
+      fptype newPhaseMul = fptype(5) + (fptype(40).mulWith(v));
       phaseMul = newPhaseMul.raw();
     }
   
