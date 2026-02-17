@@ -822,6 +822,170 @@ private:
   long randMin, randMax, randBaseMin, randRange, randBaseMax;
 };
 
+//interesting, but flawed because oscs need to be at different freqs
+class additivePulseOscillatorModel : public virtual oscillatorModel {
+public:
+    additivePulseOscillatorModel() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        updateBufferInSyncWithDMA = true;
+        recalcWidths();
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+
+        if (wlen != cachedWlen) {
+            cachedWlen = wlen;
+            recalcWidths();
+        }
+
+        int32_t lPhase = phase;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+                if (lPhase >= wlen) lPhase = 0;
+
+                int32_t w = widths[bit & (N_LAYERS - 1)];
+                word |= (lPhase < w) ? 1 : 0;
+                word <<= 1;
+                lPhase++;
+            }
+            *(bufferA + i) = word;
+        }
+
+        phase = lPhase;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        // Convert to 0..1000 integer range 
+        spreadPer1000 = (v * Q16_16(1000)).to_int();
+        if (spreadPer1000 > 1000) spreadPer1000 = 1000;
+        recalcWidths();
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "add1";
+    }
+
+private:
+    void recalcWidths() {
+        const int32_t wlen = this->wavelen;
+        const int32_t hw = wlen >> 1;
+        if (hw < 1) {
+            for (int32_t i = 0; i < N_LAYERS; i++) widths[i] = 1;
+            return;
+        }
+
+        int32_t maxSpread = hw - 1;
+        int32_t spread = (maxSpread * spreadPer1000) / 1000;
+        int32_t step = N_LAYERS > 1 ? (spread * 2) / (N_LAYERS - 1) : 0;
+
+        for (int32_t i = 0; i < N_LAYERS; i++) {
+            widths[i] = (hw - spread) + step * i;
+            if (widths[i] < 1) widths[i] = 1;
+            if (widths[i] >= wlen) widths[i] = wlen - 1;
+        }
+    }
+
+    int32_t spreadPer1000 = 0;
+    
+    static constexpr int32_t N_LAYERS = 8;
+
+    int32_t phase = 0;
+    int32_t widths[N_LAYERS] = {};
+    int32_t cachedWlen = 0;
+    WvlenFPType lastV = WvlenFPType(0);
+};
+
+//weirdly this works sometimes
+class probOscillatorModel : public virtual oscillatorModel {
+public:
+    probOscillatorModel() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        updateBufferInSyncWithDMA = true;
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+        const int32_t hw = wlen >> 1;
+        int32_t lPhase = phase;
+        uint32_t lLfsr = lfsr;
+        int32_t lP1 = prev1;
+        int32_t lP2 = prev2;
+        int32_t lP3 = prev3;
+        int32_t lP4 = prev4;
+        const int32_t lShift = ditherShift;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+                if (lPhase >= wlen) lPhase = 0;
+
+                lLfsr ^= lLfsr << 13;
+                lLfsr ^= lLfsr >> 17;
+                lLfsr ^= lLfsr << 5;
+
+                // Fourth-order highpass: +24dB/oct
+                int32_t white = lLfsr >> 16;
+                int32_t hp1 = white - lP1;  lP1 = white;
+                int32_t hp2 = hp1 - lP2;    lP2 = hp1;
+                int32_t hp3 = hp2 - lP3;    lP3 = hp2;
+                int32_t hp4 = hp3 - lP4;    lP4 = hp3;
+
+                int32_t dither = hp4 >> lShift;
+
+                int32_t on = (lPhase + dither) > hw ? 1 : 0;
+
+                word |= on;
+                word <<= 1;
+                lPhase++;
+            }
+            *(bufferA++) = word;
+        }
+
+        phase = lPhase;
+        lfsr = lLfsr;
+        prev1 = lP1;
+        prev2 = lP2;
+        prev3 = lP3;
+        prev4 = lP4;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        int32_t log2wl = 31 - __builtin_clz(this->wavelen);
+        int32_t base = 19 - log2wl;  // bumped up — hp4 has wider range
+        int32_t adjust = (v * Q16_16(4)).to_int();
+        ditherShift = base - adjust;
+        if (ditherShift < 4) ditherShift = 4;
+        if (ditherShift > 16) ditherShift = 16;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "prob";
+    }
+
+private:
+    int32_t phase = 0;
+    uint32_t lfsr = 0xDEADBEEF;
+    int32_t prev1 = 0;
+    int32_t prev2 = 0;
+    int32_t prev3 = 0;
+    int32_t prev4 = 0;
+    int32_t ditherShift = 10;
+};
+
+
 #endif //if 0
 
 #endif // OSCEXPTS_HPP

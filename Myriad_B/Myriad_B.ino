@@ -258,14 +258,7 @@ Q16_16 FAST_MEM metaModWavelenMul6(1);
 Q16_16 FAST_MEM metaModWavelenMul7(1);
 Q16_16 FAST_MEM metaModWavelenMul8(1);
 
-float FAST_MEM currOct3=1;
-float FAST_MEM currOct4=1;
-float FAST_MEM currOct5=1;
-float FAST_MEM currOct6=1;
-float FAST_MEM currOct7=1;
-float FAST_MEM currOct8=1;
-
-size_t FAST_MEM octaveIdx = 0;
+size_t FAST_MEM octaveIdx = 9;
 
 volatile bool FAST_MEM newFrequenciesReady0 = false;
 volatile bool FAST_MEM newFrequenciesReady1 = false;
@@ -356,7 +349,7 @@ void startOscBankB() {
   smOsc4_dma_chan_bit = 1u << smOsc4_dma_chan;
   smOsc4.go();
 
-  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, modelClockDiv, currOscModels1[2]->loopLength, DMA_IRQ_1), DMACH_CORE1_OSC2;
+  smOsc5_dma_chan = smOsc5.init(pio1, 2, OSC6_PIN, programOffset, baseConfig, nextTimingBuffer5, dma_irh1, modelClockDiv, currOscModels1[2]->loopLength, DMA_IRQ_1, DMACH_CORE1_OSC2);
   smOsc5_dma_chan_bit = 1u << smOsc5_dma_chan;
   smOsc5.go();
   oscsRunning1 = true;
@@ -451,7 +444,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     case streamMessaging::messageTypes::OCTSPREAD:
     {
       octaveIdx = msg.value.uintValue;
-      if (octaveIdx > 15) octaveIdx = 15;
+      if (octaveIdx > numOctaveShifts-1) octaveIdx = numOctaveShifts-1;
       currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdx];
       break;
     }

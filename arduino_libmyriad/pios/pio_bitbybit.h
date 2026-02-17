@@ -34,7 +34,7 @@ static inline pio_sm_config bitbybit_program_get_default_config(uint offset) {
     //Enable auto-pull every 32 bits, shift right
     // This eliminates timing variations from manual pull/set
 
-    sm_config_set_out_shift(&c, true, true, 32);
+    sm_config_set_out_shift(&c, false, true, 32);
     return c;
 }
 

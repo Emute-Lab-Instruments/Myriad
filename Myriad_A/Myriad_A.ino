@@ -1719,8 +1719,9 @@ void __not_in_flash_func(loop)() {
       //   spin_unlock(adcSpinlock, save);
       // }
       // display.setCalibADCValues(adcAccumulator0, adcAccumulator1, adcAccumulator2, adcAccumulator3);
-      display.setCalibADCValues(0,0,0,0);
-      // display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+      // display.setCalibADCValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
+      display.setCalibWavelen0(new_wavelen0_fixed.to_int());
+      display.setCalibADCFiltValues(controlValues[0], controlValues[1], controlValues[2], controlValues[3]);
       // display.setCalibADCMinMaxValues(CalibrationSettings::adcMins, CalibrationSettings::adcMaxs);
     }
     // else if (controlMode == CONTROLMODES::CALIBRATEPITCHMODE)

@@ -62,14 +62,15 @@ public:
   };
 
   struct CalibrationScreenStates {
-    size_t adc0,adc1,adc2,adc3;
-    size_t adcMin0,adcMin1,adcMin2,adcMin3;
-    size_t adcMax0,adcMax1,adcMax2,adcMax3;
+    // size_t adc0,adc1,adc2,adc3;
+    // size_t adcMin0,adcMin1,adcMin2,adcMin3;
+    // size_t adcMax0,adcMax1,adcMax2,adcMax3;
     size_t adcfilt0,adcfilt1,adcfilt2,adcfilt3;
     int encDelta[3];
     bool encSw[3];
     std::string calibScreenTitle;
     int heapSize;
+    size_t wavelen0;
   };
 
   struct PitchCalibrationStates {
@@ -400,11 +401,15 @@ public:
     nextState.metaOscVisScreenState.modspeed = newSpeed.to_float();
   }
 
-  void setCalibADCValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
-    nextState.calibrationScreenState.adc0 = adc0;
-    nextState.calibrationScreenState.adc1 = adc1;
-    nextState.calibrationScreenState.adc2 = adc2;
-    nextState.calibrationScreenState.adc3 = adc3;
+  // void setCalibADCValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
+  //   nextState.calibrationScreenState.adc0 = adc0;
+  //   nextState.calibrationScreenState.adc1 = adc1;
+  //   nextState.calibrationScreenState.adc2 = adc2;
+  //   nextState.calibrationScreenState.adc3 = adc3;
+  // }
+
+  void setCalibWavelen0(size_t v) {
+    nextState.calibrationScreenState.wavelen0 = v;
   }
 
   void setCalibADCFiltValues(size_t adc0, size_t adc1, size_t adc2, size_t adc3) {
@@ -414,16 +419,16 @@ public:
     nextState.calibrationScreenState.adcfilt3 = adc3;
   }
 
-  void setCalibADCMinMaxValues(size_t adcMins[4], size_t adcMaxs[4]) {
-    nextState.calibrationScreenState.adcMin0 = adcMins[0];
-    nextState.calibrationScreenState.adcMin1 = adcMins[1];
-    nextState.calibrationScreenState.adcMin2 = adcMins[2];
-    nextState.calibrationScreenState.adcMin3 = adcMins[3];
-    nextState.calibrationScreenState.adcMax0 = adcMaxs[0];
-    nextState.calibrationScreenState.adcMax1 = adcMaxs[1];
-    nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
-    nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
-  }
+  // void setCalibADCMinMaxValues(size_t adcMins[4], size_t adcMaxs[4]) {
+  //   nextState.calibrationScreenState.adcMin0 = adcMins[0];
+  //   nextState.calibrationScreenState.adcMin1 = adcMins[1];
+  //   nextState.calibrationScreenState.adcMin2 = adcMins[2];
+  //   nextState.calibrationScreenState.adcMin3 = adcMins[3];
+  //   nextState.calibrationScreenState.adcMax0 = adcMaxs[0];
+  //   nextState.calibrationScreenState.adcMax1 = adcMaxs[1];
+  //   nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
+  //   nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
+  // }
 
   void setCalibEncoderDelta(int encIdx, int delta) {
     if (encIdx < 3) {
@@ -734,6 +739,18 @@ private:
     int adcy2 = adcy3 - textgap;
     int adcy1 = adcy2 - textgap;
 
+    if (fullRedraw || currState.wavelen0 != nextState.wavelen0) {
+      TFT_eSprite textSprite(&tft);
+      textSprite.createSprite(100, 20);
+      textSprite.setTextFont(2);
+      textSprite.setTextColor(ELI_PINK, ELI_BLUE);
+      textSprite.fillSprite(ELI_BLUE);
+      std::string str=padNumberWithZeros(nextState.wavelen0,0);
+      textSprite.drawString(str.c_str(), 0,0);
+      textSprite.pushSprite(140,120);
+      // tft.setFreeFont(&FreeMono9pt7b);
+      // tft.setTextDatum(TL_DATUM);
+    }
     // if (fullRedraw || currState.adc0 != nextState.adc0) {
     //   tft.setTextColor(ELI_PINK, ELI_BLUE);
     //   tft.setFreeFont(&FreeMono9pt7b);

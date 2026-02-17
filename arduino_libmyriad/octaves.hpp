@@ -20,7 +20,8 @@
 //     {1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f,   1.0f,   2.0f,   2.0f}    // case 15
 // };
 
-static __not_in_flash("octaves") int8_t octaveTableShift[17][3] = {
+static const __not_in_flash("octaves") int8_t numOctaveShifts = 17;
+static __not_in_flash("octaves") int8_t octaveTableShift[numOctaveShifts][3] = {
     {1, 1, 2},   // case 0
     {0, 1, 2},   // case 1
     {0, 1, 1},   // case 2
@@ -59,7 +60,7 @@ static __not_in_flash("octaves") int8_t octaveTableShift[17][3] = {
 // };
 
 // static float __not_in_flash("adc") *currentOctaves = (float *)octaveTable[0];
-static int8_t __not_in_flash("adc") *currentOctaveShifts = (int8_t *)octaveTableShift[0];
+static int8_t __not_in_flash("adc") *currentOctaveShifts = (int8_t *)octaveTableShift[9];
 
 
 

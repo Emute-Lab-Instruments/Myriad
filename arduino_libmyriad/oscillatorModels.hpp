@@ -124,7 +124,6 @@ class triOscillatorModel : public virtual oscillatorModel {
     triOscillatorModel() : oscillatorModel(){
       loopLength=16;
       prog=bitbybit_program;
-      setClockModShift(1);
       if (!triTableGenerated) {
         triTableGenerated=true;
         for(size_t i = 0; i < 1000; ++i) {
@@ -144,49 +143,59 @@ class triOscillatorModel : public virtual oscillatorModel {
     }
 
     inline void fillBuffer(uint32_t* bufferA) {      
-      const size_t wlen = this->wavelen;
+        const int32_t wlen = this->wavelen;
 
-      const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
+        const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
-      const uint32_t rising_int = phaseRisingMul >> qfp;     // 2..9
-      const uint32_t rising_frac = phaseRisingMul & 0x3FFF;  // 14-bit fractional
-      const uint32_t falling_int = phaseFallingMul >> qfp;
-      const uint32_t falling_frac = phaseFallingMul & 0x3FFF;      
+        const uint32_t rising_int = phaseRisingMul >> qfp;
+        const uint32_t rising_frac = phaseRisingMul & 0x3FFF;
 
-      for (size_t i = 0; i < loopLength; ++i) {
-        uint32_t word=0U;
-        for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wlen ? 0 : phase; // wrap around
-          int32_t amp=0;
+        // Compute the ACTUAL peak amplitude using the same math as the rising side
+        const int32_t peakAmp = triPeakPoint * rising_int + 
+                                (((uint32_t)triPeakPoint * rising_frac) >> qfp);
 
-          if (phase <= triPeakPoint) {
-            // amp = ( phase * phaseRisingMul) >> qfp; 
-            amp = phase * rising_int + (((uint32_t)phase * rising_frac) >> qfp);
-          }else{
-            const int32_t delta = phase - triPeakPoint;            
-            const int32_t fallingPhase = delta * falling_int + 
-                                      (((uint32_t)delta * falling_frac) >> qfp);
-            // const int32_t fallingPhase = ((phase - triPeakPoint) * phaseFallingMul) >> qfp; 
-            // fallingPhase = (fallingPhase * phaseFallingMul) >> qfp;
-            amp = wavelen - fallingPhase; 
-          }
+        // Derive falling multiplier from peakAmp so peak and zero-crossing are exact
+        const int32_t fallingSpan = wlen - triPeakPoint;
+        const int32_t derivedFallingMul = (static_cast<int64_t>(peakAmp) << qfp) / fallingSpan;
+        const uint32_t falling_int = derivedFallingMul >> qfp;
+        const uint32_t falling_frac = derivedFallingMul & 0x3FFF;
 
-          int32_t y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wlen : 0) - amp + err0;
+        int32_t local_phase = phase;     // Load once
+        int32_t local_err0 = err0;       // Load once
 
 
-          // word |= (y << bit);
-          word |= y;
-          word <<= 1;
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+                local_phase = local_phase >= wlen ? 0 : local_phase;
+                int32_t amp;
 
-          phase++;
+                if (local_phase <= triPeakPoint) {
+                    amp = local_phase * rising_int + (((uint32_t)local_phase * rising_frac) >> qfp);
+                } else {
+                    const int32_t delta = local_phase - triPeakPoint;            
+                    const int32_t fallingPhase = delta * falling_int + 
+                                                (((uint32_t)delta * falling_frac) >> qfp);
+                    amp = peakAmp - fallingPhase;
+                }
 
+                // Clamp just in case of residual rounding at the very last sample
+                amp = amp < 0 ? 0 : amp;
+
+                int32_t y = amp >= local_err0 ? 1 : 0;
+                local_err0 = (y ? peakAmp : 0) - amp + local_err0;
+
+                word <<= 1;
+                word |= y;
+
+                local_phase++;
+            }
+            *(bufferA + i) = word;
         }
-        *(bufferA + i) = word;
-      }
 
+        phase = local_phase;   // Store once at end
+        err0 = local_err0;     // Store once at end
     }
-
 
     void ctrl(const Q16_16 v) override {
       const size_t index = (v * Q16_16(900)).to_int();  //static_cast<size_t>(v * 900.f + 0.5f);
@@ -240,8 +249,141 @@ class triOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class triOscillator2Model : public virtual oscillatorModel {
+public:
+    triOscillator2Model() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        // setClockModShift(1);
+        updateBufferInSyncWithDMA = true;
+    }
 
-    
+    inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+
+        // Precompute into pending slots (cheap — runs outside tight loop)
+        if (wlen != cachedWlen || ctrlChanged) {
+            cachedWlen = wlen;
+            ctrlChanged = false;
+            recompute(wlen);
+            pendingApply = true;
+        }
+
+        int32_t lAmp = amp;
+        int32_t lPhase = phase;
+        int32_t lErr = err0;
+        int32_t lInc = inc;
+        int32_t lPeak = peakAmp;
+        int32_t lPeakPt = peakPoint;
+        int32_t lRiseInc = risingInc;
+        int32_t lFallInc = fallingInc;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+
+                int32_t y = (lAmp >= lErr) ? 1 : 0;
+                lErr += y * lPeak - lAmp;
+
+                word |= y;
+                word <<= 1;
+
+                lPhase++;
+                lAmp += lInc;
+
+                if (lPhase >= wlen) [[unlikely]] {
+                    lPhase = 0;
+                    lAmp = 0;
+                    
+                    // Apply pending params at safe point
+                    if (pendingApply) [[unlikely]] {
+                        pendingApply = false;
+                        lPeak = pendPeakAmp;
+                        lPeakPt = pendPeakPoint;
+                        lRiseInc = pendRisingInc;
+                        lFallInc = pendFallingInc;
+                        // Clamp error to new range
+                        if (lErr > lPeak) lErr = lPeak;
+                        if (lErr < 0) lErr = 0;
+                    }
+                    
+                    lInc = lRiseInc;
+                } else if (lPhase == lPeakPt) [[unlikely]] {
+                    lAmp = lPeak;
+                    lInc = -lFallInc;
+                }
+            }
+            *(bufferA + i) = word;
+        }
+
+        // Store back
+        amp = lAmp;
+        phase = lPhase;
+        err0 = lErr;
+        inc = lInc;
+        peakAmp = lPeak;
+        peakPoint = lPeakPt;
+        risingInc = lRiseInc;
+        fallingInc = lFallInc;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        using fptype = Fixed<18, 14>;
+        gradFP = (fptype(2) + fptype(7).mulWith(v)).raw();
+        ctrlChanged = true;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "tri";
+    }
+
+private:
+    void recompute(int32_t wlen) {
+        int32_t pp = (wlen << QFP) / gradFP;
+        if (pp < 2) pp = 2;
+        if (pp >= wlen) pp = wlen - 1;
+        const int32_t fl = wlen - pp;
+
+        int32_t ri = AMP_SCALE / pp;
+        int32_t pa = ri * pp;
+        int32_t fi = pa / fl;
+
+        pendPeakPoint = pp;
+        pendPeakAmp = pa;
+        pendRisingInc = ri;
+        pendFallingInc = fi;
+    }
+
+    // Live state
+    int32_t phase = 0;
+    int32_t amp = 0;
+    int32_t err0 = 0;
+    int32_t inc = 0;
+
+    // Active params
+    int32_t peakPoint = 1;
+    int32_t peakAmp = 0;
+    int32_t risingInc = 0;
+    int32_t fallingInc = 0;
+
+    // Pending params (applied at wrap)
+    int32_t pendPeakPoint = 1;
+    int32_t pendPeakAmp = 0;
+    int32_t pendRisingInc = 0;
+    int32_t pendFallingInc = 0;
+    bool pendingApply = true;
+
+    int32_t gradFP = 2 << 14;
+    int32_t cachedWlen = 0;
+    bool ctrlChanged = true;
+
+    int32_t QFP = 14;
+    int32_t AMP_SCALE = 1 << 24;
+}; 
 
   
 class noiseOscillatorModelSD : public virtual oscillatorModel {
@@ -264,9 +406,9 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
             counter = 1 + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();                     
           }
           counter--;
-          // word |= (on << bit);
-          word |= on;
+
           word <<= 1;
+          word |= on;
         }
         
         *(bufferA + i) = word;
@@ -299,7 +441,7 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
     triSDVar1OscillatorModel() : oscillatorModel(){
       loopLength=16;
-      setClockModShift(1);
+      // setClockModShift(1);
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
     }
@@ -317,8 +459,6 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
                 phase << 1 
                 : 
                 wlen - ((phase-midphase) << 1); //tri wave
-          // size_t amp = phase; // saw
-          // size_t amp = phase < midphase  ? 0 : wavelen; // pulse
 
           const bool y = amp >= err0 ? 1 : 0;
           err0 = (y ? wlen : 0) - amp + err0;
@@ -327,8 +467,8 @@ class triSDVar1OscillatorModel : public virtual oscillatorModel {
 
 
           // word |= (y << bit);
-          word |= y;
           word <<= 1;
+          word |= y;
 
           phase++;
         }
@@ -398,7 +538,8 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
           // thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
           thr = ((err0 * alpha) + (thr)) >> qfp;
 
-          word |= (y << bit);
+          word <<= 1;
+          word |= y;
 
           phase++;
         }
@@ -505,42 +646,85 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
       setClockModShift(1);
     }
 
-    inline void fillBuffer(uint32_t* bufferA) {
-      const size_t wlen = this->wavelen;
-      for (size_t i = 0; i < loopLength; ++i) {
-        size_t word=0U;
-        for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wlen ? 0 : phase; // wrap around
+    // inline void fillBuffer(uint32_t* bufferA) {
+    //   const size_t wlen = this->wavelen;
+    //   for (size_t i = 0; i < loopLength; ++i) {
+    //     size_t word=0U;
+    //     for(size_t bit=0U; bit < 32U; bit++) {
+    //       phase = phase >= wlen ? 0 : phase; // wrap around
 
-          // size_t amp = phase;
-          size_t amp =  phase > pulselen ? 0 : wlen; 
+    //       // size_t amp = phase;
+    //       size_t amp =  phase > pulselen ? 0 : wlen; 
 
 
-          int32_t y = amp >= err0 ? 1 : 0;
-          err0 = (y ? wlen : 0) - amp + err0;
+    //       int32_t y = amp >= err0 ? 1 : 0;
+    //       err0 = (y ? wlen : 0) - amp + err0;
 
-          // word |= (y << bit);
-          word |= y;
-          word <<= 1;
+    //       word |= y;
+    //       word <<= 1;
 
-          phase++;
+    //       phase++;
+    //     }
+    //     *(bufferA + i) = word;
+
+    //   }
+    // }
+
+inline void fillBuffer(uint32_t* bufferA) {
+    const int32_t wlen = this->wavelen;
+    
+    int32_t lPhase = phase;
+    int32_t lErr = err0;
+    int32_t lLp = lp;
+
+    for (size_t i = 0; i < loopLength; ++i) {
+        uint32_t word = 0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+            lPhase = lPhase >= wlen ? 0 : lPhase;
+
+            // Raw pulse — just 0 or wlen
+            int32_t amp = lPhase < pulselen ? wlen : 0;
+
+            // One-pole lowpass: lp += (amp - lp) >> k
+            lLp += (amp - lLp) >> lpShift;
+
+            // Sigma-delta on filtered signal
+            int32_t y = lLp >= lErr ? 1 : 0;
+            lErr += y * wlen - lLp;
+
+            word |= y;
+            word <<= 1;
+            lPhase++;
         }
         *(bufferA + i) = word;
-
-      }
     }
 
+    phase = lPhase;
+    err0 = lErr;
+    lp = lLp;
+}
 
-    void ctrl(const Q16_16 v) override {
-      using fptype = Fixed<1,30>;
-      fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
-      pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
-      pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
-      // pw= std::max((1.f-v) * 0.5f, 0.01f);
-      // pulselen = this->wavelen * pw;
-    }
+  // void ctrl(const Q16_16 v) override {
+  //     using fptype = Fixed<1,30>;
+  //     fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
+  //     pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
+  //     pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
+  //     // pw= std::max((1.f-v) * 0.5f, 0.01f);
+  //     // pulselen = this->wavelen * pw;
+  //   }
       
-  
+    void ctrl(const Q16_16 v) override {
+        using fptype = Fixed<1,30>;
+        fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
+        pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
+        pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
+        
+        // More smoothing at high frequencies
+        if (wavelen < 100) lpShift = 2;       // ~100kHz cutoff
+        else if (wavelen < 500) lpShift = 3;  // ~50kHz
+        else lpShift = 4;                      // ~25kHz
+    }
+
     pio_sm_config getBaseConfig(uint offset) {
       return bitbybit_program_get_default_config(offset);
     }
@@ -553,20 +737,197 @@ class pulseSDOscillatorModel : public virtual oscillatorModel {
   private:
     size_t phase=0;
     bool y=0;
-    int err0=0;
+    int32_t err0=0;
     int pulselen=10000;
+    int32_t amp=0;
 
+    int32_t lp = 0;
+    int32_t lpShift = 3;  // cutoff ~= bitrate / (2π × 2^k)    
+
+
+};
+
+
+// class squareSineSDOscillatorModel : public virtual oscillatorModel {
+// public:
+//     squareSineSDOscillatorModel() : oscillatorModel() {
+//         loopLength = 16;
+//         prog = bitbybit_program;
+//         updateBufferInSyncWithDMA = true;
+//     }
+
+//     inline void fillBuffer(uint32_t* bufferA) {
+//         const int32_t wlen = this->wavelen;
+        
+//         int32_t lPhase = phase;
+//         int32_t lErr = err0;
+//         int32_t lLp1 = lp1;
+//         int32_t lLp2 = lp2;
+//         int32_t lLp3 = lp3;
+//         const int32_t k = lpShift;
+//         const int32_t hw = halfWlen;
+
+//         for (size_t i = 0; i < loopLength; ++i) {
+//             uint32_t word = 0U;
+//             for (size_t bit = 0U; bit < 32U; bit++) {
+//                 lPhase = lPhase >= wlen ? 0 : lPhase;
+
+//                 int32_t amp = lPhase < hw ? AMP : 0;
+
+//                 lLp1 += (amp - lLp1) >> k;
+//                 lLp2 += (lLp1 - lLp2) >> k;
+//                 lLp3 += (lLp2 - lLp3) >> k;
+
+//                 int32_t y = lLp3 >= lErr ? 1 : 0;
+//                 lErr += y * AMP - lLp3;
+
+//                 word |= y;
+//                 word <<= 1;
+//                 lPhase++;
+//             }
+//             *(bufferA + i) = word;
+//         }
+
+//         phase = lPhase;
+//         err0 = lErr;
+//         lp1 = lLp1;
+//         lp2 = lLp2;
+//         lp3 = lLp3;
+//     }
+
+//     void ctrl(const Q16_16 v) override {
+//         halfWlen = this->wavelen >> 1;
+
+//         int32_t log2wl = 31 - __builtin_clz(this->wavelen);  
+
+//         int32_t offset = 3 - (v * Q16_16(5)).to_int();
+//         lpShift = log2wl + offset;
+
+//         if (lpShift < 1) lpShift = 1;
+//         if (lpShift > 12) lpShift = 12;
+//     }
+
+//     pio_sm_config getBaseConfig(uint offset) {
+//         return bitbybit_program_get_default_config(offset);
+//     }
+
+//     String getIdentifier() override {
+//         return "sinesd";
+//     }
+
+// private:
+//     static constexpr int32_t AMP = 1 << 20;  // ~1M levels, constant across all pitches
+
+//     int32_t phase = 0;
+//     int32_t err0 = 0;
+//     int32_t lp1 = 0;
+//     int32_t lp2 = 0;
+//     int32_t lp3 = 0;
+//     int32_t lpShift = 6;
+//     int32_t halfWlen = 1;
+// };
+
+class squareSineSDOscillatorModel : public virtual oscillatorModel {
+public:
+    squareSineSDOscillatorModel() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        updateBufferInSyncWithDMA = true;
+    }
+
+inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+
+        if (wlen != cachedWlen) {
+            cachedWlen = wlen;
+            // Target cutoff ≈ 3 × fundamental
+            // cutoff ≈ 2.5MHz / (2π × 2^k)
+            // 2^k ≈ wlen / (3 × 2π) ≈ wlen / 19
+            // k ≈ log2(wlen) - 4
+            int32_t log2wl = 31 - __builtin_clz(wlen);
+            lpShift = log2wl - 4;
+            if (lpShift < 1) lpShift = 1;
+            if (lpShift > 12) lpShift = 12;
+        }
+        
+        int32_t lPhase = phase;
+        int32_t lErr = err0;
+        int32_t lLp1 = lp1;
+        int32_t lLp2 = lp2;
+        int32_t lLp3 = lp3;
+        int32_t lLp4 = lp4;
+        const int32_t k = lpShift;
+        const int32_t pw = pulselen;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+                lPhase = lPhase >= wlen ? 0 : lPhase;
+
+                int32_t amp = lPhase < pw ? AMP : 0;
+
+                lLp1 += (amp - lLp1) >> k;
+                lLp2 += (lLp1 - lLp2) >> k;
+                lLp3 += (lLp2 - lLp3) >> k;
+                lLp4 += (lLp3 - lLp4) >> k;
+
+                int32_t y = lLp4 >= lErr ? 1 : 0;
+                lErr += y * AMP - lLp4;
+
+                word |= y;
+                word <<= 1;
+                lPhase++;
+            }
+            *(bufferA + i) = word;
+        }
+
+        phase = lPhase;
+        err0 = lErr;
+        lp1 = lLp1;
+        lp2 = lLp2;
+        lp3 = lLp3;
+        lp4 = lLp4;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        using fptype = Fixed<1, 30>;
+        fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
+        pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
+        pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
+        if (pulselen < 1) pulselen = 1;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "sinesd";
+    }
+
+private:
+    static constexpr int32_t AMP = 1 << 20;
+
+    int32_t phase = 0;
+    int32_t err0 = 0;
+    int32_t lp1 = 0;
+    int32_t lp2 = 0;
+    int32_t lp3 = 0;
+    int32_t lp4 = 0;
+    int32_t lpShift = 6;
+    int32_t pulselen = 1;
+    int32_t cachedWlen = 0;
 };
 
 class expPulseSDOscillatorModel : public virtual oscillatorModel {
   private:
-    size_t loopLengthBits=0;
+    // size_t loopLengthBits=0;
   public:
 
 
     expPulseSDOscillatorModel() : oscillatorModel(){
       loopLength=8;
-      loopLengthBits = 1 << __builtin_clz(loopLength);
+      // loopLengthBits = 1 << __builtin_clz(loopLength);
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
       setClockModShift(1);
@@ -583,8 +944,8 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       const size_t wlen = this->wavelen;
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
-        size_t loopbits = 1;
-        do {
+        // size_t loopbits = 1;
+        for (size_t bit = 0U; bit < 32U; bit++) {
           // phase = phase >= wlen ? 0 : phase; // wrap around
           uint32_t wrap = (phase < wlen);  // 1 if in range, 0 if needs wrap
           phase *= wrap;  // Becomes 0 if phase >= wlen
@@ -607,12 +968,14 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
           }
           counterFP += Q16_16(1);
 
-          word |= loopbits & -(int32_t)(b1);  // Set bit if either is true
+          // word |= loopbits & -(int32_t)(b1);  // Set bit if either is true
+          word <<= 1;
+          word |= b1;  
 
           phase++;
 
-          loopbits <<= 1;
-        } while (loopbits);
+          // loopbits <<= 1;
+        }
         *(bufferA ++) = word;
 
       }
@@ -642,7 +1005,8 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
   private:
     size_t phase=0;
     bool y=0;
-    int err0=0;
+    int32_t err0=0;
+
 
     int pulselen=10000;
 
@@ -656,38 +1020,62 @@ class pulsePMSDOscillatorModel : public virtual oscillatorModel {
     WvlenFPType modphase = WvlenFPType(0);
     WvlenFPType phaseIncLow=WvlenFPType(1);
     WvlenFPType phaseIncHigh=WvlenFPType(1);
-
+    // int32_t err0=0;
 
   public:
 
 
     pulsePMSDOscillatorModel() : oscillatorModel(){
-      loopLength=8;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      setClockModShift(1);
+      // setClockModShift(1);
     }
 
 
     inline void fillBuffer(uint32_t* bufferA) {
       const WvlenFPType wlen = WvlenFPType(this->wavelen);
+      // const int32_t local_wlen = this->wavelen;
       const WvlenFPType wlenHalf = WvlenFPType(this->wavelen>>1);
-      const WvlenFPType modwlen = WvlenFPType(2.9f) * wlen;
+      const WvlenFPType modwlen = WvlenFPType(3.9f) * wlen;
       const WvlenFPType modwlenPW = modwlen.div_pow2(1);
+      static WvlenFPType zerofp = WvlenFPType(0);
+      static WvlenFPType onefp = WvlenFPType(1);
+      WvlenFPType phaseIncMul = WvlenFPType(1.0f);
+      WvlenFPType phaseIncMulInc = WvlenFPType(0.1f);
+
+      // int32_t SD_POSITIVE = 1 << 14;
+      // int32_t SD_NEGATIVE = -SD_POSITIVE;
+  
+
+      // int32_t local_err0 = err0;
 
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
-        size_t loopbits = 1;
-        do {
-          //carrier
-          phase = (phase < wlen) ? phase : WvlenFPType(0);  
+        for (size_t bit = 0U; bit < 32U; bit++) {
 
-          size_t on = phase > wlenHalf ?  0xFFFFFFFF : 0;
-          word |= loopbits & on;  // Set bit if either is true
+          phase = (phase < wlen) ? phase : zerofp;  
+
+          int32_t on = phase > wlenHalf ?  1 : 0;
+          // int32_t desired = (phase > wlenHalf) ? SD_POSITIVE : SD_NEGATIVE;
+          
+          // First-order sigma-delta: integrate error, threshold, feedback
+          // local_err0 += desired;
+          // uint32_t on;
+          // if (local_err0 > 0) {
+          //   on = 1;
+          //   local_err0 -= SD_POSITIVE;  // feedback
+          // } else {
+          //   on = 0;
+          //   local_err0 -= SD_NEGATIVE;  // feedback (adds since NEGATIVE is negative)
+          // }
+
+          word <<= 1;
+          word |= on;
 
            
           //modulator
-          modphase = (modphase < modwlen) ? modphase : WvlenFPType(0);  
+          modphase = (modphase < modwlen) ? modphase : zerofp;  
           WvlenFPType phaseInc = modphase > modwlenPW ?  phaseIncLow : phaseIncHigh;
 
 
@@ -695,18 +1083,19 @@ class pulsePMSDOscillatorModel : public virtual oscillatorModel {
           phase = phase + phaseInc;
 
           //modulation phase
-          modphase += WvlenFPType(1);
+          modphase += onefp;
+          
 
-          loopbits <<= 1;
-        } while (loopbits);
+        }
 
         *(bufferA ++) = word;
       }
+      // err0 = local_err0;
     }
 
 
     void ctrl(const Q16_16 v) override {
-      WvlenFPType modIdx = WvlenFPType(0.6f).mulWith(v);
+      WvlenFPType modIdx = WvlenFPType(0.05f) + WvlenFPType(0.55f).mulWith(v);
       phaseIncLow = WvlenFPType(1) - modIdx;
       phaseIncHigh = WvlenFPType(1) + modIdx;
     }
@@ -731,7 +1120,7 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
       loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      setClockModShift(1);
+      // setClockModShift(0);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
@@ -803,6 +1192,219 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
 };
 
 
+class pulsePWOscillatorModel : public virtual oscillatorModel {
+  private:
+
+    WvlenFPType phase = WvlenFPType(0);
+    WvlenFPType pulseWidth = WvlenFPType(0.5);
+
+    int32_t transitionCounter=0;
+    int32_t lastOn=0;
+
+  public:
+
+
+    pulsePWOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      // setClockModShift(1);
+    }
+
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const WvlenFPType wlen = WvlenFPType(this->wavelen);
+      const WvlenFPType transitionPoint = wlen * pulseWidth;
+      const int32_t transitionCount = wlen < WvlenFPType(1250) ?  wlen.to_int() >> 4 : 0; // Number of samples to randomize after a transition, adjust as needed
+      // const WvlenFPType wlenHalf = WvlenFPType(this->wavelen>>1);
+      static WvlenFPType zerofp = WvlenFPType(0);
+      static WvlenFPType onefp = WvlenFPType(1);
+
+
+
+      WvlenFPType lPhase = phase;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+
+          //wrap phase
+          lPhase = (lPhase < wlen) ? lPhase : zerofp;  
+
+
+          int32_t on = lPhase < transitionPoint ?  1 : 0;
+          // if (on != lastOn) {
+          //   transitionCounter = transitionCount;
+          // }
+          // lastOn = on;
+          // if (transitionCounter) {
+          //   // on = (lPhase.to_int() & 123) & 1; //invert output for a short time after transitions 
+          //   on = rand() & 1; 
+          //   transitionCounter--;
+          // }
+          word <<= 1;
+          word |= on;
+
+          //carrier phase 
+          lPhase = lPhase + onefp;
+        }
+
+        *(bufferA ++) = word;
+      }
+      phase = lPhase;
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      pulseWidth = WvlenFPType(0.5) - (WvlenFPType(v) * WvlenFPType(0.38));
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "slide";
+    }
+
+  
+
+};
+
+
+class expPulse2SDOscillatorModel : public virtual oscillatorModel {
+  private:
+    size_t loopLengthBits=0;
+  public:
+
+
+    expPulse2SDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
+    }
+
+    Fixed<16,16> counterFP = Q16_16(0);
+    Fixed<16,16> targetIncFP = Q16_16(1000);
+    Fixed<16,16> targetIncFPOrg = Q16_16(1000);
+    Fixed<16,16> targetFP= Q16_16(1000);
+    Fixed<16,16> targIncMul = Q16_16(1.1f);
+
+    Fixed<16,16> counterFPPhaseInc = Q16_16(1);
+
+    Fixed<16,16> counterModFP = Q16_16(0);
+    Fixed<16,16> targetModFP= Q16_16(1000);
+    Fixed<16,16> targetModIncFPOrg= Q16_16(1000);
+    Fixed<16,16> targetModIncFP = Q16_16(1000);
+    Fixed<16,16> targModIncMul = Q16_16(1.1f);
+    bool b1=0;
+    bool b2=0;
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const size_t modwlen = (Q16_16(wlen) * Q16_16(0.5f)).to_int(); // Modulator is much slower, creates pulse width modulation
+      // const size_t modwlenhalf =modwlen >> 1;
+      const Q16_16 onefp = Q16_16(1);
+      const Q16_16 zerofp = Q16_16(0);
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        size_t loopbits = 1;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+          // uint32_t wrap = (phase < wlen);  // 1 if in range, 0 if needs wrap
+          // phase *= wrap;  // Becomes 0 if phase >= wlen
+          phase = phase >= wlen ? 0 : phase; // wrap around
+          modphase = modphase >= modwlen ? 0 : modphase; // wrap around
+
+          [[unlikely]]
+          if (phase == 0) {
+            counterFP=zerofp;
+            targetFP = targetIncFPOrg;
+            targetIncFP = targetIncFPOrg;
+            b1=0;          
+          }
+
+          [[unlikely]]
+          if (modphase == 0) {
+            b2=0;          
+            counterModFP=zerofp;
+            targetModFP = targetModIncFPOrg;
+            targetModIncFP = targetModIncFPOrg;
+          }
+
+          [[unlikely]]
+          if (counterFP >= targetFP) {
+            b1 = !b1;
+            counterFP = zerofp;
+            targetFP += targetIncFP;
+            targetIncFP *= targIncMul;
+          }
+
+          [[unlikely]]
+          if (counterModFP >= targetModFP) {
+            b2 = !b2;
+            if (b2) {
+              counterFPPhaseInc = Q16_16(1.9); // When b2 is high, speed up the phase increment for a few cycles, creating a wider pulse
+            } else {
+              counterFPPhaseInc = Q16_16(0.1); // Normal speed
+            }
+            counterModFP = zerofp;
+            targetModFP += targetModIncFP;
+            targetModIncFP *= targModIncMul;
+          }
+
+
+          counterFP += counterFPPhaseInc;
+          counterModFP += onefp;
+
+          word <<= 1;
+          word |= b1;  
+          phase++;
+
+        }
+        *(bufferA ++) = word;
+
+      }
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      using fptype = Fixed<16,16>;
+      fptype vinv = fptype(1) - v;
+
+      fptype targmax = fptype(1/32.f).mulWith(WvlenFPType(this->wavelen));
+      targetIncFPOrg = ((vinv * targmax) + fptype(10));
+      targIncMul = (vinv * Q16_16(0.4f)) + Q16_16(1);
+
+      fptype targModmax = fptype(1/2.f).mulWith(WvlenFPType(this->wavelen));
+      targetModIncFPOrg = ((vinv * targModmax) + fptype(10));
+      targModIncMul = (vinv * Q16_16(0.1f)) + Q16_16(1);
+      
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "exp1";
+    }
+
+  
+  private:
+    size_t phase=0;
+    size_t modphase=0;
+    // bool y=0;
+    // int32_t err0=0;
+
+
+    int pulselen=10000;
+
+};
+
+
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
 
@@ -815,23 +1417,28 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   
   
 
-  []() { return std::make_shared<sawOscillatorModel>(); } 
+  // []() { return std::make_shared<sawOscillatorModel>(); } 
+  // ,
+  []() { return std::make_shared<expPulse2SDOscillatorModel>(); } 
   ,
   []() { return std::make_shared<expPulseSDOscillatorModel>(); } 
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
   []() { return std::make_shared<parasineSDOscillatorModel>(); } 
+  // ,
+  // []() { return std::make_shared<squareSineSDOscillatorModel>(); } 
+  
   ,
   //squares
-  []() { return std::make_shared<pulseSDOscillatorModel>(); }
+  []() { return std::make_shared<pulsePWOscillatorModel>(); }
   ,
   []() { return std::make_shared<pulsePMSDOscillatorModel>(); } 
   ,
 
 
   // //tris
-  []() { return std::make_shared<triOscillatorModel>(); } //var tri, sounds great
+  []() { return std::make_shared<triOscillatorModel>(); } 
   ,
   []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
   ,
