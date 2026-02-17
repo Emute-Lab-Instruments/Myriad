@@ -12,7 +12,7 @@
 #include "SLIP.h"
 #include "oscillatorModels.hpp"
 #include "bitstreams.hpp"
-// #include "myriad_setup.h"
+
 #include <memory>
 #include "octaves.hpp"
 #include "streamMessaging.hpp"
@@ -131,7 +131,6 @@ uint32_t CORE1_FAST_MEM smOsc5_dma_chan_bit;
 bool FAST_MEM oscsRunning0 = false;
 bool FAST_MEM oscsRunning1 = false;
 
-// float ctrlVal = 0.f;
 Fixed<16,16> FAST_MEM epsilon_fixed(0);
 
 
@@ -462,7 +461,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     case streamMessaging::messageTypes::BANK0:
     {
       size_t requestedBank = msg.value.uintValue;
-
+      Serial.printf("Requested Bank0 change to %d\n", requestedBank);
       // Skip if already at this bank (prevents redundant changes)
       if (requestedBank == currentBank0Type) {
         break;
@@ -507,6 +506,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     break;
     case streamMessaging::messageTypes::BANK1:
     {
+      Serial.printf("Requested Bank1 change to %d\n", msg.value.uintValue);
       uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
       requestedBank1 = msg.value.uintValue;
       spin_unlock(calcOscsSpinlock1, save);
@@ -534,40 +534,13 @@ void setup() {
 
 
   Serial.begin();
-  // while (!Serial) {
-  //   ; // wait for serial port to connect. Needed for native USB
-  // }
-  // pinMode(13, INPUT_PULLUP);
-
-  // Serial1.setRX(13); //uart 1
-  // Serial1.setTX(12);
-  // Serial1.setFIFOSize(16); //reduce latency
-  // Serial1.begin(SERIAL_CX_BAUD);
-
-    // while(!Serial) {}
-    pinMode(22,OUTPUT);
-    streamMessaging::setupRX(pio0, 22, 12, DMACH_SERIAL_RX_A, DMACH_SERIAL_RX_B);
-
-
-
-  // queue_init(&coreCommsQueue, sizeof(queueItem), 3);
-#ifdef RUNCORE0_OSCS
-  // delay(oscStartDelay);
-  // while(!oscsReadyToStart) {
-  //   ;
-  // }
-  // Serial.println("Start");
-  // currOscModels0[0]->ctrl(ctrlVal);
-  // currOscModels0[1]->ctrl(ctrlVal);
-  // currOscModels0[2]->ctrl(ctrlVal);
-
-  // startOscBankA();
-  // Serial.println("Started");
-#endif
+  // while(!Serial) {}
+  pinMode(22,OUTPUT);
+  streamMessaging::setupRX(pio0, 22, 12, DMACH_SERIAL_RX_A, DMACH_SERIAL_RX_B);
 }
 
 size_t counter=0;
-const size_t checkevery=10000;
+size_t checkevery=10000;
 size_t errorCount=0;
 size_t totalMessagesReceived=0;
 
@@ -627,11 +600,11 @@ void __not_in_flash_func(loop)() {
     // spin_unlock(calcOscsSpinlock0, save);
   }
 
-  // auto now = millis();
-  // if (now - serialts > 500) {
-  //   Serial.print(".");
-  //   serialts=now;
-  // }
+  auto now = millis();
+  if (now - serialts > 500) {
+    Serial.print(".");
+    serialts=now;
+  }
   // delay(1);
   // __wfi();
 }

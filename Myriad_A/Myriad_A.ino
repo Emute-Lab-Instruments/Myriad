@@ -742,6 +742,7 @@ inline bool __not_in_flash_func(oscModeChangeMonitor)() {
     if (oscModeBankChangeTS[bank] > 0) {
       size_t elapsed = millis() - oscModeBankChangeTS[bank];
       if (elapsed > 80) {
+        // Serial.printf("bank %d change: %d\n", bank, oscBankTypes[bank]);
         
         oscModeBankChangeTS[bank] = 0;
 
