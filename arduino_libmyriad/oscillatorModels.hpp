@@ -1239,72 +1239,57 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true;
       setClockModShift(1);
-    }
+      // // Build table once - parabolic sine, 0..2048 range
+      // for (int i = 0; i < 256; i++) {
+      //   int p = i < 128 ? i : 255 - i;          // triangle 0→127→0
+      //   int val = (p * (128 - p)) >> 4;          // parabola, peak = 256
+      //   sine_table[i] = (i < 128) ? 1024 + val : 1024 - val;
+      // }
+        for (int i = 0; i < 256; i++) {
+            float s = sinf(i * (2.0f * 3.14159265f / 256.0f));
+            sine_table[i] = static_cast<uint16_t>(1024.0f + s * 1024.0f + 0.5f);
+        }
+      }
 
     inline void fillBuffer(uint32_t* bufferA) {
-      const int32_t wlen = static_cast<int32_t>(this->wavelen);
-      const int32_t half_wlen = wlen >> 1;
+      // 16.16 fixed-point phase increment
+      // At wlen=100: inc=167772. At wlen=600000: inc=27. Never zero.
+      const uint32_t phase_inc = (256U << 16) / static_cast<uint32_t>(this->wavelen);
       
-      // Rescale phase and err0 when wavelength changes
-      if (wlen != prev_wlen && prev_wlen > 0) {
-          phase = static_cast<int32_t>(
-              (static_cast<uint32_t>(phase) * static_cast<uint32_t>(wlen)) 
-              / static_cast<uint32_t>(prev_wlen)
-          );
-          err0 = static_cast<int32_t>(
-              (static_cast<int64_t>(err0) * wlen) / prev_wlen
-          );
-      }
-      prev_wlen = wlen;
-
-      static int RECIP_SHIFT = 15;
-      const int32_t inv_half_wlen_x4 = (4 << RECIP_SHIFT) / half_wlen;
-
-      int32_t local_err0 = err0;
-      int32_t local_phase = phase;
-      
-      const bool large_wlen = (half_wlen > 46340);
+      uint32_t local_phase = phase;
+      int32_t local_err = err;
+      const int32_t sp = shape_pos_raw;
+      const int32_t sn = shape_neg_raw;
       
       for (size_t i = 0; i < loopLength; ++i) {
-          size_t word = 0U;
-          for(size_t bit = 0U; bit < 32U; bit++) {
-              local_phase = local_phase >= wlen ? 0 : local_phase;
-              
-              int32_t sine_val;
-              if (local_phase < half_wlen) {
-                  int32_t p = local_phase;
-                  int32_t temp = p * (half_wlen - p);
-                  int32_t base = large_wlen 
-                      ? ((temp >> 2) * inv_half_wlen_x4) >> 13
-                      : ((temp >> 1) * inv_half_wlen_x4) >> 14;
-                  sine_val = (shape_pos.raw() * base) >> 11;
-              } else {
-                  int32_t p = local_phase - half_wlen;
-                  int32_t temp = p * (half_wlen - p);
-                  int32_t base = large_wlen
-                      ? ((temp >> 2) * inv_half_wlen_x4) >> 13
-                      : ((temp >> 1) * inv_half_wlen_x4) >> 14;
-                  sine_val = -((shape_neg.raw() * base) >> 11);
-              }
-              
-              int32_t amp = half_wlen + sine_val;
-              
-              int32_t y = amp >= local_err0 ? 1 : 0;
-              local_err0 = (y ? wlen : 0) - amp + local_err0;
-              word <<= 1;
-              word |= y;
-              
-              local_phase++;
-          }
-          *(bufferA + i) = word;
+        size_t word = 0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+          uint32_t idx = (local_phase >> 16) & 0xFF;
+          int32_t raw = sine_table[idx];
+          
+          // Asymmetric shape: scale deviation from midpoint
+          int32_t dev = raw - 1024;
+          int32_t amp = 1024 + ((dev * (dev >= 0 ? sp : sn)) >> 10);
+          
+          // Sigma-delta, fixed range 0..2048
+          int32_t y = amp >= local_err ? 1 : 0;
+          local_err = local_err - amp + (y << 11);  // y * 2048
+          word <<= 1;
+          word |= y;
+          
+          local_phase += phase_inc;
+        }
+        *(bufferA + i) = word;
       }
-      err0 = local_err0;
       phase = local_phase;
+      err = local_err;
     }
 
     void ctrl(const Q16_16 v) override {
-      shape_pos = WvlenFPType(1.f) - WvlenFPType(0.1f).mulWith(v);
-      shape_neg = WvlenFPType(1.f) - WvlenFPType(0.9f).mulWith(v);
+      int32_t vraw = v.raw();
+      // shape as 10-bit fixed point, 1024 = 1.0
+      shape_pos_raw = 1024 - ((vraw * 102) >> 16);   // 1.0 - 0.1*v
+      shape_neg_raw = 1024 - ((vraw * 921) >> 16);    // 1.0 - 0.9*v  (921/1024 ≈ 0.9)
     }
       
     pio_sm_config getBaseConfig(uint offset) {
@@ -1316,12 +1301,11 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
     }
 
   private:
-    int32_t phase = 0;
-    int32_t err0 = 0;
-    int32_t prev_wlen = 0;
-
-    WvlenFPType shape_pos = WvlenFPType(1.0);  
-    WvlenFPType shape_neg = WvlenFPType(1.0);  
+    uint32_t phase = 0;
+    int32_t err = 0;
+    int32_t shape_pos_raw = 1024;
+    int32_t shape_neg_raw = 1024;
+    uint16_t sine_table[256];
 };
 
 class pulsePWOscillatorModel : public virtual oscillatorModel {
@@ -1529,7 +1513,7 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
     }
 
     String getIdentifier() override {
-      return "exp1";
+      return "slide";
     }
 
   
@@ -1544,11 +1528,335 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class formantSDOscillatorModel : public virtual oscillatorModel {
+  public:
+
+    formantSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true;
+      setClockModShift(1);
+      if (!tablesGenerated) {
+        buildTables();
+        tablesGenerated = true;
+      }
+    }
+
+    void buildTables() {
+        auto psin = [](float ph) -> float {
+            return sinf(ph * (2.0f * 3.14159265f / 512.0f));
+        };
+
+        static const float aw[] = {0, 0.39f, 1.0f, 0.75f, 0.2f, 0.1f, 0.5f, 0.2f, 0.06f};
+        static const float ew[] = {0, 1.0f, 0.2f, 0.1f, 0.05f, 0.2f, 0.75f, 0.5f, 0.38f};
+
+        static float raw_a[512], raw_b[512];
+        float min_a = 0, max_a = 0, min_b = 0, max_b = 0;
+
+        for (int i = 0; i < 512; i++) {
+            float sa = 0, sb = 0;
+            for (int h = 1; h < 9; h++) {
+                float s = psin(static_cast<float>(h * i));
+                sa += s * aw[h];
+                sb += s * ew[h];
+            }
+            raw_a[i] = sa;
+            raw_b[i] = sb;
+            if (sa < min_a) min_a = sa;
+            if (sa > max_a) max_a = sa;
+            if (sb < min_b) min_b = sb;
+            if (sb > max_b) max_b = sb;
+        }
+
+        float range_a = max_a - min_a;
+        float range_b = max_b - min_b;
+        if (range_a == 0) range_a = 1;
+        if (range_b == 0) range_b = 1;
+
+        for (int i = 0; i < 512; i++) {
+            table_a[i] = static_cast<uint16_t>(
+                ((raw_a[i] - min_a) / range_a) * 2048.0f + 0.5f
+            );
+            table_b[i] = static_cast<uint16_t>(
+                ((raw_b[i] - min_b) / range_b) * 2048.0f + 0.5f
+            );
+        }
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const uint32_t phase_inc = 
+          (512U << 16) / static_cast<uint32_t>(this->wavelen);
+
+      uint32_t local_phase = phase;
+      int32_t local_err = err;
+      const int32_t local_morph = morph;
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word = 0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+          uint32_t idx = (local_phase >> 16) & 0x1FF;
+          int32_t a = table_a[idx];
+          int32_t b = table_b[idx];
+          int32_t amp = a + (((b - a) * local_morph) >> 10);
+
+          int32_t y = amp >= local_err ? 1 : 0;
+          local_err = local_err - amp + (y << 11);
+          word <<= 1;
+          word |= y;
+
+          local_phase += phase_inc;
+        }
+        *(bufferA + i) = word;
+      }
+      phase = local_phase;
+      err = local_err;
+    }
+
+    void ctrl(const Q16_16 v) override {
+      // v is 0..1 in Q16.16, map to 0..1024
+      morph = v.raw() >> 6;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "formant";
+    }
+
+    inline static bool tablesGenerated = false;
+
+    private:
+    uint32_t phase = 0;
+    int32_t err = 0;
+    int32_t morph = 0;
+    inline static __not_in_flash("tables") uint16_t table_a[512];
+    inline static __not_in_flash("tables") uint16_t table_b[512];
+};
+
 
 using oscModelPtr = std::shared_ptr<oscillatorModel>;
 
+// class bellSDOscillatorModel : public virtual oscillatorModel {
+//   public:
 
-const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 11;
+//     bellSDOscillatorModel() : oscillatorModel(){
+//       loopLength=16;
+//       prog=bitbybit_program;
+//       updateBufferInSyncWithDMA = true;
+//       setClockModShift(1);
+//       if (!tablesGenerated) {
+//         buildTables();
+//         tablesGenerated = true;
+//       }
+//     }
+
+//     void buildTables() {
+//       // Parabolic sine: 0..1023 input = one cycle, returns -512..512
+//       auto psin = [](int32_t ph) -> int32_t {
+//         ph = ((ph % 1024) + 1024) % 1024;
+//         int32_t p = ph < 512 ? ph : 1023 - ph;
+//         int32_t val = (p * (512 - p)) >> 6;
+//         return ph < 512 ? val : -val;
+//       };
+
+//       // FM synthesis: sin(phase + idx * sin(phase * ratio))
+//       // ratio = 7/2 = 3.5 — classic inharmonic bell
+//       // table_a: mod index 0.3 — gentle chime
+//       // table_b: mod index 8.0 — harsh, unstable metallic
+//       static int32_t raw_a[256], raw_b[256];
+//       int32_t min_a = 0, max_a = 0, min_b = 0, max_b = 0;
+
+//       for (int i = 0; i < 256; i++) {
+//         int32_t carrier = i * 4;  // 0..1020, maps to one cycle
+
+//         // Modulator: 3.5x carrier frequency
+//         int32_t mod_phase = (i * 14) % 1024;  // 3.5 * 4 = 14
+//         int32_t mod_val = psin(mod_phase);     // -512..512
+
+//         // Gentle: carrier + 0.3 * modulator
+//         int32_t ph_a = carrier + ((mod_val * 3) >> 1);   // 0.3 ≈ 3/10 ≈ 3/8
+//         raw_a[i] = psin(ph_a);
+
+//         // Harsh: carrier + 8.0 * modulator
+//         int32_t ph_b = carrier + (mod_val << 4);
+//         raw_b[i] = psin(ph_b);
+//       }
+
+//       // Find ranges
+//       for (int i = 0; i < 256; i++) {
+//         if (raw_a[i] < min_a) min_a = raw_a[i];
+//         if (raw_a[i] > max_a) max_a = raw_a[i];
+//         if (raw_b[i] < min_b) min_b = raw_b[i];
+//         if (raw_b[i] > max_b) max_b = raw_b[i];
+//       }
+//       int32_t range_a = max_a - min_a;
+//       int32_t range_b = max_b - min_b;
+//       if (range_a == 0) range_a = 1;
+//       if (range_b == 0) range_b = 1;
+
+//       // Normalise to 0..2048
+//       for (int i = 0; i < 256; i++) {
+//         table_a[i] = static_cast<uint16_t>(
+//             ((raw_a[i] - min_a) * 2048) / range_a
+//         );
+//         table_b[i] = static_cast<uint16_t>(
+//             ((raw_b[i] - min_b) * 2048) / range_b
+//         );
+//       }
+//     }
+
+//     inline void fillBuffer(uint32_t* bufferA) {
+//       const uint32_t phase_inc = 
+//           (256U << 16) / static_cast<uint32_t>(this->wavelen);
+
+//       uint32_t local_phase = phase;
+//       int32_t local_err = err;
+//       const int32_t local_morph = morph;
+
+//       for (size_t i = 0; i < loopLength; ++i) {
+//         size_t word = 0U;
+//         for (size_t bit = 0U; bit < 32U; bit++) {
+//           uint32_t idx = (local_phase >> 16) & 0xFF;
+//           int32_t a = table_a[idx];
+//           int32_t b = table_b[idx];
+//           int32_t amp = a + (((b - a) * local_morph) >> 10);
+
+//           int32_t y = amp >= local_err ? 1 : 0;
+//           local_err = local_err - amp + (y << 11);
+//           word <<= 1;
+//           word |= y;
+
+//           local_phase += phase_inc;
+//         }
+//         *(bufferA + i) = word;
+//       }
+//       phase = local_phase;
+//       err = local_err;
+//     }
+
+//     void ctrl(const Q16_16 v) override {
+//       morph = v.raw() >> 6;  // 0..1024
+//     }
+
+//     pio_sm_config getBaseConfig(uint offset) {
+//       return bitbybit_program_get_default_config(offset);
+//     }
+
+//     String getIdentifier() override {
+//       return "metalic";
+//     }
+
+//   private:
+//     uint32_t phase = 0;
+//     int32_t err = 0;
+//     int32_t morph = 0;
+//     inline static __not_in_flash("tables") uint16_t table_a[256];
+//     inline static __not_in_flash("tables") uint16_t table_b[256];
+//     inline static bool tablesGenerated = false;
+// };
+
+class bellSDOscillatorModel : public virtual oscillatorModel {
+  public:
+    bellSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true;
+      setClockModShift(1);
+      if (!tablesGenerated) {
+        buildTables();
+        tablesGenerated = true;
+      }
+    }
+    void buildTables() {
+      // Parabolic sine: 0..2047 input = one cycle, returns -512..512
+      auto psin = [](int32_t ph) -> int32_t {
+        ph = ((ph % 2048) + 2048) % 2048;
+        int32_t p = ph < 1024 ? ph : 2047 - ph;
+        int32_t val = (p * (1024 - p)) >> 8;
+        return ph < 1024 ? val : -val;
+      };
+
+      static int32_t raw_a[512], raw_b[512];
+      int32_t min_a = 0, max_a = 0, min_b = 0, max_b = 0;
+
+      for (int i = 0; i < 512; i++) {
+        int32_t carrier = i * 4;  // 0..2044, maps to one cycle
+        // Modulator: 3.5x carrier frequency
+        int32_t mod_phase = (i * 14) % 2048;
+        int32_t mod_val = psin(mod_phase);     // -512..512
+        // Gentle: carrier + 0.3 * modulator
+        int32_t ph_a = carrier + ((mod_val * 3) >> 1);
+        raw_a[i] = psin(ph_a);
+        // Harsh: carrier + 8.0 * modulator
+        int32_t ph_b = carrier + (mod_val << 4);
+        raw_b[i] = psin(ph_b);
+      }
+
+      for (int i = 0; i < 512; i++) {
+        if (raw_a[i] < min_a) min_a = raw_a[i];
+        if (raw_a[i] > max_a) max_a = raw_a[i];
+        if (raw_b[i] < min_b) min_b = raw_b[i];
+        if (raw_b[i] > max_b) max_b = raw_b[i];
+      }
+      int32_t range_a = max_a - min_a;
+      int32_t range_b = max_b - min_b;
+      if (range_a == 0) range_a = 1;
+      if (range_b == 0) range_b = 1;
+
+      for (int i = 0; i < 512; i++) {
+        table_a[i] = static_cast<uint16_t>(
+            ((raw_a[i] - min_a) * 2048) / range_a
+        );
+        table_b[i] = static_cast<uint16_t>(
+            ((raw_b[i] - min_b) * 2048) / range_b
+        );
+      }
+    }
+    inline void fillBuffer(uint32_t* bufferA) {
+      const uint32_t phase_inc = 
+          (512U << 16) / static_cast<uint32_t>(this->wavelen);
+      uint32_t local_phase = phase;
+      int32_t local_err = err;
+      const int32_t local_morph = morph;
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word = 0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+          uint32_t idx = (local_phase >> 16) & 0x1FF;
+          int32_t a = table_a[idx];
+          int32_t b = table_b[idx];
+          int32_t amp = a + (((b - a) * local_morph) >> 10);
+          int32_t y = amp >= local_err ? 1 : 0;
+          local_err = local_err - amp + (y << 11);
+          word <<= 1;
+          word |= y;
+          local_phase += phase_inc;
+        }
+        *(bufferA + i) = word;
+      }
+      phase = local_phase;
+      err = local_err;
+    }
+    void ctrl(const Q16_16 v) override {
+      morph = v.raw() >> 6;
+    }
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+    String getIdentifier() override {
+      return "metalic";
+    }
+  private:
+    uint32_t phase = 0;
+    int32_t err = 0;
+    int32_t morph = 0;
+    inline static __not_in_flash("tables") uint16_t table_a[512];
+    inline static __not_in_flash("tables") uint16_t table_b[512];
+    inline static bool tablesGenerated = false;
+};
+
+const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 
 // Array of "factory" lambdas returning oscModelPtr
 
@@ -1563,12 +1871,6 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
   []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
   ,
-  []() { return std::make_shared<parasineSDOscillatorModel>(); } 
-  // ,
-  // []() { return std::make_shared<squareSineSDOscillatorModel>(); } 
-  
-  ,
-  //squares
   []() { return std::make_shared<pulsePWOscillatorModel>(); }
   ,
   []() { return std::make_shared<expPulse2SDOscillatorModel>(); } 
@@ -1581,6 +1883,13 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   []() { return std::make_shared<triOscillatorModel>(); } 
   ,
   []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
+  ,
+  //wavetables
+  []() { return std::make_shared<parasineSDOscillatorModel>(); } 
+  ,
+  []() { return std::make_shared<formantSDOscillatorModel>(); } 
+  ,
+  []() { return std::make_shared<bellSDOscillatorModel>(); } 
   ,
 
   // //noise

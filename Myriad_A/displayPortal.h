@@ -178,20 +178,31 @@ public:
       drawPulse(sprite, col, 0, iconw>>1);
     };
 
-    iconDrawFunctions["sq2"] = [drawPulse,this](eSpritePtr& sprite, int col) {
-      drawPulse(sprite, col, 0, 3);
-      drawPulse(sprite, col, iconh*0.25, 6);
-      drawPulse(sprite, col, iconh*0.5, 9);
-      drawPulse(sprite, col, iconh*0.75, 12);
+    iconDrawFunctions["formant"] = [drawPulse,this](eSpritePtr& sprite, int col) {
+      auto smallest = std::min(iconw, iconh);
+      sprite->drawEllipse(iconw>>1,iconh>>1,iconw>>2,smallest>>1, col);
+      sprite->drawEllipse(iconw>>1,iconh>>1,iconw>>1,smallest>>2, col);
     };
 
-    iconDrawFunctions["sq14"] = [drawPulse,this](eSpritePtr& sprite, int col) {
-      drawPulse(sprite, col, 0, iconw * 0.2);
-      drawPulse(sprite, col, 0.25, iconw * 0.4);
-      drawPulse(sprite, col, 0, iconw * 0.6);
-      drawPulse(sprite, col, 0, iconw * 0.8);
-      drawPulse(sprite, col, 0, iconw -1);
+    iconDrawFunctions["metalic"] = [drawPulse,this](eSpritePtr& sprite, int col) {
+        float lastHeight = iconh>>1;
+        
+        for(float i=1; i <iconw; i++) {
+          float angle = (i / iconw) * 5.0f * 3.14159f;
+          float s = (sinf(angle) + 1.0f) * 0.5f; //normalize to 0-1
+          float y = s * iconh * (1.f - (i/iconw * 0.5f));
+          sprite->drawLine(i-1, lastHeight, i, iconh - y, col);
+          lastHeight = iconh - y;
+        }
     };
+
+    // iconDrawFunctions["sq14"] = [drawPulse,this](eSpritePtr& sprite, int col) {
+    //   drawPulse(sprite, col, 0, iconw * 0.2);
+    //   drawPulse(sprite, col, 0.25, iconw * 0.4);
+    //   drawPulse(sprite, col, 0, iconw * 0.6);
+    //   drawPulse(sprite, col, 0, iconw * 0.8);
+    //   drawPulse(sprite, col, 0, iconw -1);
+    // };
 
     iconDrawFunctions["tri"] = [this](eSpritePtr& sprite, int col) {
         sprite->drawLine(0,iconh-1,iconw>>1,0, col);
