@@ -1,4 +1,4 @@
-#define MYRIAD_VERSION "1.0.0"
+#define MYRIAD_VERSION "1.1.0"
 
 #include <FS.h>
 #include <LittleFS.h>
