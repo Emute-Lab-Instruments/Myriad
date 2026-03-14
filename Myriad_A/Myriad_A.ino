@@ -76,6 +76,7 @@ enum CONTROLMODES {OSCMODE, METAOSCMODE, CALIBRATEMODE, CALIBRATEPITCHMODE, TUNI
 #define RUN_OSCS
 
 std::array<oscModelPtr, 3> FAST_MEM currOscModels;
+std::array<std::array<oscModelPtr, 3>, N_OSCILLATOR_MODELS> allOscModels;
 
 bool FAST_MEM oscsReadyToStart=false;
 // volatile bool FAST_MEM restartOscsFlag=false;
@@ -723,11 +724,8 @@ void __force_inline __not_in_flash_func(calculateOscBuffers)() {
 }
 
 void __not_in_flash_func(assignOscModels)(const size_t modelIdx) {
-  
-
-  for(auto &model: currOscModels) {
-    model = oscModelFactories[modelIdx](); 
-
+  for (size_t i = 0; i < currOscModels.size(); i++) {
+    currOscModels[i] = allOscModels[modelIdx][i];
   }
 }
 
@@ -1481,10 +1479,17 @@ void setup() {
   tft.init();  
   tft.setRotation(3);
 
+  //preallocate all oscillator model instances
+  for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
+    for (size_t i = 0; i < 3; i++) {
+      allOscModels[m][i] = oscModelFactories[m]();
+    }
+  }
+
   //collect IDs from the oscillator models
   std::vector<String> oscModelIDs;
   for(size_t i=0; i < N_OSCILLATOR_MODELS; i++) {
-    oscModelIDs.push_back(oscModelFactories[i]()->getIdentifier());
+    oscModelIDs.push_back(allOscModels[i][0]->getIdentifier());
   }
 
   display.init(oscModelIDs);
@@ -1803,14 +1808,14 @@ void setup1() {
 
 void __not_in_flash_func(loop1)() {
   if (changeBankFlag) {
-    if (oscsRunning) {
-      oscsRunning = false;
-      smOsc0.stop();
-    #ifndef SINGLEOSCILLATOR
-      smOsc1.stop();
-      smOsc2.stop();
-    #endif
-    }
+    // if (oscsRunning) {
+    //   oscsRunning = false;
+    //   smOsc0.stop();
+    // #ifndef SINGLEOSCILLATOR
+    //   smOsc1.stop();
+    //   smOsc2.stop();
+    // #endif
+    // }
 
     bufSent0 = false;
     bufSent1 = false;
@@ -1835,6 +1840,10 @@ void __not_in_flash_func(loop1)() {
     auto w3 = currOscModels[2]->getWavelen();
 
     assignOscModels(oscBankTypes[2]);
+    
+    smOsc0.setClockDiv(currOscModels[0]->getClockDiv());
+    smOsc1.setClockDiv(currOscModels[1]->getClockDiv());
+    smOsc2.setClockDiv(currOscModels[2]->getClockDiv());
 
     //refill from new oscillator
     //trigger buffer refills
@@ -1848,7 +1857,7 @@ void __not_in_flash_func(loop1)() {
 
     calculateOscBuffers();
 
-    startOscBankA();
+    // startOscBankA();
 
     changeBankFlag = false;
   }

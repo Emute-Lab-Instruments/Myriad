@@ -48,6 +48,12 @@ public:
     pio_sm_init(pio, sm, offset, &c);
   }
 
+
+  void setClockDiv(uint16_t intDiv, uint8_t fracDiv = 0) {
+    pio_sm_set_clkdiv_int_frac(pio, sm, intDiv, fracDiv);
+    pio_sm_clkdiv_restart(pio, sm);
+  }
+
   uint32_t pin_ctrl_prepare(PIO pio, uint sm, uint offset, pio_sm_config &cfg, uint pin, uint32_t firstTimingBuffer, irq_handler_t dma_irq_handler, size_t clockdiv, uint transferCount, uint dmaChannel ) {
     // Allocate a DMA channel to feed the pin_ctrl SM its command words
     // pio_dma_chan = dma_claim_unused_channel(true);

@@ -43,6 +43,8 @@ bool core1_separate_stack = true;
 
 std::array<oscModelPtr, 3> FAST_MEM currOscModels0;
 std::array<oscModelPtr, 3> FAST_MEM currOscModels1;
+std::array<std::array<oscModelPtr, 3>, N_OSCILLATOR_MODELS> allOscModels0;
+std::array<std::array<oscModelPtr, 3>, N_OSCILLATOR_MODELS> allOscModels1;
 
 static spin_lock_t FAST_MEM *calcOscsSpinlock0;
 static spin_lock_t FAST_MEM *calcOscsSpinlock1;
@@ -181,25 +183,13 @@ void restart_sm(PIO pio, uint sm) {
 }
 
 void assignOscModels0(size_t modelIdx) {
-  // Serial.printf("assignOscModels0: modelIdx=%d\n", modelIdx);
-  // Serial.flush();
-
-  for(size_t i = 0; i < currOscModels0.size(); i++) {
-    // Serial.printf("  Creating model %d...\n", i);
-    // Serial.flush();
-
-    currOscModels0[i] = oscModelFactories[modelIdx]();
-
-    // Serial.printf("  Model %d created\n", i);
-    // Serial.flush();
+  for (size_t i = 0; i < currOscModels0.size(); i++) {
+    currOscModels0[i] = allOscModels0[modelIdx][i];
   }
-
-  // Serial.println("assignOscModels0 complete");
-  // Serial.flush();
 }
 void assignOscModels1(size_t modelIdx) {
-  for(auto &model: currOscModels1) {
-    model = oscModelFactories[modelIdx](); 
+  for (size_t i = 0; i < currOscModels1.size(); i++) {
+    currOscModels1[i] = allOscModels1[modelIdx][i];
   }
 }
 
@@ -530,6 +520,11 @@ void setup() {
   calcOscsSpinlock0 = spin_lock_init(spin_lock_claim_unused(true));
 
   // currOscModelBank0 = oscModel2;
+  for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
+    for (size_t i = 0; i < 3; i++) {
+      allOscModels0[m][i] = oscModelFactories[m]();
+    }
+  }
   assignOscModels0(0);
 
 
@@ -614,6 +609,11 @@ void setup1() {
   calcOscsSpinlock1 = spin_lock_init(spin_lock_claim_unused(true));
 
 //  currOscModelBank1 = oscModel2;
+  for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
+    for (size_t i = 0; i < 3; i++) {
+      allOscModels1[m][i] = oscModelFactories[m]();
+    }
+  }
   assignOscModels1(0);
 
 
