@@ -6,6 +6,9 @@
 
 using namespace FixedPoint;
 
+#define fadeBitResolution 6 //  bits for fade level
+#define fadeMaxLevel 63
+
 class oscillatorModel {
 public:
   oscillatorModel() {
@@ -14,8 +17,9 @@ public:
   };
   
   pio_program prog;
-  virtual void fillBuffer(uint32_t* bufferA)=0;
   size_t loopLength;
+
+
   virtual ~oscillatorModel() = default;  
   uint loadProg(PIO pioUnit) {
     return pio_add_program_at_offset(pioUnit, &prog, 0);
@@ -29,12 +33,10 @@ public:
 
   volatile bool newFreq;
   bool updateBufferInSyncWithDMA; //if true, update buffer every time one is consumed by DMA
-  // float clockmodinv = 1.f;
   size_t clockModShift = 0;
 
-  // virtual void ctrl(const float v) {
-  //   //receive a control parameter
-  // }
+  virtual void fillBuffer(uint32_t* bufferA)=0;
+
   virtual void ctrl(const Q16_16 v) {
     //receive a control parameter
   }
@@ -80,8 +82,28 @@ public:
     return "Base";
   }
 
+  int fadeDirection=0;
+
+
+  void startFadeIn() {
+    fadeDirection=1;
+    fadeLevel=0;
+  }
+
+  void startFadeOut() {
+    fadeDirection=-1;
+    fadeLevel=fadeMaxLevel;
+  }
+
+  bool isFadingOut() const {
+    return fadeDirection == -1;
+  }
+
 protected:
   size_t wavelen=100000;
+  int32_t fadeLevel=fadeMaxLevel;
+
+
 };
 
 #endif // OSCILLATORMODEL_HPP

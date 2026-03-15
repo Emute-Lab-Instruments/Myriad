@@ -1304,13 +1304,13 @@ std::shared_ptr<metaOscMLP<N_OSCILLATORS>> isCurrentMetaOscMLP() {
     // if (ptr->getType() == MetaOscType::MLP) {
     //     return std::static_pointer_cast<metaOscMLP<N_OSCILLATORS>>(ptr);
     // }
-    return nullptr;    
+    return nullptr;
 }
 
 bool FAST_MEM calibButtonState = false;
 
 void calibrate_button_callback() {
-  controls::calibrateButton = 1 - calibrateButtonDebouncer.debounce(CALIBRATE_BUTTON); 
+  controls::calibrateButton = 1 - calibrateButtonDebouncer.debounce(CALIBRATE_BUTTON);
   auto currentState = calibButtonState;
   //gpio pull-up, so the value is inverted
   auto newState = controls::calibrateButton;
@@ -1319,8 +1319,8 @@ void calibrate_button_callback() {
     calibButtonState = newState;
     if (newState == 1) {
       switchDownEvent = true;
-    } 
-  }  
+    }
+  }
   if (switchDownEvent) {
     auto mlpPtr = isCurrentMetaOscMLP();
     if (mlpPtr != nullptr) {
@@ -1338,7 +1338,7 @@ void calibrate_button_callback() {
         // }
         // case CONTROLMODES::CALIBRATEPITCHMODE: {
         //   PITCHCALSCREEEN::calRunning = false;
-        //   display.setPitchCalibRunning(false);          
+        //   display.setPitchCalibRunning(false);
           // CalibrationSettings::save();
           switchToOSCMode();
           break;
@@ -1346,7 +1346,7 @@ void calibrate_button_callback() {
         default: {
           controlMode = CONTROLMODES::CALIBRATEMODE;
           //get free memory
-          int freeMem = rp2040.getFreeHeap();  
+          int freeMem = rp2040.getFreeHeap();
           display.setFreeHeap(freeMem);
           display.setScreen(portal::SCREENMODES::CALIBRATE);
         }
@@ -1372,7 +1372,7 @@ void check_correction_discontinuities() {
         int16_t diff = ADCProfile::cal_data.correction[i] - ADCProfile::cal_data.correction[i-1];
         if (diff > 2 || diff < -2) {
             Serial.printf("  code %d: correction jumps from %d to %d (diff %d)\n",
-                          i, 
+                          i,
                           ADCProfile::cal_data.correction[i-1],
                           ADCProfile::cal_data.correction[i],
                           diff);
@@ -1382,32 +1382,32 @@ void check_correction_discontinuities() {
 
 void find_pitch_discontinuity() {
     Serial.println("Sweeping through correction table for large output jumps...\n");
-    
+
     Q16_16 last_pitch = Q16_16(0);
     bool first = true;
-    
+
     for (int adc = 100; adc < 4000; adc++) {
         // Simulate your pitch calculation
         Fixed<14,18> pitchADCQ1418 = Fixed<14,18>(adc);
-        
+
         // Your DNL correction (simplified - no interpolation for this test)
         int16_t correction = ADCProfile::cal_data.correction[adc];
         pitchADCQ1418 = pitchADCQ1418 + Fixed<14,18>(correction);
-        
+
         // Your endpoint calibration
         Q16_16 pitchCV_Q16 = Q16_16(pitchADCQ1418);
         Q16_16 pitch;
-        
+
         constexpr Q16_16 tmpADCMin(0);
         constexpr Q16_16 tmpADCMid(2059);
         constexpr Q16_16 tmpADCMax(4095);
-        
+
         if (pitchCV_Q16 < tmpADCMid) {
             pitch = (pitchCV_Q16 - tmpADCMin) / (tmpADCMid - tmpADCMin) * Q16_16(5);
         } else {
             pitch = (pitchCV_Q16 - tmpADCMid) / (tmpADCMax - tmpADCMid) * Q16_16(5) + Q16_16(5);
         }
-        
+
         if (!first) {
             Q16_16 diff = pitch - last_pitch;
             // Normal step should be ~0.00244 (10V / 4096)
@@ -1415,11 +1415,11 @@ void find_pitch_discontinuity() {
             if (diff > Q16_16(0.01) || diff < Q16_16(-0.01)) {
                 float diff_mv = diff.to_float() * 1000.0f;
                 float diff_cents = diff_mv / 0.833f;  // 83.3mV per semitone
-                Serial.printf("ADC %d: jump of %.1f mV (%.1f cents)\n", 
+                Serial.printf("ADC %d: jump of %.1f mV (%.1f cents)\n",
                               adc, diff_mv, diff_cents);
             }
         }
-        
+
         last_pitch = pitch;
         first = false;
     }
@@ -1482,7 +1482,8 @@ void setup() {
   //preallocate all oscillator model instances
   for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
     for (size_t i = 0; i < 3; i++) {
-      allOscModels[m][i] = oscModelFactories[m]();
+      // allOscModels[m][i] = oscModelFactories[m]();
+      allOscModels[m][i] = oscModelFactories[5](); //test - all same model for now
     }
   }
 
@@ -1775,10 +1776,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  // if (now - dotTS > 500000) {
-  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-  //   dotTS = now;
-  // }
+  if (now - dotTS > 500000) {
+    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+    dotTS = now;
+  }
 }
 
 
@@ -1806,8 +1807,11 @@ void setup1() {
 
 }
 
+enum bankChangeStages {IDLE, FADING} bankChangeStage = IDLE;
+
 void __not_in_flash_func(loop1)() {
   if (changeBankFlag) {
+
     // if (oscsRunning) {
     //   oscsRunning = false;
     //   smOsc0.stop();
@@ -1816,50 +1820,75 @@ void __not_in_flash_func(loop1)() {
     //   smOsc2.stop();
     // #endif
     // }
-
-    bufSent0 = false;
-    bufSent1 = false;
-    bufSent2 = false;  
-
-    dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
-
-    memset(timing_swapbuffer_0_A, 0, sizeof(timing_swapbuffer_0_A));
-    memset(timing_swapbuffer_0_B, 0, sizeof(timing_swapbuffer_0_B));
-    memset(timing_swapbuffer_1_A, 0, sizeof(timing_swapbuffer_1_A));
-    memset(timing_swapbuffer_1_B, 0, sizeof(timing_swapbuffer_1_B));
-    memset(timing_swapbuffer_2_A, 0, sizeof(timing_swapbuffer_2_A));
-    memset(timing_swapbuffer_2_B, 0, sizeof(timing_swapbuffer_2_B));
-
-    // Reset buffer pointers to A buffers
-    nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
-    nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
-    nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;          
-
-    auto w1 = currOscModels[0]->getWavelen();
-    auto w2 = currOscModels[1]->getWavelen();
-    auto w3 = currOscModels[2]->getWavelen();
-
-    assignOscModels(oscBankTypes[2]);
     
-    smOsc0.setClockDiv(currOscModels[0]->getClockDiv());
-    smOsc1.setClockDiv(currOscModels[1]->getClockDiv());
-    smOsc2.setClockDiv(currOscModels[2]->getClockDiv());
+    if (bankChangeStage == IDLE) {
+      //start fade out
+      currOscModels[0]->startFadeOut();
+      currOscModels[1]->startFadeOut();
+      currOscModels[2]->startFadeOut();
 
-    //refill from new oscillator
-    //trigger buffer refills
-    currOscModels[0]->reset();
-    currOscModels[1]->reset();
-    currOscModels[2]->reset();
+      bankChangeStage = FADING;
+    }else if (bankChangeStage == FADING) {
+      if (!currOscModels[0]->isFadingOut()) {
+        bankChangeStage = IDLE;
+        // bufSent0 = false;
+        // bufSent1 = false;
+        // bufSent2 = false;  
 
-    currOscModels[0]->setWavelen(w1);
-    currOscModels[1]->setWavelen(w2);
-    currOscModels[2]->setWavelen(w3);
+        // dma_hw->ints1 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
 
-    calculateOscBuffers();
+        // memset(timing_swapbuffer_0_A, 0, sizeof(timing_swapbuffer_0_A));
+        // memset(timing_swapbuffer_0_B, 0, sizeof(timing_swapbuffer_0_B));
+        // memset(timing_swapbuffer_1_A, 0, sizeof(timing_swapbuffer_1_A));
+        // memset(timing_swapbuffer_1_B, 0, sizeof(timing_swapbuffer_1_B));
+        // memset(timing_swapbuffer_2_A, 0, sizeof(timing_swapbuffer_2_A));
+        // memset(timing_swapbuffer_2_B, 0, sizeof(timing_swapbuffer_2_B));
 
-    // startOscBankA();
+        // // Reset buffer pointers to A buffers
+        // nextTimingBuffer0 = (io_rw_32)timing_swapbuffer_0_A;
+        // nextTimingBuffer1 = (io_rw_32)timing_swapbuffer_1_A;
+        // nextTimingBuffer2 = (io_rw_32)timing_swapbuffer_2_A;          
 
-    changeBankFlag = false;
+        auto w1 = currOscModels[0]->getWavelen();
+        auto w2 = currOscModels[1]->getWavelen();
+        auto w3 = currOscModels[2]->getWavelen();
+
+        assignOscModels(oscBankTypes[2]);
+        
+        //TODO: actually wait for new buffer to do this?
+        smOsc0.setClockDiv(currOscModels[0]->getClockDiv());
+        smOsc1.setClockDiv(currOscModels[1]->getClockDiv());
+        smOsc2.setClockDiv(currOscModels[2]->getClockDiv());
+
+        //refill from new oscillator
+        //trigger buffer refills
+        // currOscModels[0]->reset();
+        // currOscModels[1]->reset();
+        // currOscModels[2]->reset();
+
+        currOscModels[0]->setWavelen(w1);
+        currOscModels[1]->setWavelen(w2);
+        currOscModels[2]->setWavelen(w3);
+        currOscModels[0]->ctrl(epsilon_fixed);
+        currOscModels[1]->ctrl(epsilon_fixed);
+        currOscModels[2]->ctrl(epsilon_fixed);
+        
+        currOscModels[0]->startFadeIn();
+        currOscModels[1]->startFadeIn();
+        currOscModels[2]->startFadeIn();
+
+        // currOscModels[0]->fader.startFadeIn();
+        // currOscModels[1]->fader.startFadeIn();
+        // currOscModels[2]->fader.startFadeIn();
+
+        // calculateOscBuffers();
+
+        // startOscBankA();
+
+        changeBankFlag = false;
+      }
+    }
+
   }
   if (oscsRunning) {
     PERF_BEGIN(CALCOSCS);

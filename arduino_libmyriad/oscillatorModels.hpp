@@ -7,6 +7,7 @@
 #include "oscDisplayModes.hpp"
 #include "clockfreq.h"
 #include <limits>
+#include "utils.hpp"
 #include "oscmodels/oscillatorModel.hpp"
 
 using WvlenFPType = Fixed<20,11>;
@@ -148,12 +149,15 @@ class triOscillatorModel : public virtual oscillatorModel {
 
         const int32_t triPeakPoint = (wlen * phaseRisingInvMul) >> qfp;
 
+        const int32_t local_fadeLevel = fadeLevel; // Load once
+
         const uint32_t rising_int = phaseRisingMul >> qfp;
         const uint32_t rising_frac = phaseRisingMul & 0x3FFF;
 
         // Compute the ACTUAL peak amplitude using the same math as the rising side
         const int32_t peakAmp = triPeakPoint * rising_int + 
                                 (((uint32_t)triPeakPoint * rising_frac) >> qfp);
+
 
         // Derive falling multiplier from peakAmp so peak and zero-crossing are exact
         const int32_t fallingSpan = wlen - triPeakPoint;
@@ -163,7 +167,8 @@ class triOscillatorModel : public virtual oscillatorModel {
 
         int32_t local_phase = phase;     // Load once
         int32_t local_err0 = err0;       // Load once
-
+        
+        bool fading = fadeDirection != 0;
 
         for (size_t i = 0; i < loopLength; ++i) {
             uint32_t word = 0U;
@@ -183,7 +188,13 @@ class triOscillatorModel : public virtual oscillatorModel {
                 // Clamp just in case of residual rounding at the very last sample
                 amp = amp < 0 ? 0 : amp;
 
+                if (fading) {
+                  // Apply fade in/out
+                  amp = (amp * local_fadeLevel) >> fadeBitResolution;  
+                }
+
                 int32_t y = amp >= local_err0 ? 1 : 0;
+
                 local_err0 = (y ? peakAmp : 0) - amp + local_err0;
 
                 word <<= 1;
@@ -191,9 +202,16 @@ class triOscillatorModel : public virtual oscillatorModel {
 
                 local_phase++;
             }
+
             *(bufferA + i) = word;
         }
 
+        fadeLevel += fadeDirection; // Apply fade in/out
+        if (fadeLevel == 0) { 
+          fadeDirection = 0; // Stop at fully faded out
+        } else if (fadeLevel == fadeMaxLevel) {
+            fadeDirection = 0; // Stop at fully faded in
+        }
         phase = local_phase;   // Store once at end
         err0 = local_err0;     // Store once at end
     }
@@ -213,6 +231,10 @@ class triOscillatorModel : public virtual oscillatorModel {
       }
       //   bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
       // Serial.printf("%zu, phaseRisingMul: %zu, phaseRisingInvMul: %zu, phaseFallingMul: %zu\n", index, phaseRisingMul,phaseRisingInvMul, phaseFallingMul);
+      // fadeLevel = v.mulWith(Q16_16(127)).to_int(); // Map 0..1 to 8..1
+      // PERIODIC_RUN(
+      //   Serial.printf("fadeShift: %d\n", fadeShift);
+      // , 500);
     }
   
     pio_sm_config getBaseConfig(uint offset) {
@@ -247,6 +269,7 @@ class triOscillatorModel : public virtual oscillatorModel {
     size_t bitshift = 0;
     uint32_t bitmul = 1U; // multiplier for bit shift, used to scale the output
     size_t lastWord=0, lastWord2=0, lastWord3=0, lastWord4=0, lastWord5=0, lastWord6=0, lastWord7=0, lastWord8=0;
+
 
 };
 
