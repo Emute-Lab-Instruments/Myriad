@@ -19,12 +19,13 @@ class silentOscillatorModel : public oscillatorModel {
 public:
   silentOscillatorModel() : oscillatorModel() {
     loopLength=bufferSize;
-    prog=pin_ctrl_program;
+    prog=bitbybit_program;
 
   }
   inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < bufferSize; ++i) {
-        *(bufferA + i) = silentOscillatorModel::halfWaveLen;
+        *(bufferA + i) = 0xAAAAAAAA;;
+        updateFade();
     }
   }
 
@@ -34,7 +35,7 @@ public:
 
 private:
   const size_t bufferSize=16;
-  static constexpr uint32_t halfWaveLen = sampleClock / 100000;
+  // static constexpr uint32_t halfWaveLen = sampleClock / 100000;
 };
 
 
@@ -310,6 +311,8 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
         }
         
         *(bufferA + i) = word;
+        updateFade();
+
       }
     }
 
@@ -330,6 +333,7 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
     Q16_16 randMult = Q16_16(100);
     bool on=0;
     size_t counter=0;
+    
 };
 
 
@@ -522,6 +526,8 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
           acc ^= (rand() & 127U);
         
         *(bufferA + i) = acc;
+        updateFade();
+
       }
 
     }
@@ -892,6 +898,7 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
           // loopbits <<= 1;
         }
         *(bufferA ++) = word;
+        updateFade();
 
       }
     }
@@ -1207,6 +1214,7 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
 
         }
         *(bufferA ++) = word;
+        updateFade();
 
       }
     }
