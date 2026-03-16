@@ -1121,6 +1121,106 @@ private:
     int32_t AMP_SCALE = 1 << 24;
 }; 
 
+class pulsePMSDOscillatorModel : public virtual oscillatorModel {
+  private:
+
+    WvlenFPType phase = WvlenFPType(0);
+
+    WvlenFPType modphase = WvlenFPType(0);
+    WvlenFPType phaseIncLow=WvlenFPType(1);
+    WvlenFPType phaseIncHigh=WvlenFPType(1);
+    // int32_t err0=0;
+
+  public:
+
+
+    pulsePMSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      // setClockModShift(1);
+    }
+
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const WvlenFPType wlen = WvlenFPType(this->wavelen);
+      // const int32_t local_wlen = this->wavelen;
+      const WvlenFPType wlenHalf = WvlenFPType(this->wavelen>>1);
+      const WvlenFPType modwlen = WvlenFPType(3.9f) * wlen;
+      const WvlenFPType modwlenPW = modwlen.div_pow2(1);
+      static WvlenFPType zerofp = WvlenFPType(0);
+      static WvlenFPType onefp = WvlenFPType(1);
+      WvlenFPType phaseIncMul = WvlenFPType(1.0f);
+      WvlenFPType phaseIncMulInc = WvlenFPType(0.1f);
+
+      // int32_t SD_POSITIVE = 1 << 14;
+      // int32_t SD_NEGATIVE = -SD_POSITIVE;
+  
+
+      // int32_t local_err0 = err0;
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for (size_t bit = 0U; bit < 32U; bit++) {
+
+          phase = (phase < wlen) ? phase : zerofp;  
+
+          int32_t on = phase > wlenHalf ?  1 : 0;
+          // int32_t desired = (phase > wlenHalf) ? SD_POSITIVE : SD_NEGATIVE;
+          
+          // First-order sigma-delta: integrate error, threshold, feedback
+          // local_err0 += desired;
+          // uint32_t on;
+          // if (local_err0 > 0) {
+          //   on = 1;
+          //   local_err0 -= SD_POSITIVE;  // feedback
+          // } else {
+          //   on = 0;
+          //   local_err0 -= SD_NEGATIVE;  // feedback (adds since NEGATIVE is negative)
+          // }
+
+          word <<= 1;
+          word |= on;
+
+           
+          //modulator
+          modphase = (modphase < modwlen) ? modphase : zerofp;  
+          WvlenFPType phaseInc = modphase > modwlenPW ?  phaseIncLow : phaseIncHigh;
+
+
+          //carrier phase 
+          phase = phase + phaseInc;
+
+          //modulation phase
+          modphase += onefp;
+          
+
+        }
+
+        *(bufferA ++) = word;
+      }
+      // err0 = local_err0;
+    }
+
+
+    void ctrl(const Q16_16 v) override {
+      WvlenFPType modIdx = WvlenFPType(0.05f) + WvlenFPType(0.55f).mulWith(v);
+      phaseIncLow = WvlenFPType(1) - modIdx;
+      phaseIncHigh = WvlenFPType(1) + modIdx;
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "slide";
+    }
+
+  
+
+};
 
 
 #endif //if 0
