@@ -735,6 +735,7 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
         }
         *(bufferA ++) = word;
       }
+      err0 = lErr;
       updateFade();
     }
 
@@ -983,6 +984,14 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
       const Q16_16 onefp = Q16_16(1);
       const Q16_16 zerofp = Q16_16(0);
 
+      static int32_t FADE_REF = 1 << 12;
+
+      const bool fading = fadeDirection != 0;
+      const int32_t volumePeak = fading ? static_cast<int32_t>(
+          (static_cast<int64_t>(FADE_REF) * fadeInvTable[fadeLevel]) >> 16
+      ) : 0;   
+      int32_t lErr = err0;   
+
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         size_t loopbits = 1;
@@ -1043,15 +1052,27 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
           //   counterFPPhaseIncInc = counterFPPhaseIncIncPos;
           // }
 
+          // word <<= 1;
+          // word |= b1;  
+          int32_t y;
+          if (fading) [[unlikely]] {
+            int32_t amp = b1 ? FADE_REF : 0;
+            y = amp >= lErr ? 1 : 0;
+            lErr = (y ? volumePeak : 0) - amp + lErr;
+          } else {
+            y = b1;
+          }
+
           word <<= 1;
-          word |= b1;  
+          word |= y;
           phase++;
 
         }
         *(bufferA ++) = word;
-        updateFade();
 
       }
+      err0 = lErr;
+      updateFade();
     }
 
 
@@ -1085,8 +1106,7 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
   private:
     size_t phase=0;
     size_t modphase=0;
-    // bool y=0;
-    // int32_t err0=0;
+    int32_t err0=0;
 
 
     int pulselen=10000;
