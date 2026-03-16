@@ -1483,7 +1483,7 @@ void setup() {
   for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
     for (size_t i = 0; i < 3; i++) {
       // allOscModels[m][i] = oscModelFactories[m]();
-      allOscModels[m][i] = oscModelFactories[5](); //test - all same model for now
+      allOscModels[m][i] = oscModelFactories[2](); //test - all same model for now
     }
   }
 
@@ -1776,10 +1776,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+  //   dotTS = now;
+  // }
 }
 
 
@@ -1860,11 +1860,9 @@ void __not_in_flash_func(loop1)() {
         smOsc1.setClockDiv(currOscModels[1]->getClockDiv());
         smOsc2.setClockDiv(currOscModels[2]->getClockDiv());
 
-        //refill from new oscillator
-        //trigger buffer refills
-        // currOscModels[0]->reset();
-        // currOscModels[1]->reset();
-        // currOscModels[2]->reset();
+        currOscModels[0]->reset();
+        currOscModels[1]->reset();
+        currOscModels[2]->reset();
 
         currOscModels[0]->setWavelen(w1);
         currOscModels[1]->setWavelen(w2);

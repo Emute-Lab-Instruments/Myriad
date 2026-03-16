@@ -6,14 +6,25 @@
 
 using namespace FixedPoint;
 
-#define fadeBitResolution 6 //  bits for fade level
-#define fadeMaxLevel 63
+#define fadeBitResolution 7 //  bits for fade level
+#define fadeMaxLevel 127
+
+static constexpr size_t FADE_TABLE_SIZE = 1 << fadeBitResolution;
+int32_t fadeInvTable[FADE_TABLE_SIZE];  
+bool fadeTableInitialized = false;
+
 
 class oscillatorModel {
 public:
   oscillatorModel() {
     newFreq = false;
     updateBufferInSyncWithDMA = false;
+    if (!fadeTableInitialized) {
+      for (size_t i = 0; i < FADE_TABLE_SIZE; i++) {
+          fadeInvTable[i] = (fadeMaxLevel << 16) / max(i, (size_t)1);
+      }      
+      fadeTableInitialized = true;
+    }
   };
   
   pio_program prog;
@@ -97,6 +108,15 @@ public:
 
   bool isFadingOut() const {
     return fadeDirection == -1;
+  }
+
+  __force_inline void updateFade() {
+        fadeLevel += fadeDirection; // Apply fade in/out
+        if (fadeLevel == 0) { 
+          fadeDirection = 0; // Stop at fully faded out
+        } else if (fadeLevel == fadeMaxLevel) {
+            fadeDirection = 0; // Stop at fully faded in
+        }
   }
 
 protected:

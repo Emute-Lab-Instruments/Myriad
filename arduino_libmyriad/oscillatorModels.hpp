@@ -53,10 +53,16 @@ class sawOscillatorModel : public virtual oscillatorModel {
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
+
+      
       int32_t wlen = this->wavelen;
       int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
       int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
-            
+
+      const int32_t volumePeak = static_cast<int32_t>(
+          (static_cast<int64_t>(wlen) * fadeInvTable[fadeLevel]) >> 16
+      );      
+
       int32_t local_phase = phase;     // Load once
       int32_t local_err0 = err0;       // Load once
             
@@ -75,7 +81,7 @@ class sawOscillatorModel : public virtual oscillatorModel {
           }
 
           int32_t y = amp >= local_err0 ? 1 : 0;
-          local_err0 = (y ? wlen : 0) - amp + local_err0;
+          local_err0 = (y ? volumePeak : 0) - amp + local_err0;
 
           word |= y;
           word <<= 1;
@@ -85,6 +91,7 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
       }
 
+      updateFade();
       phase = local_phase;   // Store once at end
       err0 = local_err0;     // Store once at end      
 
@@ -151,24 +158,38 @@ class triOscillatorModel : public virtual oscillatorModel {
 
         const int32_t local_fadeLevel = fadeLevel; // Load once
 
+
         const uint32_t rising_int = phaseRisingMul >> qfp;
         const uint32_t rising_frac = phaseRisingMul & 0x3FFF;
 
         // Compute the ACTUAL peak amplitude using the same math as the rising side
         const int32_t peakAmp = triPeakPoint * rising_int + 
                                 (((uint32_t)triPeakPoint * rising_frac) >> qfp);
+        // static constexpr int32_t fadeInvTable[64] = {
+        //     2016,                                          // 0: silence (early return)
+        //     2016, 1008, 672, 504, 403, 336, 288, 252,  // 1-8
+        //     224,  202,  183, 168, 155, 144, 134, 126,   // 9-16
+        //     119,  112,  106, 101,  96,  92,  87,  84,   // 17-24
+        //     81,   78,   75,  72,  70,  67,  65,  63,    // 25-32
+        //     61,   59,   58,  56,  55,  53,  52,  50,    // 33-40
+        //     49,   48,   47,  46,  45,  44,  43,  42,    // 41-48
+        //     41,   40,   40,  39,  38,  37,  37,  36,    // 49-56
+        //     35,   35,   34,  34,  33,  33,  32          // 57-63
+        // };
+
+        // const int32_t volumePeak = (peakAmp * fadeInvTable[fadeLevel]) >> 5;
 
 
         // Derive falling multiplier from peakAmp so peak and zero-crossing are exact
         const int32_t fallingSpan = wlen - triPeakPoint;
         const int32_t derivedFallingMul = (static_cast<int64_t>(peakAmp) << qfp) / fallingSpan;
+
         const uint32_t falling_int = derivedFallingMul >> qfp;
         const uint32_t falling_frac = derivedFallingMul & 0x3FFF;
 
         int32_t local_phase = phase;     // Load once
         int32_t local_err0 = err0;       // Load once
         
-        bool fading = fadeDirection != 0;
 
         for (size_t i = 0; i < loopLength; ++i) {
             uint32_t word = 0U;
@@ -185,13 +206,7 @@ class triOscillatorModel : public virtual oscillatorModel {
                     amp = peakAmp - fallingPhase;
                 }
 
-                // Clamp just in case of residual rounding at the very last sample
-                amp = amp < 0 ? 0 : amp;
-
-                if (fading) {
-                  // Apply fade in/out
-                  amp = (amp * local_fadeLevel) >> fadeBitResolution;  
-                }
+                amp = (amp * local_fadeLevel) >> fadeBitResolution;  
 
                 int32_t y = amp >= local_err0 ? 1 : 0;
 
@@ -206,12 +221,7 @@ class triOscillatorModel : public virtual oscillatorModel {
             *(bufferA + i) = word;
         }
 
-        fadeLevel += fadeDirection; // Apply fade in/out
-        if (fadeLevel == 0) { 
-          fadeDirection = 0; // Stop at fully faded out
-        } else if (fadeLevel == fadeMaxLevel) {
-            fadeDirection = 0; // Stop at fully faded in
-        }
+        updateFade();
         phase = local_phase;   // Store once at end
         err0 = local_err0;     // Store once at end
     }
@@ -226,12 +236,7 @@ class triOscillatorModel : public virtual oscillatorModel {
         phaseFallingMul = MULTIPLIER_TABLE_FALLING[index];
         risingInc = phaseRisingMul;
         fallingInc = -phaseFallingMul;  
-        // ctrlChange=true;    
-        // amp_fp=0;
       }
-      //   bitmul = static_cast<uint32_t>(1U << 15) * v * 3.9f;
-      // Serial.printf("%zu, phaseRisingMul: %zu, phaseRisingInvMul: %zu, phaseFallingMul: %zu\n", index, phaseRisingMul,phaseRisingInvMul, phaseFallingMul);
-      // fadeLevel = v.mulWith(Q16_16(127)).to_int(); // Map 0..1 to 8..1
       // PERIODIC_RUN(
       //   Serial.printf("fadeShift: %d\n", fadeShift);
       // , 500);
@@ -244,6 +249,12 @@ class triOscillatorModel : public virtual oscillatorModel {
     String getIdentifier() override {
       return "tri";
     }
+
+    void reset() override{
+      phase=0;
+      err0=0;
+    }
+
   
   private:
     int32_t phase=0;
@@ -266,9 +277,8 @@ class triOscillatorModel : public virtual oscillatorModel {
     size_t lastPW = 0;
     size_t lastWavelen = 1;
     volatile bool ctrlChange = false;
-    size_t bitshift = 0;
-    uint32_t bitmul = 1U; // multiplier for bit shift, used to scale the output
-    size_t lastWord=0, lastWord2=0, lastWord3=0, lastWord4=0, lastWord5=0, lastWord6=0, lastWord7=0, lastWord8=0;
+    // size_t bitshift = 0;
+    // uint32_t bitmul = 1U; // multiplier for bit shift, used to scale the output
 
 
 };
@@ -549,29 +559,38 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
 
     inline void fillBuffer(uint32_t* bufferA) {
       const size_t wlen = this->wavelen;
+
+      int32_t local_phase = phase;     // Load once
+      int32_t local_thr = thr;         // Load once
+      int32_t local_fadeLevel = fadeLevel; // Load once
+
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
         for(size_t bit=0U; bit < 32U; bit++) {
-          phase = phase >= wlen ? 0 : phase; // wrap around
+          local_phase = local_phase >= wlen ? 0 : local_phase; // wrap around
 
-          size_t amp = phase << 1;
-          amp =  amp > wlen ? phase : amp; 
+          size_t amp = local_phase << 1;
+          amp =  amp > wlen ? local_phase : amp; 
 
+          amp = (amp * local_fadeLevel) >> fadeBitResolution;  
 
-          const bool y = amp >= thr ? 1 : 0;
-          size_t err0 = (y ? wlen : 0) - amp + thr;
+          const bool y = amp >= local_thr ? 1 : 0;
+          size_t err0 = (y ? wlen : 0) - amp + local_thr;
 
           // thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
-          thr = ((err0 * alpha) + (thr)) >> qfp;
+          local_thr = ((err0 * alpha) + local_thr) >> qfp;
 
           word <<= 1;
           word |= y;
 
-          phase++;
+          local_phase++;
         }
         *(bufferA + i) = word;
 
       }
+      updateFade();
+      phase = local_phase;   // Store once at end
+      thr = local_thr;       // Store once at end
     }
 
     void ctrl(const Q16_16 v) override {
