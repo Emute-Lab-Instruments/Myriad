@@ -281,6 +281,13 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
     }
     
     inline void fillBuffer(uint32_t* bufferA) {
+      static int32_t FADE_REF = 1 << 12;
+      const bool fading = fadeDirection != 0;
+      const int32_t volumePeak = fading ? static_cast<int32_t>(
+          (static_cast<int64_t>(FADE_REF) * fadeInvTable[fadeLevel]) >> 16
+      ) : 0;
+      int32_t lErr = err0;
+
       for (size_t i = 0; i < loopLength; ++i) {
         uint32_t word = 0U;
         
@@ -292,14 +299,27 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
           }
           counter--;
 
+          // word <<= 1;
+          // word |= on;
+
+          int32_t y;
+          if (fading) [[unlikely]] {
+            int32_t amp = on ? FADE_REF : 0;
+            y = amp >= lErr ? 1 : 0;
+            lErr = (y ? volumePeak : 0) - amp + lErr;
+          } else {
+            y = on;
+          }
+
           word <<= 1;
-          word |= on;
+          word |= y;
         }
         
         *(bufferA + i) = word;
-        updateFade();
 
       }
+      err0 = lErr;
+      updateFade();
     }
 
     pio_sm_config getBaseConfig(uint offset) {
@@ -319,6 +339,7 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
     Q16_16 randMult = Q16_16(100);
     bool on=0;
     size_t counter=0;
+    int32_t err0 = 0;    
     
 };
 
@@ -503,6 +524,8 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
+      const bool fading = fadeDirection != 0;
+
       for (size_t i = 0; i < loopLength; ++i) {
         if ((rand() % 200000) > alpha) {
           int inc = beta>>2;
@@ -511,10 +534,20 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
         if (rand() % 1000 > beta)
           acc ^= (rand() & 127U);
         
-        *(bufferA + i) = acc;
-        updateFade();
-
+        // *(bufferA + i) = acc;
+        if (fading) [[unlikely]] {
+          // Probabilistically replace words with silence
+          // Higher fadeLevel = fewer replacements
+          if ((get_rand_32() & fadeMaxLevel) >= fadeLevel) {
+            *(bufferA + i) = 0xAAAAAAAA;
+          } else {
+            *(bufferA + i) = acc;
+          }
+        } else {
+          *(bufferA + i) = acc;
+        }
       }
+      updateFade();
 
     }
 
@@ -534,8 +567,7 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
     }
   
   private:
-    bool y=0;
-    int err0=0;
+    // int err0=0;
 
    int integrator = 0, acc=0;  
    int alpha=255, beta=0;
