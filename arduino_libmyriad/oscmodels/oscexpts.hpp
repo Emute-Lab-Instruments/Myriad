@@ -985,6 +985,143 @@ private:
     int32_t ditherShift = 10;
 };
 
+class triOscillator2Model : public virtual oscillatorModel {
+public:
+    triOscillator2Model() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        // setClockModShift(1);
+        updateBufferInSyncWithDMA = true;
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+
+        // Precompute into pending slots (cheap — runs outside tight loop)
+        if (wlen != cachedWlen || ctrlChanged) {
+            cachedWlen = wlen;
+            ctrlChanged = false;
+            recompute(wlen);
+            pendingApply = true;
+        }
+
+        int32_t lAmp = amp;
+        int32_t lPhase = phase;
+        int32_t lErr = err0;
+        int32_t lInc = inc;
+        int32_t lPeak = peakAmp;
+        int32_t lPeakPt = peakPoint;
+        int32_t lRiseInc = risingInc;
+        int32_t lFallInc = fallingInc;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+
+                int32_t y = (lAmp >= lErr) ? 1 : 0;
+                lErr += y * lPeak - lAmp;
+
+                word |= y;
+                word <<= 1;
+
+                lPhase++;
+                lAmp += lInc;
+
+                if (lPhase >= wlen) [[unlikely]] {
+                    lPhase = 0;
+                    lAmp = 0;
+                    
+                    // Apply pending params at safe point
+                    if (pendingApply) [[unlikely]] {
+                        pendingApply = false;
+                        lPeak = pendPeakAmp;
+                        lPeakPt = pendPeakPoint;
+                        lRiseInc = pendRisingInc;
+                        lFallInc = pendFallingInc;
+                        // Clamp error to new range
+                        if (lErr > lPeak) lErr = lPeak;
+                        if (lErr < 0) lErr = 0;
+                    }
+                    
+                    lInc = lRiseInc;
+                } else if (lPhase == lPeakPt) [[unlikely]] {
+                    lAmp = lPeak;
+                    lInc = -lFallInc;
+                }
+            }
+            *(bufferA + i) = word;
+        }
+
+        // Store back
+        amp = lAmp;
+        phase = lPhase;
+        err0 = lErr;
+        inc = lInc;
+        peakAmp = lPeak;
+        peakPoint = lPeakPt;
+        risingInc = lRiseInc;
+        fallingInc = lFallInc;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        using fptype = Fixed<18, 14>;
+        gradFP = (fptype(2) + fptype(7).mulWith(v)).raw();
+        ctrlChanged = true;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "tri";
+    }
+
+private:
+    void recompute(int32_t wlen) {
+        int32_t pp = (wlen << QFP) / gradFP;
+        if (pp < 2) pp = 2;
+        if (pp >= wlen) pp = wlen - 1;
+        const int32_t fl = wlen - pp;
+
+        int32_t ri = AMP_SCALE / pp;
+        int32_t pa = ri * pp;
+        int32_t fi = pa / fl;
+
+        pendPeakPoint = pp;
+        pendPeakAmp = pa;
+        pendRisingInc = ri;
+        pendFallingInc = fi;
+    }
+
+    // Live state
+    int32_t phase = 0;
+    int32_t amp = 0;
+    int32_t err0 = 0;
+    int32_t inc = 0;
+
+    // Active params
+    int32_t peakPoint = 1;
+    int32_t peakAmp = 0;
+    int32_t risingInc = 0;
+    int32_t fallingInc = 0;
+
+    // Pending params (applied at wrap)
+    int32_t pendPeakPoint = 1;
+    int32_t pendPeakAmp = 0;
+    int32_t pendRisingInc = 0;
+    int32_t pendFallingInc = 0;
+    bool pendingApply = true;
+
+    int32_t gradFP = 2 << 14;
+    int32_t cachedWlen = 0;
+    bool ctrlChanged = true;
+
+    int32_t QFP = 14;
+    int32_t AMP_SCALE = 1 << 24;
+}; 
+
+
 
 #endif //if 0
 
