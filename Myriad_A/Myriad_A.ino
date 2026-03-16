@@ -1482,8 +1482,8 @@ void setup() {
   //preallocate all oscillator model instances
   for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
     for (size_t i = 0; i < 3; i++) {
-      allOscModels[m][i] = oscModelFactories[m]();
-      // allOscModels[m][i] = oscModelFactories[9](); //test - all same model for now
+      // allOscModels[m][i] = oscModelFactories[m]();
+      allOscModels[m][i] = oscModelFactories[1](); //test - all same model for now
     }
   }
 

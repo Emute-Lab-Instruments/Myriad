@@ -1222,6 +1222,98 @@ class pulsePMSDOscillatorModel : public virtual oscillatorModel {
 
 };
 
+class squareSineSDOscillatorModel : public virtual oscillatorModel {
+public:
+    squareSineSDOscillatorModel() : oscillatorModel() {
+        loopLength = 16;
+        prog = bitbybit_program;
+        updateBufferInSyncWithDMA = true;
+    }
+
+inline void fillBuffer(uint32_t* bufferA) {
+        const int32_t wlen = this->wavelen;
+
+        if (wlen != cachedWlen) {
+            cachedWlen = wlen;
+            // Target cutoff ≈ 3 × fundamental
+            // cutoff ≈ 2.5MHz / (2π × 2^k)
+            // 2^k ≈ wlen / (3 × 2π) ≈ wlen / 19
+            // k ≈ log2(wlen) - 4
+            int32_t log2wl = 31 - __builtin_clz(wlen);
+            lpShift = log2wl - 4;
+            if (lpShift < 1) lpShift = 1;
+            if (lpShift > 12) lpShift = 12;
+        }
+        
+        int32_t lPhase = phase;
+        int32_t lErr = err0;
+        int32_t lLp1 = lp1;
+        int32_t lLp2 = lp2;
+        int32_t lLp3 = lp3;
+        int32_t lLp4 = lp4;
+        const int32_t k = lpShift;
+        const int32_t pw = pulselen;
+
+        for (size_t i = 0; i < loopLength; ++i) {
+            uint32_t word = 0U;
+            for (size_t bit = 0U; bit < 32U; bit++) {
+                lPhase = lPhase >= wlen ? 0 : lPhase;
+
+                int32_t amp = lPhase < pw ? AMP : 0;
+
+                lLp1 += (amp - lLp1) >> k;
+                lLp2 += (lLp1 - lLp2) >> k;
+                lLp3 += (lLp2 - lLp3) >> k;
+                lLp4 += (lLp3 - lLp4) >> k;
+
+                int32_t y = lLp4 >= lErr ? 1 : 0;
+                lErr += y * AMP - lLp4;
+
+                word |= y;
+                word <<= 1;
+                lPhase++;
+            }
+            *(bufferA + i) = word;
+        }
+
+        phase = lPhase;
+        err0 = lErr;
+        lp1 = lLp1;
+        lp2 = lLp2;
+        lp3 = lLp3;
+        lp4 = lLp4;
+    }
+
+    void ctrl(const Q16_16 v) override {
+        using fptype = Fixed<1, 30>;
+        fptype pw = (fptype(1) - fptype(v)) * fptype(0.5f);
+        pw = pw < fptype(0.01f) ? fptype(0.01f) : pw;
+        pulselen = WvlenFPType(this->wavelen).mulWith(pw).to_int();
+        if (pulselen < 1) pulselen = 1;
+    }
+
+    pio_sm_config getBaseConfig(uint offset) {
+        return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+        return "sinesd";
+    }
+
+private:
+    static constexpr int32_t AMP = 1 << 20;
+
+    int32_t phase = 0;
+    int32_t err0 = 0;
+    int32_t lp1 = 0;
+    int32_t lp2 = 0;
+    int32_t lp3 = 0;
+    int32_t lp4 = 0;
+    int32_t lpShift = 6;
+    int32_t pulselen = 1;
+    int32_t cachedWlen = 0;
+};
+
 
 #endif //if 0
 
