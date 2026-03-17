@@ -84,7 +84,7 @@ static sharkTeethSDOscillatorModel  sharkTeethSDModels[3];
 static pulsePWOscillatorModel       pulsePWModels[3];
 static expPulse2SDOscillatorModel   expPulse2SDModels[3];
 static triOscillatorModel           triModels[3];
-static triSDVar1OscillatorModel     triSDVar1Models[3];
+static triTeethOscillatorModel      triTeethModels[3];
 static parasineSDOscillatorModel    parasineSDModels[3];
 static formantSDOscillatorModel     formantSDModels[3];
 static bellSDOscillatorModel        bellSDModels[3];
@@ -1500,7 +1500,7 @@ void setup() {
     allOscModels[3][i]  = &pulsePWModels[i];
     allOscModels[4][i]  = &expPulse2SDModels[i];
     allOscModels[5][i]  = &triModels[i];
-    allOscModels[6][i]  = &triSDVar1Models[i];
+    allOscModels[6][i]  = &triTeethModels[i];
     allOscModels[7][i]  = &parasineSDModels[i];
     allOscModels[8][i]  = &formantSDModels[i];
     allOscModels[9][i]  = &bellSDModels[i];

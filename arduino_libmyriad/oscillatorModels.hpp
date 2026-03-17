@@ -28,3 +28,4 @@ const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 #include "oscmodels/formantSDOscillatorModel.hpp"
 #include "oscmodels/bellSDOscillatorModel.hpp"
 #include "oscmodels/sharkTeethSDOscillatorModel.hpp"
+#include "oscmodels/triTeethOscillatorModel.hpp"
