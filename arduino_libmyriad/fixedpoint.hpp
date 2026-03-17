@@ -419,6 +419,18 @@ public:
     constexpr Fixed frac_signed() const {
         return *this - Fixed::from_int(to_int());
     }    
+
+    // fmod(x, y) = x - trunc(x/y) * y  (result sign matches x)
+    __force_inline constexpr Fixed fmod(const Fixed& divisor) const {
+        Fixed quotient = *this / divisor;
+        // Truncate toward zero (arithmetic shift rounds toward -inf, fix for negatives)
+        storage_type int_part = quotient.value >> FRACTIONAL_BITS;
+        constexpr storage_type frac_mask = (storage_type(1) << FRACTIONAL_BITS) - 1;
+        if (quotient.value < 0 && (quotient.value & frac_mask)) {
+            int_part += 1;
+        }
+        return *this - Fixed::from_raw(int_part << FRACTIONAL_BITS) * divisor;
+    }    
     
     // ========================================================================
     // SATURATING ARITHMETIC
@@ -663,6 +675,11 @@ __force_inline constexpr T round(const T& x) {
     typename T::storage_type half_bit = typename T::storage_type(1) << (T::FRACTIONAL_BITS - 1);
     typename T::storage_type with_half = x.value + half_bit;
     return T::from_raw((with_half >> T::FRACTIONAL_BITS) << T::FRACTIONAL_BITS);
+}
+
+template<FixedPointType T>
+__force_inline constexpr T fmod(const T& x, const T& divisor) {
+    return x.fmod(divisor);
 }
 
 template<FixedPointType T>

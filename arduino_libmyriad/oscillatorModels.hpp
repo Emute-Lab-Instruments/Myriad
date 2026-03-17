@@ -51,19 +51,26 @@ class sawOscillatorModel : public virtual oscillatorModel {
       prog=bitbybit_program;
 
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
 
       
-      int32_t wlen = this->wavelen;
-      int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
-      int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+      const int32_t wlen = this->wavelen;
+      const int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
+      const int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
 
-      const int32_t volumePeak = static_cast<int32_t>(
-          (static_cast<int64_t>(wlen) * fadeInvTable[fadeLevel]) >> 16
-      );      
-
+      const bool isFading = fadeDirection != 0;
+      int32_t volumePeak;
+      if (isFading) {
+        // If fading, compute the actual volume peak for this fade level
+        volumePeak = static_cast<int32_t>(
+            (static_cast<int64_t>(wlen) * fadeInvTable[fadeLevel]) >> 16
+        );      
+      }else{
+        volumePeak = wlen;
+      }
       int32_t local_phase = phase;     // Load once
       int32_t local_err0 = err0;       // Load once
             
@@ -121,6 +128,78 @@ class sawOscillatorModel : public virtual oscillatorModel {
     size_t val=0;
 
 };
+
+// class sawOscillatorModel : public virtual oscillatorModel {
+//   public:
+
+//     sawOscillatorModel() : oscillatorModel(){
+//       loopLength=16;
+//       prog=bitbybit_program;
+
+//       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+//     }
+
+//     inline void fillBuffer(uint32_t* bufferA) {
+//       int32_t wlen = this->wavelen;
+//       int32_t pm_int = phaseMul >> 15;      // Integer part (2..11)
+//       int32_t pm_frac = phaseMul & 0x7FFF;  // Fractional part
+            
+//       int32_t local_phase = phase;     // Load once
+//       int32_t local_err0 = err0;       // Load once
+            
+//       for (size_t i = 0; i < loopLength; ++i) {
+//         size_t word=0U;
+//         for (uint32_t bit = 0; bit < 32; ++bit) {
+//           local_phase++;
+//           if (local_phase>=wlen) {
+//             local_phase = 0U;
+//           }
+
+//           int32_t amp = local_phase * pm_int + ((local_phase * pm_frac) >> 15);        
+
+//           if (amp >= wlen) {
+//             amp = 0;
+//           }
+
+//           int32_t y = amp >= local_err0 ? 1 : 0;
+//           local_err0 = (y ? wlen : 0) - amp + local_err0;
+
+//           word |= y;
+//           word <<= 1;
+//         } 
+
+//         *(bufferA + i) = word;
+
+//       }
+
+//       phase = local_phase;   // Store once at end
+//       err0 = local_err0;     // Store once at end      
+
+//     }
+
+//     void ctrl(const Q16_16 v) override {
+//       using fptype = Fixed<17,15>;
+//       fptype newPhaseMul = fptype(5) + (fptype(40).mulWith(v));
+//       phaseMul = newPhaseMul.raw();
+//     }
+  
+//     pio_sm_config getBaseConfig(uint offset) {
+//       return bitbybit_program_get_default_config(offset);
+//     }
+
+//     String getIdentifier() override {
+//       return "saw";
+//     }
+
+  
+//   private:
+//     int32_t phase=0;
+//     int32_t phaseMul = 2 << 15;
+//     bool y=0;
+//     int err0=0;
+//     size_t val=0;
+
+// };
 
 volatile bool triTableGenerated=false;
 static int32_t __not_in_flash("tri") MULTIPLIER_TABLE_RISING[1000];
@@ -443,7 +522,7 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
 
       int32_t local_phase = phase;     // Load once
       int32_t local_thr = thr;         // Load once
-      int32_t local_fadeLevel = fadeLevel; // Load once
+      const bool fading = fadeDirection != 0;
 
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
@@ -453,19 +532,22 @@ class smoothThreshSDOscillatorModel : public virtual oscillatorModel {
           size_t amp = local_phase << 1;
           amp =  amp > wlen ? local_phase : amp; 
 
-          amp = (amp * local_fadeLevel) >> fadeBitResolution;  
 
           const bool y = amp >= local_thr ? 1 : 0;
           size_t err0 = (y ? wlen : 0) - amp + local_thr;
 
-          // thr = ((err0 * alpha) + (thr * alpha_inv)) >> qfp;
-          local_thr = ((err0 * alpha) + local_thr) >> qfp;
+          local_thr = ((err0 * alpha) + (local_thr)) >> qfp;
 
           word <<= 1;
           word |= y;
 
           local_phase++;
         }
+
+        if (fading) [[unlikely]] {
+          if ((get_rand_32() & fadeMaxLevel) >= fadeLevel)
+            word = 0xAAAAAAAA;
+        }        
         *(bufferA + i) = word;
 
       }
@@ -1369,6 +1451,107 @@ class bellSDOscillatorModel : public virtual oscillatorModel {
     inline static bool tablesGenerated = false;
 };
 
+class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
+  public:
+    using fptype = Fixed<20,11>;
+
+
+    sharkTeethSDOscillatorModel() : oscillatorModel(){
+      loopLength=16;
+      prog=bitbybit_program;
+      updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
+      setClockModShift(1);
+    }
+
+    inline void fillBuffer(uint32_t* bufferA) {
+      const size_t wlen = this->wavelen;
+      const fptype wlenFP = fptype::from_int(wlen);
+
+      int32_t local_phase = phase;     // Load once
+      int32_t local_err = err0;
+
+      fptype toothPhase =fptype::from_int(local_phase) * bite;
+
+      toothPhase = toothPhase.fmod(wlenFP); 
+
+
+      //amplitude
+      const bool isFading = fadeDirection != 0;
+      int32_t volumePeak;
+      if (isFading) {
+        // If fading, compute the actual volume peak for this fade level
+        volumePeak = static_cast<int32_t>(
+            (static_cast<int64_t>(wlen) * fadeInvTable[fadeLevel]) >> 16
+        );      
+      }else{
+        volumePeak = wlen;
+      }      
+
+      for (size_t i = 0; i < loopLength; ++i) {
+        size_t word=0U;
+        for(size_t bit=0U; bit < 32U; bit++) {
+          
+          local_phase = local_phase >= wlen ? 0 : local_phase; // wrap around
+
+
+          if (toothPhase >= wlenFP) {
+            toothPhase -= wlenFP;
+          }
+          size_t amp = toothPhase.to_int(); 
+
+          if (local_phase >= (wlen >> 1)) {
+            amp = 0;
+          }
+
+
+
+
+          const bool y = amp >= local_err ? 1 : 0;
+          local_err = (y ? volumePeak : 0) - amp + local_err;
+
+
+          word <<= 1;
+          word |= y;
+
+          local_phase++;
+          toothPhase += bite;
+        }
+
+        *(bufferA + i) = word;
+
+      }
+      updateFade();
+      phase = local_phase;   // Store once at end
+      err0 = local_err;
+    }
+
+    void ctrl(const Q16_16 v) override 
+    {
+      static fptype maxTeeth(19.f);
+      static fptype minTeeth(1.f);
+      bite = minTeeth + (fptype(v) * maxTeeth); 
+      bite = FixedPoint::floor(bite);
+      
+    }
+      
+  
+    pio_sm_config getBaseConfig(uint offset) {
+      return bitbybit_program_get_default_config(offset);
+    }
+
+    String getIdentifier() override {
+      return "sdt10";
+    }
+
+  
+  private:
+    size_t phase=0;
+    int32_t err0=0;
+
+    fptype bite = fptype(1);
+};
+
+
 const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 
 // Array of "factory" lambdas returning oscModelPtr
@@ -1382,7 +1565,7 @@ std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("my
   ,
   []() { return std::make_shared<expPulseSDOscillatorModel>(); } 
   ,
-  []() { return std::make_shared<smoothThreshSDOscillatorModel>(); } //sharktooth 10
+  []() { return std::make_shared<sharkTeethSDOscillatorModel>(); } 
   ,
   []() { return std::make_shared<pulsePWOscillatorModel>(); }
   ,
