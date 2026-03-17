@@ -1343,7 +1343,7 @@ class formantSDOscillatorModel : public virtual oscillatorModel {
 };
 
 
-using oscModelPtr = std::shared_ptr<oscillatorModel>;
+using oscModelPtr = oscillatorModel*;
 
 
 class bellSDOscillatorModel : public virtual oscillatorModel {
@@ -1554,43 +1554,3 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
 
 const size_t __not_in_flash("mydata") N_OSCILLATOR_MODELS = 13;
 
-// Array of "factory" lambdas returning oscModelPtr
-
-std::array<std::function<oscModelPtr()>, N_OSCILLATOR_MODELS> __not_in_flash("mydata") oscModelFactories = {
-  
-  
-  
-
-  []() { return std::make_shared<sawOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<expPulseSDOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<sharkTeethSDOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<pulsePWOscillatorModel>(); }
-  ,
-  []() { return std::make_shared<expPulse2SDOscillatorModel>(); } 
-  ,
-
-  // //tris
-  []() { return std::make_shared<triOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<triSDVar1OscillatorModel>(); } //tri with nice mod
-  ,
-  //wavetables
-  []() { return std::make_shared<parasineSDOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<formantSDOscillatorModel>(); } 
-  ,
-  []() { return std::make_shared<bellSDOscillatorModel>(); } 
-  ,
-
-  // //noise
-  []() { return std::make_shared<noiseOscillatorModelSD>();} 
-  ,
-  []() { return std::make_shared<whiteNoiseOscillatorModel>(); }
-  ,
-
-  //silent
-  []() { return std::make_shared<silentOscillatorModel>();}
-};

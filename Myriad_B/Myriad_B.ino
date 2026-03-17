@@ -46,6 +46,20 @@ std::array<oscModelPtr, 3> FAST_MEM currOscModels1;
 std::array<std::array<oscModelPtr, 3>, N_OSCILLATOR_MODELS> allOscModels0;
 std::array<std::array<oscModelPtr, 3>, N_OSCILLATOR_MODELS> allOscModels1;
 
+static sawOscillatorModel           sawModels0[3],          sawModels1[3];
+static expPulseSDOscillatorModel    expPulseSDModels0[3],   expPulseSDModels1[3];
+static sharkTeethSDOscillatorModel  sharkTeethSDModels0[3], sharkTeethSDModels1[3];
+static pulsePWOscillatorModel       pulsePWModels0[3],      pulsePWModels1[3];
+static expPulse2SDOscillatorModel   expPulse2SDModels0[3],  expPulse2SDModels1[3];
+static triOscillatorModel           triModels0[3],          triModels1[3];
+static triSDVar1OscillatorModel     triSDVar1Models0[3],    triSDVar1Models1[3];
+static parasineSDOscillatorModel    parasineSDModels0[3],   parasineSDModels1[3];
+static formantSDOscillatorModel     formantSDModels0[3],    formantSDModels1[3];
+static bellSDOscillatorModel        bellSDModels0[3],       bellSDModels1[3];
+static noiseOscillatorModelSD       noiseSDModels0[3],      noiseSDModels1[3];
+static whiteNoiseOscillatorModel    whiteNoiseModels0[3],   whiteNoiseModels1[3];
+static silentOscillatorModel        silentModels0[3],       silentModels1[3];
+
 static spin_lock_t FAST_MEM *calcOscsSpinlock0;
 static spin_lock_t FAST_MEM *calcOscsSpinlock1;
 
@@ -519,11 +533,20 @@ void setup() {
 
   calcOscsSpinlock0 = spin_lock_init(spin_lock_claim_unused(true));
 
-  // currOscModelBank0 = oscModel2;
-  for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
-    for (size_t i = 0; i < 3; i++) {
-      allOscModels0[m][i] = oscModelFactories[m]();
-    }
+  for (size_t i = 0; i < 3; i++) {
+    allOscModels0[0][i]  = &sawModels0[i];
+    allOscModels0[1][i]  = &expPulseSDModels0[i];
+    allOscModels0[2][i]  = &sharkTeethSDModels0[i];
+    allOscModels0[3][i]  = &pulsePWModels0[i];
+    allOscModels0[4][i]  = &expPulse2SDModels0[i];
+    allOscModels0[5][i]  = &triModels0[i];
+    allOscModels0[6][i]  = &triSDVar1Models0[i];
+    allOscModels0[7][i]  = &parasineSDModels0[i];
+    allOscModels0[8][i]  = &formantSDModels0[i];
+    allOscModels0[9][i]  = &bellSDModels0[i];
+    allOscModels0[10][i] = &noiseSDModels0[i];
+    allOscModels0[11][i] = &whiteNoiseModels0[i];
+    allOscModels0[12][i] = &silentModels0[i];
   }
   assignOscModels0(0);
 
@@ -608,11 +631,20 @@ void __not_in_flash_func(loop)() {
 void setup1() {
   calcOscsSpinlock1 = spin_lock_init(spin_lock_claim_unused(true));
 
-//  currOscModelBank1 = oscModel2;
-  for (size_t m = 0; m < N_OSCILLATOR_MODELS; m++) {
-    for (size_t i = 0; i < 3; i++) {
-      allOscModels1[m][i] = oscModelFactories[m]();
-    }
+  for (size_t i = 0; i < 3; i++) {
+    allOscModels1[0][i]  = &sawModels1[i];
+    allOscModels1[1][i]  = &expPulseSDModels1[i];
+    allOscModels1[2][i]  = &sharkTeethSDModels1[i];
+    allOscModels1[3][i]  = &pulsePWModels1[i];
+    allOscModels1[4][i]  = &expPulse2SDModels1[i];
+    allOscModels1[5][i]  = &triModels1[i];
+    allOscModels1[6][i]  = &triSDVar1Models1[i];
+    allOscModels1[7][i]  = &parasineSDModels1[i];
+    allOscModels1[8][i]  = &formantSDModels1[i];
+    allOscModels1[9][i]  = &bellSDModels1[i];
+    allOscModels1[10][i] = &noiseSDModels1[i];
+    allOscModels1[11][i] = &whiteNoiseModels1[i];
+    allOscModels1[12][i] = &silentModels1[i];
   }
   assignOscModels1(0);
 
