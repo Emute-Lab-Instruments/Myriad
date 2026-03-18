@@ -47,7 +47,11 @@ class triTeethOscillatorModel : public virtual oscillatorModel {
 
           local_phase = local_phase >= wlen ? 0 : local_phase; // wrap around
 
-          if (triPhaseInt > wlenInt || triPhaseInt < 0) {
+          if (triPhaseInt > wlenInt) {
+            triPhaseInt = 2 * wlenInt - triPhaseInt;
+            triIncInt = -triIncInt;
+          } else if (triPhaseInt < 0) {
+            triPhaseInt = -triPhaseInt;
             triIncInt = -triIncInt;
           }
 
