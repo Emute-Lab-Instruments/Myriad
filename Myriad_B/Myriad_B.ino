@@ -73,13 +73,14 @@ volatile bool FAST_MEM oscsStartedAfterFirstFrequency1=false;
 // Track current bank types to prevent redundant changes
 volatile size_t FAST_MEM currentBank0Type = 0;
 volatile size_t FAST_MEM currentBank1Type = 0;
-volatile size_t FAST_MEM requestedBank1=0;
+volatile size_t FAST_MEM requestedBank0 = 0;
+volatile size_t FAST_MEM requestedBank1 = 0;
 
-// Track PIO program offsets for cleanup
-static uint bank0_program_offset = 0;
-static bool bank0_program_loaded = false;
-static uint bank1_program_offset = 0;
-static bool bank1_program_loaded = false;
+enum bankChangeStages { BANK_IDLE, BANK_FADING };
+bankChangeStages FAST_MEM bankChangeStage0 = BANK_IDLE;
+bankChangeStages FAST_MEM bankChangeStage1 = BANK_IDLE;
+volatile bool FAST_MEM changeBankFlag0 = false;
+volatile bool FAST_MEM changeBankFlag1 = false;
 
 
 
@@ -464,57 +465,22 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     }
     case streamMessaging::messageTypes::BANK0:
     {
-      size_t requestedBank = msg.value.uintValue;
-      Serial.printf("Requested Bank0 change to %d\n", requestedBank);
-      // Skip if already at this bank (prevents redundant changes)
-      if (requestedBank == currentBank0Type) {
-        break;
+      size_t bank = msg.value.uintValue;
+      if (bank != currentBank0Type) {
+        requestedBank0 = bank;
+        changeBankFlag0 = true;
       }
-
-
-      // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
-
-      stopOscBankA();
-      dma_hw->ints0 = smOsc0_dma_chan_bit | smOsc1_dma_chan_bit | smOsc2_dma_chan_bit;
-
-      auto w1 = currOscModels0[0]->getWavelen();
-      auto w2 = currOscModels0[1]->getWavelen();
-      auto w3 = currOscModels0[2]->getWavelen();
-
-
-      assignOscModels0(requestedBank);
-
-      currOscModels0[0]->reset();
-      currOscModels0[1]->reset();
-      currOscModels0[2]->reset();
-
-      currOscModels0[0]->setWavelen(w1);
-      currOscModels0[1]->setWavelen(w2);
-      currOscModels0[2]->setWavelen(w3);
-
-      currOscModels0[0]->ctrl(epsilon_fixed);
-      currOscModels0[1]->ctrl(epsilon_fixed);
-      currOscModels0[2]->ctrl(epsilon_fixed);
-
-      calculateOscBuffers0();
-
-      startOscBankA();
-
-      // Update current bank type
-      currentBank0Type = requestedBank;
-
-      Serial.println("Bank0 changed, RX restarted");
-      // streamMessaging::resumeReceiver();
-
     }
     break;
     case streamMessaging::messageTypes::BANK1:
     {
-      Serial.printf("Requested Bank1 change to %d\n", msg.value.uintValue);
-      uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
-      requestedBank1 = msg.value.uintValue;
-      spin_unlock(calcOscsSpinlock1, save);
-
+      size_t bank = msg.value.uintValue;
+      if (bank != currentBank1Type) {
+        uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
+        requestedBank1 = bank;
+        changeBankFlag1 = true;
+        spin_unlock(calcOscsSpinlock1, save);
+      }
     }
     break;
     default:
@@ -613,9 +579,50 @@ void __not_in_flash_func(loop)() {
       newFrequenciesReady0 = false;
     }
     
-    // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);  
+    // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
     calculateOscBuffers0();
     // spin_unlock(calcOscsSpinlock0, save);
+
+    if (changeBankFlag0) {
+      if (bankChangeStage0 == BANK_IDLE) {
+        currOscModels0[0]->startFadeOut();
+        currOscModels0[1]->startFadeOut();
+        currOscModels0[2]->startFadeOut();
+        bankChangeStage0 = BANK_FADING;
+      } else if (bankChangeStage0 == BANK_FADING) {
+        if (!currOscModels0[0]->isFadingOut()) {
+          auto w1 = currOscModels0[0]->getWavelen();
+          auto w2 = currOscModels0[1]->getWavelen();
+          auto w3 = currOscModels0[2]->getWavelen();
+
+          assignOscModels0(requestedBank0);
+
+          smOsc0.setClockDiv(currOscModels0[0]->getClockDiv());
+          smOsc1.setClockDiv(currOscModels0[1]->getClockDiv());
+          smOsc2.setClockDiv(currOscModels0[2]->getClockDiv());
+
+          currOscModels0[0]->reset();
+          currOscModels0[1]->reset();
+          currOscModels0[2]->reset();
+
+          currOscModels0[0]->setWavelen(w1);
+          currOscModels0[1]->setWavelen(w2);
+          currOscModels0[2]->setWavelen(w3);
+
+          currOscModels0[0]->ctrl(epsilon_fixed);
+          currOscModels0[1]->ctrl(epsilon_fixed);
+          currOscModels0[2]->ctrl(epsilon_fixed);
+
+          currOscModels0[0]->startFadeIn();
+          currOscModels0[1]->startFadeIn();
+          currOscModels0[2]->startFadeIn();
+
+          currentBank0Type = requestedBank0;
+          bankChangeStage0 = BANK_IDLE;
+          changeBankFlag0 = false;
+        }
+      }
+    }
   }
 
   auto now = millis();
@@ -657,47 +664,54 @@ void __not_in_flash_func(loop1)() {
     oscsStartedAfterFirstFrequency1 = true;
   }
   if (oscsRunning1) {
-    uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
-    const bool newBank = currentBank1Type != requestedBank1;
-    spin_unlock(calcOscsSpinlock1, save);
+    if (changeBankFlag1) {
+      if (bankChangeStage1 == BANK_IDLE) {
+        currOscModels1[0]->startFadeOut();
+        currOscModels1[1]->startFadeOut();
+        currOscModels1[2]->startFadeOut();
+        bankChangeStage1 = BANK_FADING;
+      } else if (bankChangeStage1 == BANK_FADING) {
+        if (!currOscModels1[0]->isFadingOut()) {
+          uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
+          size_t targetBank = requestedBank1;
+          spin_unlock(calcOscsSpinlock1, save);
 
-    if (newBank) {
-      // Serial.printf("bank1: changing %d -> %d\n", currentBank1Type, requestedBank);
+          auto w1 = currOscModels1[0]->getWavelen();
+          auto w2 = currOscModels1[1]->getWavelen();
+          auto w3 = currOscModels1[2]->getWavelen();
 
-      stopOscBankB();
+          assignOscModels1(targetBank);
 
-      // busy_wait_us(100);
+          smOsc3.setClockDiv(currOscModels1[0]->getClockDiv());
+          smOsc4.setClockDiv(currOscModels1[1]->getClockDiv());
+          smOsc5.setClockDiv(currOscModels1[2]->getClockDiv());
 
-      dma_hw->ints1 = smOsc3_dma_chan_bit | smOsc4_dma_chan_bit | smOsc5_dma_chan_bit;
+          currOscModels1[0]->reset();
+          currOscModels1[1]->reset();
+          currOscModels1[2]->reset();
 
-      auto w1 = currOscModels1[0]->getWavelen();
-      auto w2 = currOscModels1[1]->getWavelen();
-      auto w3 = currOscModels1[2]->getWavelen();
+          currOscModels1[0]->setWavelen(w1);
+          currOscModels1[1]->setWavelen(w2);
+          currOscModels1[2]->setWavelen(w3);
 
-      assignOscModels1(requestedBank1);
+          currOscModels1[0]->ctrl(epsilon_fixed);
+          currOscModels1[1]->ctrl(epsilon_fixed);
+          currOscModels1[2]->ctrl(epsilon_fixed);
 
-      currOscModels1[0]->reset();
-      currOscModels1[1]->reset();
-      currOscModels1[2]->reset();
+          currOscModels1[0]->startFadeIn();
+          currOscModels1[1]->startFadeIn();
+          currOscModels1[2]->startFadeIn();
 
-      currOscModels1[0]->setWavelen(w1);
-      currOscModels1[1]->setWavelen(w2);
-      currOscModels1[2]->setWavelen(w3);
+          save = spin_lock_blocking(calcOscsSpinlock1);
+          currentBank1Type = targetBank;
+          changeBankFlag1 = false;
+          spin_unlock(calcOscsSpinlock1, save);
 
-      currOscModels1[0]->ctrl(epsilon_fixed);
-      currOscModels1[1]->ctrl(epsilon_fixed);
-      currOscModels1[2]->ctrl(epsilon_fixed);
+          bankChangeStage1 = BANK_IDLE;
+        }
+      }
+    }
 
-      calculateOscBuffers1();
-
-      startOscBankB();
-
-      // Update current bank type
-      uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
-      currentBank1Type = requestedBank1;
-      spin_unlock(calcOscsSpinlock1, save);
-
-    }    
     if (newCtrlReady) {
       currOscModels1[0]->ctrl(epsilon_fixed);
       currOscModels1[1]->ctrl(epsilon_fixed);
