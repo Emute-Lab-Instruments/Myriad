@@ -24,25 +24,25 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
         for(uint32_t bit = 0; bit < 32; ++bit) {
           if (counter == 0) {
             on = !on;  // Toggle state
-            Q16_16 rnd = Q16_16::random_hw(Q16_16(0),randMult);
+            Q16_16 rnd = Q16_16::random(Q16_16(0),randMult);
             counter = 1 + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();
           }
           counter--;
 
-          // word <<= 1;
-          // word |= on;
-
-          int32_t y;
-          if (fading) [[unlikely]] {
-            int32_t amp = on ? FADE_REF : 0;
-            y = amp >= lErr ? 1 : 0;
-            lErr = (y ? volumePeak : 0) - amp + lErr;
-          } else {
-            y = on;
-          }
-
           word <<= 1;
-          word |= y;
+          word |= on;
+
+          // int32_t y;
+          // if (fading) [[unlikely]] {
+          //   int32_t amp = on ? FADE_REF : 0;
+          //   y = amp >= lErr ? 1 : 0;
+          //   lErr = (y ? volumePeak : 0) - amp + lErr;
+          // } else {
+          //   y = on;
+          // }
+
+          // word <<= 1;
+          // word |= y;
         }
 
         *(bufferA + i) = word;
