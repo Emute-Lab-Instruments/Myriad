@@ -3,11 +3,14 @@
 
 class noiseOscillatorModelSD : public virtual oscillatorModel {
   public:
+
+    size_t minRun=30;
+
     noiseOscillatorModelSD() : oscillatorModel(){
-      loopLength=8;
+      loopLength=16;
       prog=bitbybit_program;
       updateBufferInSyncWithDMA = true;
-      setClockModShift(1);
+      // setClockModShift(1);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {
@@ -18,6 +21,9 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
       ) : 0;
       int32_t lErr = err0;
 
+      static size_t minRunBase = 20;
+      minRun = minRunBase + (wavelen >> 6);      
+
       for (size_t i = 0; i < loopLength; ++i) {
         uint32_t word = 0U;
 
@@ -25,24 +31,22 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
           if (counter == 0) {
             on = !on;  // Toggle state
             Q16_16 rnd = Q16_16::random(Q16_16(0),randMult);
-            counter = 1 + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();
+            counter = minRun + (WvlenFPType(wavelen) * WvlenFPType(0.01f)).mulWith(rnd).to_int();
           }
           counter--;
 
+
+          int32_t y;
+          if (fading) [[unlikely]] {
+            int32_t amp = on ? FADE_REF : 0;
+            y = amp >= lErr ? 1 : 0;
+            lErr = (y ? volumePeak : 0) - amp + lErr;
+          } else {
+            y = on;
+          }
+
           word <<= 1;
-          word |= on;
-
-          // int32_t y;
-          // if (fading) [[unlikely]] {
-          //   int32_t amp = on ? FADE_REF : 0;
-          //   y = amp >= lErr ? 1 : 0;
-          //   lErr = (y ? volumePeak : 0) - amp + lErr;
-          // } else {
-          //   y = on;
-          // }
-
-          // word <<= 1;
-          // word |= y;
+          word |= y;
         }
 
         *(bufferA + i) = word;
