@@ -844,6 +844,8 @@ void __isr encoder1_callback() {
       case CONTROLMODES::TUNINGMODE:
       {
         TuningSettings::semitones += change;
+        TuningSettings::semitones = max(-12, TuningSettings::semitones);
+        TuningSettings::semitones = min(12, TuningSettings::semitones);
         updateTuning();
         break;
       }
@@ -1060,6 +1062,8 @@ void __isr encoder3_callback() {
       case CONTROLMODES::TUNINGMODE:
       {
         TuningSettings::cents += change;
+        TuningSettings::cents = max(-99, TuningSettings::cents);
+        TuningSettings::cents = min(99, TuningSettings::cents);
         updateTuning();
         break;
       }
