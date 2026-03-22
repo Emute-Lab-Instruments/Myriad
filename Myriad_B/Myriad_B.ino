@@ -466,7 +466,9 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     case streamMessaging::messageTypes::BANK0:
     {
       size_t bank = msg.value.uintValue;
-      if (bank != currentBank0Type) {
+      size_t targetBank0 = changeBankFlag0 ? requestedBank0 : currentBank0Type;
+      Serial.printf("bank0 change %d\n", bank);
+      if (bank != targetBank0) {
         requestedBank0 = bank;
         changeBankFlag0 = true;
       }
@@ -475,12 +477,13 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     case streamMessaging::messageTypes::BANK1:
     {
       size_t bank = msg.value.uintValue;
-      if (bank != currentBank1Type) {
-        uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
+      uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
+      size_t targetBank1 = changeBankFlag1 ? requestedBank1 : currentBank1Type;
+      if (bank != targetBank1) {
         requestedBank1 = bank;
         changeBankFlag1 = true;
-        spin_unlock(calcOscsSpinlock1, save);
       }
+      spin_unlock(calcOscsSpinlock1, save);
     }
     break;
     default:
@@ -524,7 +527,7 @@ void setup() {
 }
 
 size_t counter=0;
-size_t checkevery=10000;
+size_t checkevery=20000;
 size_t errorCount=0;
 size_t totalMessagesReceived=0;
 
@@ -544,16 +547,13 @@ void __not_in_flash_func(loop)() {
       } else {
           errorCount++;
       }
-      if (counter++ == checkevery) {
-          // Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
-          counter=0;
-          errorCount=0;
-      }
+      // if (counter++ == checkevery) {
+      //     Serial.printf("%d messages received, %d errors, %d total\n", checkevery, errorCount,totalMessagesReceived);
+      //     counter=0;
+      //     errorCount=0;
+      // }
   }
   if (waitingForFirstFrequency0 == false && oscsStartedAfterFirstFrequency0 == false) {
-    // currOscModels0[0]->ctrl(ctrlVal);
-    // currOscModels0[1]->ctrl(ctrlVal);
-    // currOscModels0[2]->ctrl(ctrlVal);
 
     startOscBankA();
     oscsStartedAfterFirstFrequency0 = true;
@@ -569,9 +569,9 @@ void __not_in_flash_func(loop)() {
       new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
 
 
-      new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed << -currentOctaveShifts[1];
-      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
-      new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed << -currentOctaveShifts[1];
+      new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed.safeShiftLeft(-currentOctaveShifts[1]);
+      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed.safeShiftLeft(-currentOctaveShifts[1]);
+      new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed.safeShiftLeft(-currentOctaveShifts[1]);
 
       currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
       currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
@@ -728,9 +728,9 @@ void __not_in_flash_func(loop1)() {
       new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
 
 
-      new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed << -currentOctaveShifts[2];
-      new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed << -currentOctaveShifts[2];
-      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
+      new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed.safeShiftLeft(-currentOctaveShifts[2]);
+      new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed.safeShiftLeft(-currentOctaveShifts[2]);
+      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed.safeShiftLeft(-currentOctaveShifts[2]);
 
       currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
       currOscModels1[1]->setWavelen(new_wavelen7_fixed.to_int());

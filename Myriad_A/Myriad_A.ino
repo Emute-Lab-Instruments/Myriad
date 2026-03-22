@@ -288,7 +288,7 @@ FixedLpf<12,6> FAST_MEM adcLpf2;
 FixedLpf<12,6> FAST_MEM adcLpf3;
 using WvlenFPType = Fixed<20,11>;
 
-WvlenFPType __not_in_flash("adc") new_base_frequency(0);
+WvlenFPType __not_in_flash("adc") new_base_wavelen(0);
 WvlenFPType __not_in_flash("adc") new_wavelen0_fixed(0);
 WvlenFPType __not_in_flash("adc") new_wavelen1_fixed(0);
 WvlenFPType __not_in_flash("adc") new_wavelen2_fixed(0);
@@ -405,13 +405,22 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     
     // Q16_16 freq_Q16 = exp_fast(pitchCV_Q16); 
     // pitchVExpCopy = freq_Q16;
+
     static Q16_16 minusOne_q16 = Q16_16(-1.0f);
     Q16_16 wavelenScale = exp2_fast(minusOne_q16 * pitchCV_Q16); //1/freq
-    wavelenScaleCopy = wavelenScale;
+
+
+    [[unlikely]]
+    if (wavelenScale > TuningSettings::maxWaveLenScaleFP) { //do go below C-1
+      wavelenScale = TuningSettings::maxWaveLenScaleFP;
+    }
       
+    wavelenScaleCopy = wavelenScale;
     const WvlenFPType wvlenFixed = TuningSettings::bypass ? TuningSettings::wavelenC1Fixed : TuningSettings::baseWavelenFP; //Fixed point wavelength at C1
 
-    new_base_frequency = wvlenFixed.mulWith(wavelenScale);
+
+    new_base_wavelen = wvlenFixed.mulWith(wavelenScale);
+
 
 
     ///////////////////////// detune 
@@ -433,7 +442,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     ctrlValFixed = ctrlValFixed * ctrlValFixed; //exponential mapping
     static Fixed<0,18> detuneScale = Fixed<0,18>(0.016f);
     Fixed<0,18> ctrlValScaled = ctrlValFixed.mul_fast(detuneScale);
-    detuneFixed = new_base_frequency.mulWith(ctrlValScaled);
+    detuneFixed = new_base_wavelen.mulWith(ctrlValScaled);
 
     ////////////////////////  epsilon
 
@@ -478,7 +487,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     newFrequenciesReady = true;
 
     PERF_BEGIN(SERIALTX);
-    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_base_frequency.raw());
+    sendToMyriadB(streamMessaging::messageTypes::WAVELEN0, new_base_wavelen.raw());
     PERF_END(SERIALTX);
     PERF_END(ADC);
 
@@ -1715,12 +1724,12 @@ void __not_in_flash_func(loop)() {
       new_wavelen7_fixed = new_wavelen7_fixed.mulWith(metaModWavelenMul7);
       new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
 
-      new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed << -currentOctaveShifts[1];
-      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed << -currentOctaveShifts[1];
-      new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed << -currentOctaveShifts[1];
-      new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed << -currentOctaveShifts[2];
-      new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed << -currentOctaveShifts[2];
-      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed << -currentOctaveShifts[2];
+      new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed.safeShiftLeft(-currentOctaveShifts[1]);
+      new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed.safeShiftLeft(-currentOctaveShifts[1]);
+      new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed.safeShiftLeft(-currentOctaveShifts[1]);
+      new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed.safeShiftLeft(-currentOctaveShifts[2]);
+      new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed.safeShiftLeft(-currentOctaveShifts[2]);
+      new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed.safeShiftLeft(-currentOctaveShifts[2]);
 
       uint32_t save = spin_lock_blocking(displaySpinlock);  
 
@@ -1835,6 +1844,7 @@ void setup1() {
 
 enum bankChangeStages {IDLE, FADING} bankChangeStage = IDLE;
 
+
 void __not_in_flash_func(loop1)() {
   if (changeBankFlag) {
 
@@ -1922,7 +1932,7 @@ void __not_in_flash_func(loop1)() {
       currOscModels[2]->ctrl(epsilon_fixed);
     , 1000);
     if (newFrequenciesReady) {
-      new_wavelen0_fixed = new_base_frequency;
+      new_wavelen0_fixed = new_base_wavelen;
       new_wavelen1_fixed = (new_wavelen0_fixed - detuneFixed);
       new_wavelen2_fixed = (new_wavelen1_fixed - detuneFixed);
 
@@ -1930,9 +1940,10 @@ void __not_in_flash_func(loop1)() {
       new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
       new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
 
-      new_wavelen0_fixed = currentOctaveShifts[0] > 0 ? new_wavelen0_fixed >> currentOctaveShifts[0] : new_wavelen0_fixed << -currentOctaveShifts[0];
-      new_wavelen1_fixed = currentOctaveShifts[0] > 0 ? new_wavelen1_fixed >> currentOctaveShifts[0] : new_wavelen1_fixed << -currentOctaveShifts[0];
-      new_wavelen2_fixed = currentOctaveShifts[0] > 0 ? new_wavelen2_fixed >> currentOctaveShifts[0] : new_wavelen2_fixed << -currentOctaveShifts[0];
+      new_wavelen0_fixed = currentOctaveShifts[0] > 0 ? new_wavelen0_fixed >> currentOctaveShifts[0] : new_wavelen0_fixed.safeShiftLeft(-currentOctaveShifts[0]);
+      new_wavelen1_fixed = currentOctaveShifts[0] > 0 ? new_wavelen1_fixed >> currentOctaveShifts[0] : new_wavelen1_fixed.safeShiftLeft(-currentOctaveShifts[0]);
+      new_wavelen2_fixed = currentOctaveShifts[0] > 0 ? new_wavelen2_fixed >> currentOctaveShifts[0] : new_wavelen2_fixed.safeShiftLeft(-currentOctaveShifts[0]);
+
       currOscModels[0]->setWavelen(new_wavelen0_fixed.to_int());  
       currOscModels[1]->setWavelen(new_wavelen1_fixed.to_int());
       currOscModels[2]->setWavelen(new_wavelen2_fixed.to_int());

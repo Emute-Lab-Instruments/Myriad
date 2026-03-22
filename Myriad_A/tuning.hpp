@@ -15,16 +15,21 @@ namespace TuningSettings {
     constexpr float freqC1 = freqC0*2.f;
     constexpr float wavelenC1 = sampleClock/freqC1; //start from C1
     constexpr float wavelenC1Inv = 1.f/freqC1; //inverse for fast calculations
-    constexpr float wavelenC2 = wavelenC1 * 0.5f;
+    // constexpr float wavelenC2 = wavelenC1 * 0.5f;
 
-    constexpr WvlenFPType wavelenC1Fixed = WvlenFPType(wavelenC1);
-    constexpr WvlenFPType wavelenC1InvFixed(wavelenC1Inv); 
+    static TUNING_MEM WvlenFPType wavelenC1Fixed = WvlenFPType(wavelenC1);
+    static TUNING_MEM  WvlenFPType wavelenC1InvFixed(wavelenC1Inv); 
+
+    static TUNING_MEM WvlenFPType wavelenCMinus1Fixed = WvlenFPType(wavelenC1 * 8);
 
 
     static TUNING_MEM int octaves=0;
     static TUNING_MEM int semitones=0;
     static TUNING_MEM int cents=0;
     static TUNING_MEM float adjustment = 0.0f;
+    static TUNING_MEM float adjustmentPow2=1.f;
+    static TUNING_MEM Q16_16 adjustmentPow2InvFP(1.f);
+    static TUNING_MEM Q16_16 maxWaveLenScaleFP(1.f);
 
     //base frequency
     float TUNING_MEM baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
@@ -54,7 +59,9 @@ namespace TuningSettings {
      */
     void update() {
         TuningSettings::adjustment = ((TuningSettings::octaves) + (TuningSettings::semitones * 1.f/12.f) + (TuningSettings::cents * 1.f/1200.f)); // 10 octaves
-        baseFrequency = freqC1 * powf(2,TuningSettings::adjustment);
+        TuningSettings::adjustmentPow2 = powf(2,TuningSettings::adjustment);
+        TuningSettings::maxWaveLenScaleFP = Q16_16(8.f/TuningSettings::adjustmentPow2);
+        baseFrequency = freqC1 * TuningSettings::adjustmentPow2;
         baseFrequencyFP = WvlenFPType(baseFrequency);
         baseWavelen = sampleClock  / baseFrequency;
         baseWavelenInv = 1.f/baseWavelen;

@@ -144,10 +144,15 @@ namespace streamMessaging {
     calcCheckSum(msg);
   };
   __always_inline void sendMessageWithDMA(msgpacket &msg) {
+      // Wait for previous DMA to finish before overwriting the static buffer
       while (dma_channel_is_busy(dma_channel_tx)) {
         tight_loop_contents();
       }
-      dma_channel_configure(dma_channel_tx, &config_tx, &pioTx->txf[smTx], &msg, 2, true); // dma started    
+      // Copy into a persistent buffer - msg may be stack-allocated and the caller's
+      // frame could be freed before DMA finishes reading it
+      static msgpacket tx_buf;
+      memcpy(&tx_buf, &msg, sizeof(msgpacket));x
+      dma_channel_configure(dma_channel_tx, &config_tx, &pioTx->txf[smTx], &tx_buf, 2, true); // dma started
   }
 
 
@@ -320,8 +325,18 @@ namespace streamMessaging {
           last_dma_pos = 0;
       }
 
-      uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
-      uint32_t current_dma_pos = RX_BUFFER_SIZE_WORDS - remaining;
+      // If curr_rx_buffer is the same buffer the active DMA is writing (startup phase),
+      // use the active channel's progress to avoid reading ahead of the write pointer.
+      // In steady state curr_rx_buffer is the inactive (fully written) buffer, so all
+      // RX_BUFFER_SIZE_WORDS words are available immediately.
+      size_t* active_write_buffer = (current_rx_dma == dma_channel_rx_a) ? rx_buffer_a_word : rx_buffer_b_word;
+      uint32_t current_dma_pos;
+      if (curr_rx_buffer == active_write_buffer) {
+          uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
+          current_dma_pos = RX_BUFFER_SIZE_WORDS - remaining;
+      } else {
+          current_dma_pos = RX_BUFFER_SIZE_WORDS;
+      }
 
       // Check if we've read all messages in current buffer
       if (last_dma_pos >= RX_BUFFER_SIZE_WORDS) {

@@ -9,7 +9,7 @@ class sawOscillatorModel : public virtual oscillatorModel {
       prog=bitbybit_program;
 
       updateBufferInSyncWithDMA = true; //update buffer every time one is consumed by DMA
-      setClockModShift(1);
+      // setClockModShift(1);
     }
 
     inline void fillBuffer(uint32_t* bufferA) {

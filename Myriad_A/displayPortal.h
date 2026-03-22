@@ -243,11 +243,11 @@ public:
         }
     };
 
-    iconDrawFunctions["p100"] = [this](eSpritePtr& sprite, int col) {
-      sprite->drawRect(0,(iconh>>1) - (iconh * 0.5), iconw * 0.3, iconh, col);
-      sprite->drawRect(0,(iconh>>1) - (iconh * 0.3), iconw * 0.7, iconh * 0.6, col);
-      sprite->drawRect(0,(iconh>>1) - (iconh * 0.1), iconw * 0.99, iconh * 0.2, col);
-    };
+    // iconDrawFunctions["p100"] = [this](eSpritePtr& sprite, int col) {
+    //   sprite->drawRect(0,(iconh>>1) - (iconh * 0.5), iconw * 0.3, iconh, col);
+    //   sprite->drawRect(0,(iconh>>1) - (iconh * 0.3), iconw * 0.7, iconh * 0.6, col);
+    //   sprite->drawRect(0,(iconh>>1) - (iconh * 0.1), iconw * 0.99, iconh * 0.2, col);
+    // };
 
     iconDrawFunctions["n2"] = [this](eSpritePtr& sprite, int col) {
       const std::array<float, 30> randomFloats = {
@@ -430,16 +430,6 @@ public:
     nextState.calibrationScreenState.adcfilt3 = adc3;
   }
 
-  // void setCalibADCMinMaxValues(size_t adcMins[4], size_t adcMaxs[4]) {
-  //   nextState.calibrationScreenState.adcMin0 = adcMins[0];
-  //   nextState.calibrationScreenState.adcMin1 = adcMins[1];
-  //   nextState.calibrationScreenState.adcMin2 = adcMins[2];
-  //   nextState.calibrationScreenState.adcMin3 = adcMins[3];
-  //   nextState.calibrationScreenState.adcMax0 = adcMaxs[0];
-  //   nextState.calibrationScreenState.adcMax1 = adcMaxs[1];
-  //   nextState.calibrationScreenState.adcMax2 = adcMaxs[2];
-  //   nextState.calibrationScreenState.adcMax3 = adcMaxs[3];
-  // }
 
   void setCalibEncoderDelta(int encIdx, int delta) {
     if (encIdx < 3) {
@@ -498,52 +488,52 @@ private:
       tft.fillScreen(ELI_BLUE);
     }
     
-    static float slowestWavelen = sampleClock/16.f;
+    static float slowestWavelen = sampleClock/8.f;
     static float fastestWavelen = sampleClock/20000.f;
     static float rangeWavelen = slowestWavelen - fastestWavelen;
     static float rangeWavelenRcpFloat = 1.0f/rangeWavelen;
-    // static constexpr float slowestOscVisSpeed = 0.001;
-    // static constexpr float fastestOscVisSpeed = 0.03;
-    // static constexpr float rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
-    // static constexpr float unitR=7;
     static Fixed<0,24> rangeWavelenRcp(rangeWavelenRcpFloat);
     static Q16_16 slowestOscVisSpeed = Q16_16(0.0005f);
-    static Q16_16 fastestOscVisSpeed = Q16_16(0.04f);
+    static Q16_16 fastestOscVisSpeed = Q16_16(0.05f);
     static Q16_16 rangeOscVisSpeed = fastestOscVisSpeed - slowestOscVisSpeed;
-    static Q16_16 unitR=Q16_16(7);
-    // auto modVals = nextState.ptr->getValues();
+    static Q16_16 unitR=Q16_16(7.f);
+    static Q16_16 TWOPI_Q16 = Q16_16(TWOPI);
+    static Q16_16 minLineLen = Q16_16(18.f);
+    static Q16_16 half_Q16 = Q16_16(0.5f);
+    static Q16_16 zeroQ16 = Q16_16(0.f);
+    static Q16_16 oneQ16 = Q16_16(1.f);
+    static WvlenFPType zeroWvlen = WvlenFPType(0.f);
+    static WvlenFPType oneWvlen = WvlenFPType(1.f);
+    
     static int __not_in_flash("oscdisp") oscColArray[9] = {colBank0, colBank0, colBank0, colBank1, colBank1, colBank1, colBank2, colBank2, colBank2};
 
     // for(size_t i=0; i < 1; i++) {
     for(size_t i=0; i < N_OSCS; i++) {
-      const Q16_16 prevpos = oscVisPhase[i] * Q16_16(TWOPI);
+      const Q16_16 prevpos = oscVisPhase[i] * TWOPI_Q16;
       const Q16_16 prevcospos = sine_table.fast_cos(prevpos);
       const Q16_16 prevsinpos = sine_table.fast_sin(prevpos);
-      const Q16_16 linelen=Q16_16(18) + (Q16_16(i+1)*unitR);
-      const Q16_16 halflinelen = linelen * Q16_16(0.5f);
+      const Q16_16 linelen=  minLineLen + (Q16_16::from_size_t(i+1)*unitR);
+      const Q16_16 halflinelen = linelen * half_Q16;
 
       const int cx = 120 + (linelen * prevcospos).to_int();
       const int cy = 120 + (linelen * prevsinpos).to_int();
+      
       tft.drawLine(120,120, cx,cy, ELI_BLUE );
-      // tft.drawLine(currState.modLineXStart[i], currState.modLineYStart[i], currState.modLineX[i], currState.modLineY[i], ELI_BLUE );
       tft.drawCircle(cx, cy, 5, ELI_BLUE);
 
-      WvlenFPType normwavelen = WvlenFPType(1) - (nextState.oscWavelengths[i] - minWavelenFP).mulWith(rangeWavelenRcp);
-      normwavelen = normwavelen < WvlenFPType(0) ? WvlenFPType(0) : normwavelen;
-      normwavelen= normwavelen * normwavelen;
-      // if (i==0) {
-      //   Serial.printf("%f %f %f %f %f\n", nextState.oscWavelengths[i].to_float(), minWavelenFP.to_float(), rangeWavelenRcp.to_float(), rangeWavelen, normwavelen.to_float());
-      // }
+      WvlenFPType normwavelen = oneWvlen - 
+        (nextState.oscWavelengths[i] - minWavelenFP).mulWith(rangeWavelenRcp);
+      normwavelen = normwavelen < zeroWvlen ? zeroWvlen : normwavelen;
+      normwavelen= normwavelen * normwavelen * normwavelen * normwavelen;
       const Q16_16 speed = rangeOscVisSpeed.mulWith(normwavelen) + slowestOscVisSpeed;
       // if (i==0) {
       //   Serial.printf("%f %f %f\n",nextState.oscWavelengths[i].to_float(), rangeWavelenRcp.to_float(), normwavelen.to_float());
       // }
-      // Serial.printf("%f\t", speed.to_float());
       oscVisPhase[i] += speed;
-      if (oscVisPhase[i] >= Q16_16(1)) {
-        oscVisPhase[i] -= Q16_16(1);
+      while (oscVisPhase[i] >= oneQ16) {
+        oscVisPhase[i] -= oneQ16;
       }
-      const Q16_16 pos = oscVisPhase[i] * Q16_16(TWOPI);
+      const Q16_16 pos = oscVisPhase[i] * TWOPI_Q16;
       
       const Q16_16 cospos = sine_table.fast_cos(pos);
       const Q16_16 sinpos = sine_table.fast_sin(pos);
@@ -551,7 +541,7 @@ private:
       const size_t cy2 = 120+ (linelen * sinpos).to_int();
       tft.drawLine(120,120, cx2,cy2, oscColArray[i] );
 
-      //TODO: restore
+      //TODO: restore?
       // if (modVals[i] != 0.f) {
       //   float modv = (modVals[i] * nextState.ptr->moddepth.getInvMax() * 0.5f);
       //   // if (i==0) {

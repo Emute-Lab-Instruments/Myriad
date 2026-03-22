@@ -96,6 +96,10 @@ public:
         return Fixed(static_cast<storage_type>(i) << FRACTIONAL_BITS);
     }
     
+    static constexpr Fixed from_size_t(size_t i) {
+        return Fixed(static_cast<storage_type>(i) << FRACTIONAL_BITS);
+    }
+    
     static constexpr Fixed from_raw(storage_type raw) {
         return Fixed(raw);
     }
@@ -371,6 +375,14 @@ public:
     constexpr Fixed div_pow2(int shift) const {
         return Fixed(value >> shift);
     }
+
+    constexpr Fixed safeShiftLeft(int n) {
+        const int32_t limit = INT32_MAX >> n;       // max value that survives << n
+        if (value >  limit) return Fixed(INT32_MAX);
+        if (value < ~limit) return Fixed(INT32_MIN);
+        return Fixed(value << n);
+    }
+
 
     // Multiply with another Fixed type, keeping this format
     template<int IntBits2, int FracBits2, typename StorageT2>
