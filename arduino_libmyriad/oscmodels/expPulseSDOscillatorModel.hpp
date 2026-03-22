@@ -103,6 +103,15 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       return "exp1";
     }
 
+    void reset() override {
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      b1 = 0;
+      counterFP = Q16_16(0);
+      targetIncFP = targetIncFPOrg;
+      targetFP = targetIncFPOrg;
+    }
 
   private:
     size_t phase=0;

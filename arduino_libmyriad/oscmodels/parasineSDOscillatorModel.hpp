@@ -78,6 +78,11 @@ class parasineSDOscillatorModel : public virtual oscillatorModel {
       return "sinesd";
     }
 
+    void reset() override {
+      phase = 0;
+      err = 0;
+    }
+
   private:
     uint32_t phase = 0;
     int32_t err = 0;

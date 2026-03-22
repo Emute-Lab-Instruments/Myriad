@@ -1239,7 +1239,6 @@ void __isr encoder3_switch_callback() {
           case MODTARGETS::EPSILON: {
             modTarget = MODTARGETS::PITCH_AND_EPSILON;
             resetMetaMods();
-            //clear out old metamod info
             break;
           }
           case MODTARGETS::PITCH_AND_EPSILON: {

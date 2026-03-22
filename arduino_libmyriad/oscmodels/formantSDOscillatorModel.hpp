@@ -106,6 +106,11 @@ class formantSDOscillatorModel : public virtual oscillatorModel {
       return "formant";
     }
 
+    void reset() override {
+      phase = 0;
+      err = 0;
+    }
+
     inline static bool tablesGenerated = false;
 
     private:

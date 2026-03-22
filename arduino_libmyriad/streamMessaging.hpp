@@ -148,10 +148,8 @@ namespace streamMessaging {
       while (dma_channel_is_busy(dma_channel_tx)) {
         tight_loop_contents();
       }
-      // Copy into a persistent buffer - msg may be stack-allocated and the caller's
-      // frame could be freed before DMA finishes reading it
       static msgpacket tx_buf;
-      memcpy(&tx_buf, &msg, sizeof(msgpacket));x
+      memcpy(&tx_buf, &msg, sizeof(msgpacket));
       dma_channel_configure(dma_channel_tx, &config_tx, &pioTx->txf[smTx], &tx_buf, 2, true); // dma started
   }
 

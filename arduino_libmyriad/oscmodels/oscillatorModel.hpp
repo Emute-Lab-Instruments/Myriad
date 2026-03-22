@@ -103,7 +103,9 @@ public:
 
   void startFadeOut() {
     fadeDirection=-1;
-    fadeLevel=fadeMaxLevel;
+    // Don't reset fadeLevel — err is already adapted to the current volumePeak.
+    // Resetting to fadeMaxLevel when mid-fade-in causes a volumePeak jump that
+    // leaves err far above the new volumePeak, producing ~250 bits of silence.
   }
 
   bool isFadingOut() const {
@@ -112,9 +114,11 @@ public:
 
   __force_inline void updateFade() {
         fadeLevel += fadeDirection; // Apply fade in/out
-        if (fadeLevel == 0) { 
+        if (fadeLevel <= 0) {
+          fadeLevel = 0;
           fadeDirection = 0; // Stop at fully faded out
-        } else if (fadeLevel == fadeMaxLevel) {
+        } else if (fadeLevel >= fadeMaxLevel) {
+            fadeLevel = fadeMaxLevel;
             fadeDirection = 0; // Stop at fully faded in
         }
   }

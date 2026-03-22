@@ -107,6 +107,10 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
       return "sdt10";
     }
 
+    void reset() override {
+      phase = 0;
+      err0 = 0;
+    }
 
   private:
     size_t phase=0;

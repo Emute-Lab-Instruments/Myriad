@@ -68,6 +68,12 @@ class noiseOscillatorModelSD : public virtual oscillatorModel {
       return "n2";
     }
 
+    void reset() override {
+      on = false;
+      counter = 0;
+      err0 = 0;
+    }
+
   private:
     uint32_t densityThreshold = 0x80000000;  // 50% density by default
     Q16_16 randMult = Q16_16(100);

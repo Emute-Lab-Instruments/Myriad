@@ -56,6 +56,11 @@ class whiteNoiseOscillatorModel : public virtual oscillatorModel {
       return "wn";
     }
 
+    void reset() override {
+      integrator = 0;
+      acc = 0;
+    }
+
   private:
     // int err0=0;
 

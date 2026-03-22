@@ -85,6 +85,10 @@ class pulsePWOscillatorModel : public virtual oscillatorModel {
       return "pulsesd";
     }
 
-
+    void reset() override {
+      phase = WvlenFPType(0);
+      lastOn = 0;
+      err0 = 0;
+    }
 
 };

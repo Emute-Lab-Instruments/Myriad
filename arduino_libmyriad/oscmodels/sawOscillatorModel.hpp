@@ -78,6 +78,12 @@ class sawOscillatorModel : public virtual oscillatorModel {
       return "saw";
     }
 
+    void reset() override {
+      phase = 0;
+      err0 = 0;
+      y = 0;
+      val = 0;
+    }
 
   private:
     int32_t phase=0;
