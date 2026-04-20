@@ -482,7 +482,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       9,10,11,12, 13,14,15,16
     };
 
-    const size_t octaveIdxMapped = octaveCtrlMap[octaveIdx];
+    size_t octaveIdxMapped = octaveCtrlMap[octaveIdx];
 
     if (octaveIdxMapped != lastOctaveIdx) {
       if (octaveIdxMapped > 16) {
@@ -1831,10 +1831,10 @@ void __not_in_flash_func(loop)() {
   }
 
 
-  if (now - dotTS > 500000) {
-    Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
-    dotTS = now;
-  }
+  // if (now - dotTS > 500000) {
+  //   Serial.printf("adc: %d\tstx: %d\tdsp:%d\tmod: %d\tf: %f\td: %d\ta:%d\tp: %f\twvs: %f\twv: %f\n", PERF_GET_MEAN(ADC), PERF_GET_MEAN(SERIALTX), PERF_GET_MEAN(CALCOSCS), PERF_GET_MEAN(METAMODS), PERF_GET_FREQ(ADC), PERF_GET_MEAN(DISPLAY), controlValues[0], pitchVCopy.to_float(), wavelenScaleCopy.to_float(), new_wavelen0_fixed.to_float());
+  //   dotTS = now;
+  // }
 }
 
 

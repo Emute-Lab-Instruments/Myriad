@@ -69,13 +69,19 @@ class bellSDOscillatorModel : public virtual oscillatorModel {
           (static_cast<int64_t>(FADE_REF) * fadeInvTable[fadeLevel]) >> 16
       );
 
+      // Anti-alias: table_b has high FM depth (8x) so attenuate the morph at
+      // high frequencies (small wavelen) where upper sidebands would exceed Nyquist.
+      // Below 4096 samples/cycle the blend fades linearly to zero.
+      const int32_t wl = static_cast<int32_t>(this->wavelen);
+      const int32_t aa_morph = wl < 4096 ? (local_morph * wl) >> 12 : local_morph;
+
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word = 0U;
         for (size_t bit = 0U; bit < 32U; bit++) {
           uint32_t idx = (local_phase >> 16) & 0x1FF;
           int32_t a = table_a[idx];
           int32_t b = table_b[idx];
-          int32_t amp = a + (((b - a) * local_morph) >> 10);
+          int32_t amp = a + (((b - a) * aa_morph) >> 10);
           int32_t y = amp >= local_err ? 1 : 0;
           local_err = local_err - amp + (y * volumePeak);
           word <<= 1;
