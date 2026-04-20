@@ -51,7 +51,7 @@ namespace TuningSettings {
     bool TUNING_MEM bypass = false;
 
     
-    const char* TUNING_FILE = "/tuning.json";
+    const char* TUNING_FILE = "/tune.json";
 
     /**
      * @brief Update the tuning settings based on the current values.

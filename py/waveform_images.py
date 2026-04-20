@@ -207,8 +207,13 @@ def amp_parasine(wavelen, ctrl_v):
     amps  = np.zeros(wavelen)
     phase = 0.0
     for i in range(wavelen):
-        idx = int(phase) & 0xFF
-        raw = table[idx]
+        # Linear interpolation between table entries so the staircase quantization
+        # from the 256-entry table doesn't appear as harmonics in the image.
+        # (The hardware's output filter smooths this out acoustically.)
+        i0  = int(phase) & 0xFF
+        i1  = (i0 + 1) & 0xFF
+        frac = phase - int(phase)
+        raw = table[i0] * (1.0 - frac) + table[i1] * frac
         dev = raw - 1024.0
         amp = 1024.0 + dev * (shape_pos if dev >= 0 else shape_neg)
         amps[i] = amp / 2048.0
@@ -222,9 +227,11 @@ def amp_formant(wavelen, ctrl_v):
     amps  = np.zeros(wavelen)
     phase = 0.0
     for i in range(wavelen):
-        idx    = int(phase) & 0x1FF
-        a      = FORMANT_A[idx]
-        b      = FORMANT_B[idx]
+        i0   = int(phase) & 0x1FF
+        i1   = (i0 + 1) & 0x1FF
+        frac = phase - int(phase)
+        a    = FORMANT_A[i0] * (1.0 - frac) + FORMANT_A[i1] * frac
+        b    = FORMANT_B[i0] * (1.0 - frac) + FORMANT_B[i1] * frac
         amps[i] = (a + (b - a) * morph) / 2048.0
         phase  += phase_inc
     return amps
@@ -236,9 +243,11 @@ def amp_bell(wavelen, ctrl_v):
     amps  = np.zeros(wavelen)
     phase = 0.0
     for i in range(wavelen):
-        idx    = int(phase) & 0x1FF
-        a      = BELL_A[idx]
-        b      = BELL_B[idx]
+        i0   = int(phase) & 0x1FF
+        i1   = (i0 + 1) & 0x1FF
+        frac = phase - int(phase)
+        a    = BELL_A[i0] * (1.0 - frac) + BELL_A[i1] * frac
+        b    = BELL_B[i0] * (1.0 - frac) + BELL_B[i1] * frac
         amps[i] = (a + (b - a) * morph) / 2048.0
         phase  += phase_inc
     return amps
@@ -310,8 +319,10 @@ GRID_C  = '#1c2128'
 AXIS_C  = '#2d3748'
 LABEL_C = '#8b949e'
 
-# Green gradient: dim → bright
-CTRL_COLORS = ['#1a4a1a', '#2d7a2d', '#3aaa3a', '#57d557', '#7eff7e']
+# Green gradient: bright → dim  (ctrl=0 is brightest)
+CTRL_COLORS = ['#7eff7e', '#57d557', '#3aaa3a', '#2d7a2d', '#1a4a1a']
+
+N_HARM = 150    # number of harmonics to display
 
 def center_normalize(amp):
     """Remove DC and scale to −1..+1."""
@@ -327,24 +338,33 @@ def plot_model(m, wavelen=WAVELEN, ctrl_values=CTRL_VALUES):
     fig, ax = plt.subplots(figsize=(9, 2.8), facecolor=BG)
     ax.set_facecolor(BG)
     ax.grid(True, color=GRID_C, linewidth=0.6, zorder=0)
-    ax.axhline(0, color=AXIS_C, linewidth=0.8, zorder=1)
-
-    x = np.linspace(0, 2, wavelen * 2)
 
     for cv, color in zip(ctrl_values, CTRL_COLORS):
         raw = m['fn'](wavelen, cv)
         sig = center_normalize(raw)
-        ax.plot(x, np.tile(sig, 2), color=color, linewidth=1.3,
+        mag = np.abs(np.fft.rfft(sig))
+        # dB relative to the loudest non-DC bin across harmonics 1..N_HARM
+        ref = mag[1:N_HARM + 1].max()
+        if ref == 0:
+            continue
+        db = 20.0 * np.log10(mag[1:N_HARM + 1] / ref + 1e-12)
+        ax.plot(np.arange(1, N_HARM + 1), db, color=color, linewidth=1.0,
                 label=f'{cv:.2f}', zorder=2, alpha=0.95)
 
-    ax.set_xlim(0, 2)
-    ax.set_ylim(-1.55, 1.55)
-    ax.set_xticks([0, 0.5, 1.0, 1.5, 2.0])
-    ax.set_xticklabels(['0', '½', '1', '1½', '2'], color=LABEL_C, fontsize=8)
-    ax.set_yticks([-1, 0, 1])
-    ax.set_yticklabels(['-1', '0', '1'], color=LABEL_C, fontsize=8)
-    ax.set_xlabel('cycles', color=LABEL_C, fontsize=8, labelpad=3)
-    ax.tick_params(colors=LABEL_C, length=3)
+    ax.set_xscale('log')
+    ax.set_xlim(1, N_HARM)
+    ax.set_ylim(-66, 3)
+    ax.axhline(0, color=AXIS_C, linewidth=0.6, zorder=1)
+
+    xticks = [1, 2, 3, 5, 10, 20, 50, 100]
+    ax.set_xticks([x for x in xticks if x <= N_HARM])
+    ax.set_xticklabels([str(x) for x in xticks if x <= N_HARM],
+                       color=LABEL_C, fontsize=8)
+    ax.set_yticks([-60, -40, -20, 0])
+    ax.set_yticklabels(['-60', '-40', '-20', '0'], color=LABEL_C, fontsize=8)
+    ax.set_xlabel('harmonic', color=LABEL_C, fontsize=8, labelpad=3)
+    ax.set_ylabel('dB', color=LABEL_C, fontsize=8, labelpad=3)
+    ax.tick_params(colors=LABEL_C, length=3, which='both')
     for sp in ax.spines.values():
         sp.set_edgecolor(GRID_C)
 
@@ -370,9 +390,8 @@ def _plot_silent(m):
     ax.set_facecolor(BG)
     ax.grid(True, color=GRID_C, linewidth=0.6)
     ax.axhline(0, color=AXIS_C, linewidth=1.2)
-    ax.text(1.0, 0.3, '— silence —', color='#3a5a3a', fontsize=13,
-            ha='center', va='center', style='italic')
-    ax.set_xlim(0, 2); ax.set_ylim(-1.55, 1.55)
+    ax.text(0.5, 0.5, '— silence —', color='#3a5a3a', fontsize=13,
+            ha='center', va='center', style='italic', transform=ax.transAxes)
     ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_edgecolor(GRID_C)

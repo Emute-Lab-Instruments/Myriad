@@ -236,6 +236,6 @@ size_t MyriadState::metaMod;
 Q16_16 MyriadState::metaModDepth;
 Q16_16 MyriadState::metaModSpeed;
 MODTARGETS MyriadState::modTarget;
-const char* MyriadState::STATE_FILE = "/st.bin";
+const char* MyriadState::STATE_FILE = "/state.bin";
 
 #endif // MYRIAD_A_STATE_HPP
