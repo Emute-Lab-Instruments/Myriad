@@ -67,13 +67,15 @@ bool load_calibration_from_file(void) {
         size_t cal_size = f.read((uint8_t*)&cal_data, sizeof(cal_data));
         f.close();
         
-        if (hist_size == sizeof(histogram) && 
-            cal_size == sizeof(cal_data) && 
-            cal_data.magic == 0xCA11B8ED) {
-            Serial.printf("Calibration loaded from LittleFS (range %d-%d)\n", 
+        if (hist_size == sizeof(histogram) &&
+            cal_size == sizeof(cal_data) &&
+            cal_data.magic == 0xCA11B8ED &&
+            cal_data.adc_min < cal_data.adc_max &&
+            cal_data.adc_max <= 4095) {
+            Serial.printf("Calibration loaded from LittleFS (range %d-%d)\n",
                    cal_data.adc_min, cal_data.adc_max);
             smooth_correction_table();
-            adcVRangeInv = Q16_16(10) / Q16_16(cal_data.adc_max); 
+            adcVRangeInv = Q16_16(10) / Q16_16(cal_data.adc_max);
 
             //deleteme
             // Serial.printf("PASTESTART\n");
@@ -92,7 +94,8 @@ bool load_calibration_from_file(void) {
 
             return true;
         }
-        Serial.printf("Binary file corrupt or incomplete\n");
+        Serial.printf("Binary file corrupt, incomplete, or out-of-range (min=%d max=%d)\n",
+                       cal_data.adc_min, cal_data.adc_max);
     }
     
     Serial.printf("No valid calibration in LittleFS\n");

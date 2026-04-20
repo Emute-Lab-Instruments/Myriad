@@ -6,6 +6,7 @@
 #include "clockfreq.h"
 
 #include "fixedpoint.hpp"
+#include "file_utils.hpp"
 using namespace FixedPoint;
 using WvlenFPType = Fixed<20,11>;
 
@@ -60,13 +61,20 @@ namespace TuningSettings {
     void update() {
         TuningSettings::adjustment = ((TuningSettings::octaves) + (TuningSettings::semitones * 1.f/12.f) + (TuningSettings::cents * 1.f/1200.f)); // 10 octaves
         TuningSettings::adjustmentPow2 = powf(2,TuningSettings::adjustment);
-        TuningSettings::maxWaveLenScaleFP = Q16_16(8.f/TuningSettings::adjustmentPow2);
+        TuningSettings::adjustmentPow2InvFP = Q16_16(1.0f / TuningSettings::adjustmentPow2);
+        // Pre-multiply clamp: wavelenScale is clamped here, then multiplied by adjustmentPow2InvFP.
+        // Limit must be 8 * adjustmentPow2 so that after the multiply the effective scale stays ≤ 8
+        // (= 3 octaves below C1), keeping the final WvlenFPType mulWith within int32_t range.
+        // This also stays well within Q16_16 range (max 8 * 2^4 = 128 at +4 oct).
+        TuningSettings::maxWaveLenScaleFP = Q16_16(8.f * TuningSettings::adjustmentPow2);
         baseFrequency = freqC1 * TuningSettings::adjustmentPow2;
         baseFrequencyFP = WvlenFPType(baseFrequency);
         baseWavelen = sampleClock  / baseFrequency;
         baseWavelenInv = 1.f/baseWavelen;
-        baseWavelenFP = WvlenFPType(sampleClockFP.divWith(baseFrequencyFP));
-        baseWavelenInvFP = WvlenFPType(1)/baseWavelenFP;
+        // Pin fixed-point base to C1 so it never overflows WvlenFPType.
+        // The tuning offset is applied per-sample in the audio loop via adjustmentPow2InvFP.
+        baseWavelenFP = wavelenC1Fixed;
+        baseWavelenInvFP = wavelenC1InvFixed;
 
     }
 
@@ -115,6 +123,15 @@ namespace TuningSettings {
         quantPull = Q16_16::from_raw(doc["quantPull"]) | quantPull;
         bypass = doc["bypass"] | bypass;
 
+        // Bounds validation — clamp to sane musical ranges
+        octaves  = constrain(octaves,  -4, 4);
+        semitones = constrain(semitones, -12, 12);
+        cents    = constrain(cents,    -100, 100);
+        if (quantNotesPerOct < Q16_16(1) || quantNotesPerOct > Q16_16(24))
+            quantNotesPerOct = Q16_16(12);
+        if (quantPull < Q16_16(0) || quantPull > Q16_16(1))
+            quantPull = Q16_16(0);
+
         Serial.println("Tuning loaded successfully");
         update();
         updateQuant();
@@ -127,10 +144,7 @@ namespace TuningSettings {
             return;
         }
 
-        // Create JSON document
         JsonDocument doc;
-        
-        // Set values
         doc["octaves"] = octaves;
         doc["semitones"] = semitones;
         doc["cents"] = cents;
@@ -138,19 +152,18 @@ namespace TuningSettings {
         doc["quantPull"] = quantPull.raw();
         doc["bypass"] = bypass;
 
-        // Open file for writing
-        File file = LittleFS.open(TUNING_FILE, "w");
-        if (!file) {
-            Serial.println("Failed to create tuning file");
+        // Serialise to a String buffer first, then write atomically
+        String buf;
+        size_t bytesWritten = serializeJson(doc, buf);
+        if (bytesWritten == 0) {
+            Serial.println("Failed to serialise tuning");
             return;
         }
 
-        // Serialize JSON to file
-        size_t bytesWritten = serializeJson(doc, file);
-        file.close();
-
-        if (bytesWritten > 0) {
-            Serial.print("Tuning saved successfully (");
+        if (FileUtils::atomicWrite(TUNING_FILE,
+                                   reinterpret_cast<const uint8_t*>(buf.c_str()),
+                                   buf.length())) {
+            Serial.print("Tuning saved (");
             Serial.print(bytesWritten);
             Serial.println(" bytes)");
         } else {

@@ -15,6 +15,7 @@
 
 #include <memory>
 #include "octaves.hpp"
+#include "clockfreq.h"
 #include "streamMessaging.hpp"
 #include "fixedpoint.hpp"
 
@@ -573,6 +574,10 @@ void __not_in_flash_func(loop)() {
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed.safeShiftLeft(-currentOctaveShifts[1]);
       new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed.safeShiftLeft(-currentOctaveShifts[1]);
 
+      // if (new_wavelen3_fixed.to_int() <= 0) new_wavelen3_fixed = minWavelenFP;
+      // if (new_wavelen4_fixed.to_int() <= 0) new_wavelen4_fixed = minWavelenFP;
+      // if (new_wavelen5_fixed.to_int() <= 0) new_wavelen5_fixed = minWavelenFP;
+
       currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
       currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
       currOscModels0[2]->setWavelen(new_wavelen5_fixed.to_int());
@@ -731,6 +736,10 @@ void __not_in_flash_func(loop1)() {
       new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed.safeShiftLeft(-currentOctaveShifts[2]);
       new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed.safeShiftLeft(-currentOctaveShifts[2]);
       new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed.safeShiftLeft(-currentOctaveShifts[2]);
+
+      // if (new_wavelen6_fixed.to_int() <= 0) new_wavelen6_fixed = minWavelenFP;
+      // if (new_wavelen7_fixed.to_int() <= 0) new_wavelen7_fixed = minWavelenFP;
+      // if (new_wavelen8_fixed.to_int() <= 0) new_wavelen8_fixed = minWavelenFP;
 
       currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
       currOscModels1[1]->setWavelen(new_wavelen7_fixed.to_int());

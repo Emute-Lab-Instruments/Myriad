@@ -5,6 +5,7 @@
 
 #include "metaOscs.hpp"
 #include "fixedpoint.hpp"
+#include "file_utils.hpp"
 
 class MyriadState {
 public:
@@ -17,7 +18,7 @@ public:
         MODTARGETS modTarget;
     };
 
-    // Initialize with defaults
+    // Initialize with defaults then attempt to load from flash
     static void __not_in_flash_func(load)() {
         MyriadState::oscBanks[0] = 0;
         MyriadState::oscBanks[1] = 0;
@@ -30,7 +31,6 @@ public:
         MyriadState::loadFromFlash();
     }
 
-    // Inline setters
     static inline void __not_in_flash_func(setOscBank)(const size_t bankIdx, const size_t modelIdx) {
         if (bankIdx < 3) {
             MyriadState::oscBanks[bankIdx] = modelIdx;
@@ -89,57 +89,21 @@ public:
         return MyriadState::changeFlag;
     }
 
-    // Binary flash persistence - much faster than JSON
+    // Try primary file first; on failure fall back to backup.
+    // On successful primary load, refresh the backup.
     static bool __not_in_flash_func(loadFromFlash)() {
         if (!LittleFS.begin()) {
             Serial.println("Failed to mount LittleFS");
             return false;
         }
 
-        if (!LittleFS.exists(STATE_FILE)) {
-            Serial.println("State file not found, using defaults");
-            return false;
+        if (loadFromPath(STATE_FILE)) {
+            saveToPath(STATE_FILE_BAK);
+            return true;
         }
 
-        File file = LittleFS.open(STATE_FILE, "r");
-        if (!file) {
-            Serial.println("Failed to open state file");
-            return false;
-        }
-
-        // Check file size
-        if (file.size() != sizeof(StateBinary)) {
-            file.close();
-            return false;
-        }
-
-        StateBinary binary;
-        size_t bytesRead = file.read(reinterpret_cast<uint8_t*>(&binary), sizeof(StateBinary));
-        file.close();
-
-        if (bytesRead != sizeof(StateBinary)) return false;
-
-        // Validate magic number and version
-        if (binary.magic != MAGIC_NUMBER || binary.version != FORMAT_VERSION) {
-            return false;
-        }
-
-        // Verify checksum
-        if (!validateChecksum(binary)) {
-            return false;
-        }
-
-        // Load data atomically
-        oscBanks[0] = binary.oscBank0;
-        oscBanks[1] = binary.oscBank1;
-        oscBanks[2] = binary.oscBank2;
-        metaMod = binary.metaMod;
-        metaModDepth = binary.metaModDepth;
-        metaModSpeed = binary.metaModSpeed;
-        modTarget = static_cast<MODTARGETS>(binary.modTarget);
-        changeFlag = false;
-
-        return true;
+        Serial.println("Primary state failed, trying backup");
+        return loadFromPath(STATE_FILE_BAK);
     }
 
     static void __not_in_flash_func(saveIfChanged)() {
@@ -154,78 +118,102 @@ public:
     }
 
 private:
-    // Binary format structure 
     struct StateBinary {
-        uint32_t magic;           // Magic number for validation
-        uint16_t version;         // Format version
-        size_t oscBank0;          // Individual oscillator banks
+        uint32_t magic;
+        uint16_t version;
+        size_t oscBank0;
         size_t oscBank1;
         size_t oscBank2;
-        size_t metaMod;           // Meta modulation
-        Q16_16 metaModDepth;       // Meta mod depth
-        Q16_16 metaModSpeed;       // Meta mod speed
-        uint8_t modTarget;        // Modulation target (stored as uint8_t)
-        uint32_t checksum;        // Simple checksum
+        size_t metaMod;
+        Q16_16 metaModDepth;
+        Q16_16 metaModSpeed;
+        uint8_t modTarget;
+        uint32_t checksum;    // must remain the last field
     };
 
-    // Constants
-    static const uint32_t MAGIC_NUMBER = 0x4D59524E;  // "MYRN" in hex
-    static const uint16_t FORMAT_VERSION = 1;
+    static const uint32_t MAGIC_NUMBER  = 0x4D59524E;  // "MYRN"
+    static const uint16_t FORMAT_VERSION = 2;           // v2: CRC32 checksum
+    static const size_t   MAX_OSC_MODELS = 64;          // generous upper bound for bank index
+    static const size_t   MAX_META_OSCS  = 16;          // generous upper bound for metaMod index
 
-    // Memory layout optimized for cache efficiency
-    static size_t STATE_MEM oscBanks[3];     // Hot data - accessed frequently
-    static bool STATE_MEM changeFlag;        // Hot data - checked often
-    static size_t STATE_MEM metaMod;         // Warm data
-    static Q16_16 STATE_MEM metaModDepth;     // Cold data
-    static Q16_16 STATE_MEM metaModSpeed;     // Cold data
-    static MODTARGETS STATE_MEM modTarget;   // Cold data
+    static size_t STATE_MEM oscBanks[3];
+    static bool STATE_MEM changeFlag;
+    static size_t STATE_MEM metaMod;
+    static Q16_16 STATE_MEM metaModDepth;
+    static Q16_16 STATE_MEM metaModSpeed;
+    static MODTARGETS STATE_MEM modTarget;
     static const char* STATE_FILE;
+    static const char* STATE_FILE_BAK;
 
-    // Simple checksum calculation
+    // CRC32 over all bytes before the checksum field.
+    // checksum must be the last field in StateBinary.
     static uint32_t __not_in_flash_func(calculateChecksum)(const StateBinary& binary) {
-        uint32_t checksum = 0;
-        const uint32_t* data = reinterpret_cast<const uint32_t*>(&binary);
-        const size_t words = (sizeof(StateBinary) - sizeof(uint32_t)) / sizeof(uint32_t);
-        
-        for (size_t i = 0; i < words; i++) {
-            checksum ^= data[i];
-        }
-        return checksum;
+        return FileUtils::crc32(reinterpret_cast<const uint8_t*>(&binary),
+                                sizeof(StateBinary) - sizeof(uint32_t));
     }
 
     static bool __not_in_flash_func(validateChecksum)(const StateBinary& binary) {
-        StateBinary temp = binary;
-        temp.checksum = 0;  // Zero out checksum field
-        return calculateChecksum(temp) == binary.checksum;
+        return calculateChecksum(binary) == binary.checksum;
+    }
+
+    static bool loadFromPath(const char* path) {
+        if (!LittleFS.exists(path)) return false;
+
+        File file = LittleFS.open(path, "r");
+        if (!file) return false;
+
+        if (file.size() != sizeof(StateBinary)) {
+            file.close();
+            return false;
+        }
+
+        StateBinary binary;
+        size_t bytesRead = file.read(reinterpret_cast<uint8_t*>(&binary), sizeof(StateBinary));
+        file.close();
+
+        if (bytesRead != sizeof(StateBinary)) return false;
+        if (binary.magic != MAGIC_NUMBER || binary.version != FORMAT_VERSION) return false;
+        if (!validateChecksum(binary)) return false;
+
+        // Bounds validation — reject nonsense values that survived checksum
+        if (binary.oscBank0 >= MAX_OSC_MODELS ||
+            binary.oscBank1 >= MAX_OSC_MODELS ||
+            binary.oscBank2 >= MAX_OSC_MODELS) return false;
+        if (binary.metaMod >= MAX_META_OSCS) return false;
+        if (binary.modTarget >= 3) return false;
+
+        oscBanks[0]  = binary.oscBank0;
+        oscBanks[1]  = binary.oscBank1;
+        oscBanks[2]  = binary.oscBank2;
+        metaMod      = binary.metaMod;
+        metaModDepth = binary.metaModDepth;
+        metaModSpeed = binary.metaModSpeed;
+        modTarget    = static_cast<MODTARGETS>(binary.modTarget);
+        changeFlag   = false;
+        return true;
+    }
+
+    static void saveToPath(const char* path) {
+        // Zero-initialise so padding bytes are deterministic for CRC32
+        StateBinary binary = {};
+        binary.magic       = MAGIC_NUMBER;
+        binary.version     = FORMAT_VERSION;
+        binary.oscBank0    = oscBanks[0];
+        binary.oscBank1    = oscBanks[1];
+        binary.oscBank2    = oscBanks[2];
+        binary.metaMod     = metaMod;
+        binary.metaModDepth = metaModDepth;
+        binary.metaModSpeed = metaModSpeed;
+        binary.modTarget   = static_cast<uint8_t>(modTarget);
+        binary.checksum    = calculateChecksum(binary);
+
+        FileUtils::atomicWrite(path,
+                               reinterpret_cast<const uint8_t*>(&binary),
+                               sizeof(binary));
     }
 
     static void __not_in_flash_func(saveToFlash)() {
-        StateBinary binary = {
-            .magic = MAGIC_NUMBER,
-            .version = FORMAT_VERSION,
-            .oscBank0 = oscBanks[0],
-            .oscBank1 = oscBanks[1],
-            .oscBank2 = oscBanks[2],
-            .metaMod = metaMod,
-            .metaModDepth = metaModDepth,
-            .metaModSpeed = metaModSpeed,
-            .modTarget = static_cast<uint8_t>(modTarget),
-            .checksum = 0  // Will be calculated below
-        };
-
-        // Calculate and set checksum
-        binary.checksum = calculateChecksum(binary);
-
-        File file = LittleFS.open(STATE_FILE, "w");
-        if (!file) return;
-
-        size_t bytesWritten = file.write(reinterpret_cast<const uint8_t*>(&binary), sizeof(StateBinary));
-        file.close();
-
-        // Optional: verify write success
-        if (bytesWritten == sizeof(StateBinary)) {
-            // Success - could add logging here
-        }
+        saveToPath(STATE_FILE);
     }
 };
 
@@ -236,6 +224,7 @@ size_t MyriadState::metaMod;
 Q16_16 MyriadState::metaModDepth;
 Q16_16 MyriadState::metaModSpeed;
 MODTARGETS MyriadState::modTarget;
-const char* MyriadState::STATE_FILE = "/state.bin";
+const char* MyriadState::STATE_FILE     = "/state.bin";
+const char* MyriadState::STATE_FILE_BAK = "/state.bin.bak";
 
 #endif // MYRIAD_A_STATE_HPP
