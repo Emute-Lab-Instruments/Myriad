@@ -245,16 +245,7 @@ void __force_inline calculateOscBuffers1() {
   }
 }
 
-// inline void __not_in_flash_func(setCtrl)() {
-//   currOscModels0[0]->ctrl(epsilon_fixed);
-//   currOscModels0[1]->ctrl(epsilon_fixed);
-//   currOscModels0[2]->ctrl(epsilon_fixed);
-//   currOscModels1[0]->ctrl(epsilon_fixed);
-//   currOscModels1[1]->ctrl(epsilon_fixed);
-//   currOscModels1[2]->ctrl(epsilon_fixed);
-// }
 
-// float FAST_MEM detune = 0.f;
 WvlenFPType FAST_MEM detuneFixed(0);
 Q16_16 FAST_MEM metaModWavelenMul3(1);
 Q16_16 FAST_MEM metaModWavelenMul4(1);
@@ -265,15 +256,15 @@ Q16_16 FAST_MEM metaModWavelenMul8(1);
 
 size_t FAST_MEM octaveIdx = 9;
 
-volatile bool FAST_MEM newFrequenciesReady0 = false;
-volatile bool FAST_MEM newFrequenciesReady1 = false;
+bool FAST_MEM newFrequenciesReady0 = false;
+bool FAST_MEM newFrequenciesReady1 = false;
 
 // float new_wavelen0 = 10000;
 WvlenFPType new_wavelen2_fixed;
 
 
 // static uint8_t __scratch_x("mydata") slipBuffer[64];
-volatile bool FAST_MEM newCtrlReady = false;
+bool FAST_MEM newCtrlReady = false;
 
 
 void startOscBankA() {
@@ -468,7 +459,7 @@ __force_inline void __not_in_flash_func(processSerialMessage)(streamMessaging::m
     {
       size_t bank = msg.value.uintValue;
       size_t targetBank0 = changeBankFlag0 ? requestedBank0 : currentBank0Type;
-      Serial.printf("bank0 change %d\n", bank);
+      // Serial.printf("bank0 change %d\n", bank);
       if (bank != targetBank0) {
         requestedBank0 = bank;
         changeBankFlag0 = true;
@@ -574,10 +565,6 @@ void __not_in_flash_func(loop)() {
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed.safeShiftLeft(-currentOctaveShifts[1]);
       new_wavelen5_fixed = currentOctaveShifts[1] > 0 ? new_wavelen5_fixed >> currentOctaveShifts[1] : new_wavelen5_fixed.safeShiftLeft(-currentOctaveShifts[1]);
 
-      // if (new_wavelen3_fixed.to_int() <= 0) new_wavelen3_fixed = minWavelenFP;
-      // if (new_wavelen4_fixed.to_int() <= 0) new_wavelen4_fixed = minWavelenFP;
-      // if (new_wavelen5_fixed.to_int() <= 0) new_wavelen5_fixed = minWavelenFP;
-
       currOscModels0[0]->setWavelen(new_wavelen3_fixed.to_int());
       currOscModels0[1]->setWavelen(new_wavelen4_fixed.to_int());
       currOscModels0[2]->setWavelen(new_wavelen5_fixed.to_int());
@@ -606,9 +593,9 @@ void __not_in_flash_func(loop)() {
           smOsc1.setClockDiv(currOscModels0[1]->getClockDiv());
           smOsc2.setClockDiv(currOscModels0[2]->getClockDiv());
 
-          currOscModels0[0]->reset();
-          currOscModels0[1]->reset();
-          currOscModels0[2]->reset();
+          currOscModels0[0]->prepareForFadeIn();
+          currOscModels0[1]->prepareForFadeIn();
+          currOscModels0[2]->prepareForFadeIn();
 
           currOscModels0[0]->setWavelen(w1);
           currOscModels0[1]->setWavelen(w2);
@@ -691,9 +678,9 @@ void __not_in_flash_func(loop1)() {
           smOsc4.setClockDiv(currOscModels1[1]->getClockDiv());
           smOsc5.setClockDiv(currOscModels1[2]->getClockDiv());
 
-          currOscModels1[0]->reset();
-          currOscModels1[1]->reset();
-          currOscModels1[2]->reset();
+          currOscModels1[0]->prepareForFadeIn();
+          currOscModels1[1]->prepareForFadeIn();
+          currOscModels1[2]->prepareForFadeIn();
 
           currOscModels1[0]->setWavelen(w1);
           currOscModels1[1]->setWavelen(w2);
@@ -736,10 +723,6 @@ void __not_in_flash_func(loop1)() {
       new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed.safeShiftLeft(-currentOctaveShifts[2]);
       new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed.safeShiftLeft(-currentOctaveShifts[2]);
       new_wavelen8_fixed = currentOctaveShifts[2] > 0 ? new_wavelen8_fixed >> currentOctaveShifts[2] : new_wavelen8_fixed.safeShiftLeft(-currentOctaveShifts[2]);
-
-      // if (new_wavelen6_fixed.to_int() <= 0) new_wavelen6_fixed = minWavelenFP;
-      // if (new_wavelen7_fixed.to_int() <= 0) new_wavelen7_fixed = minWavelenFP;
-      // if (new_wavelen8_fixed.to_int() <= 0) new_wavelen8_fixed = minWavelenFP;
 
       currOscModels1[0]->setWavelen(new_wavelen6_fixed.to_int());
       currOscModels1[1]->setWavelen(new_wavelen7_fixed.to_int());

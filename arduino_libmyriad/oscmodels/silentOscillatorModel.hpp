@@ -6,13 +6,13 @@ public:
   silentOscillatorModel() : oscillatorModel() {
     loopLength=bufferSize;
     prog=bitbybit_program;
-
+    updateBufferInSyncWithDMA = true;
   }
   inline void fillBuffer(uint32_t* bufferA) {
     for (size_t i = 0; i < bufferSize; ++i) {
-        *(bufferA + i) = 0xAAAAAAAA;;
-        updateFade();
+        *(bufferA + i) = 0xAAAAAAAA;
     }
+    updateFade();
   }
 
   String getIdentifier() override {

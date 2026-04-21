@@ -59,6 +59,10 @@ public:
   virtual void reset() {
   }
 
+  virtual void prepareForFadeIn() {
+    reset();
+  }
+
   void setClockModShift(const size_t shift) {
     clockModShift = shift;
   }

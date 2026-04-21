@@ -1916,9 +1916,9 @@ void __not_in_flash_func(loop1)() {
         smOsc1.setClockDiv(currOscModels[1]->getClockDiv());
         smOsc2.setClockDiv(currOscModels[2]->getClockDiv());
 
-        currOscModels[0]->reset();
-        currOscModels[1]->reset();
-        currOscModels[2]->reset();
+        currOscModels[0]->prepareForFadeIn();
+        currOscModels[1]->prepareForFadeIn();
+        currOscModels[2]->prepareForFadeIn();
 
         currOscModels[0]->setWavelen(w1);
         currOscModels[1]->setWavelen(w2);
