@@ -18,6 +18,7 @@
 #include "clockfreq.h"
 #include "streamMessaging.hpp"
 #include "fixedpoint.hpp"
+#include "perf.hpp"
 
 using namespace FixedPoint;
 using WvlenFPType = Fixed<20,11>;
@@ -150,6 +151,10 @@ bool FAST_MEM oscsRunning0 = false;
 bool FAST_MEM oscsRunning1 = false;
 
 Fixed<16,16> FAST_MEM epsilon_fixed(0);
+
+PERF_DECLARE(SERIALRX);
+PERF_DECLARE(CALCOSCS0);
+PERF_DECLARE(CALCOSCS1);
 
 
 
@@ -535,7 +540,9 @@ void __not_in_flash_func(loop)() {
       if (status == streamMessaging::RxStatus::MESSAGE_OK) {
           totalMessagesReceived++;
           digitalWrite(22,1);
+          PERF_BEGIN(SERIALRX);
           processSerialMessage(*msg);
+          PERF_END(SERIALRX);
       } else {
           errorCount++;
       }
@@ -572,7 +579,9 @@ void __not_in_flash_func(loop)() {
     }
     
     // uint32_t save = spin_lock_blocking(calcOscsSpinlock0);
+    PERF_BEGIN(CALCOSCS0);
     calculateOscBuffers0();
+    PERF_END(CALCOSCS0);
     // spin_unlock(calcOscsSpinlock0, save);
 
     if (changeBankFlag0) {
@@ -619,7 +628,16 @@ void __not_in_flash_func(loop)() {
 
   auto now = millis();
   if (now - serialts > 500) {
-    Serial.print(".");
+    size_t elapsed = now - serialts;
+    float msgsPerSec = totalMessagesReceived * 1000.f / elapsed;
+    Serial.printf("srx: %d us  msgs: %.0f/s  errs: %u  c0: %d us  c1: %d us\n",
+        PERF_GET_MEAN(SERIALRX),
+        msgsPerSec,
+        errorCount,
+        PERF_GET_MEAN(CALCOSCS0),
+        PERF_GET_MEAN(CALCOSCS1));
+    totalMessagesReceived = 0;
+    errorCount = 0;
     serialts=now;
   }
   // delay(1);
@@ -729,8 +747,10 @@ void __not_in_flash_func(loop1)() {
       currOscModels1[2]->setWavelen(new_wavelen8_fixed.to_int());
       newFrequenciesReady1 = false;
     }
-    // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);  
+    // uint32_t save = spin_lock_blocking(calcOscsSpinlock1);
+    PERF_BEGIN(CALCOSCS1);
     calculateOscBuffers1();
+    PERF_END(CALCOSCS1);
     // spin_unlock(calcOscsSpinlock1, save);
 
   }

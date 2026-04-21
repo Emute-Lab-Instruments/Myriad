@@ -292,80 +292,45 @@ namespace streamMessaging {
       return a = a | b;
   }
   inline RxStatus receiveWithDMA(streamMessaging::msgpacket** msg_out) {
-      // Determine which DMA channel is currently active (being written to)
-      bool channel_a_busy = dma_channel_is_busy(dma_channel_rx_a);
-      bool channel_b_busy = dma_channel_is_busy(dma_channel_rx_b);
+      // Streaming read: follow the active DMA as it writes, reading freshly-written
+      // words only. When the current channel finishes and chains to the other, drain
+      // any remaining words then switch. This prevents re-reading stale data which
+      // would otherwise cause repeated application of old frequency values.
 
-      uint active_dma_channel;
-      size_t* active_buffer;
+      bool current_busy = dma_channel_is_busy(current_rx_dma);
+      uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
+      // When DMA is done (chained away) treat as fully written
+      uint32_t write_pos = current_busy
+          ? (RX_BUFFER_SIZE_WORDS - remaining)
+          : RX_BUFFER_SIZE_WORDS;
 
-      // Determine active channel and read from the INACTIVE buffer
-      if (channel_a_busy && !channel_b_busy) {
-          // Channel A is writing, read from buffer B
-          active_dma_channel = dma_channel_rx_a;
-          active_buffer = rx_buffer_a_word;
-      } else if (channel_b_busy && !channel_a_busy) {
-          // Channel B is writing, read from buffer A
-          active_dma_channel = dma_channel_rx_b;
-          active_buffer = rx_buffer_b_word;
-      } else {
-          // Both busy or both idle - use current tracking
-          active_dma_channel = current_rx_dma;
-          active_buffer = curr_rx_buffer;
+      // Data available in current channel?
+      if (write_pos >= last_dma_pos + 2) {
+          *msg_out = reinterpret_cast<streamMessaging::msgpacket*>(&curr_rx_buffer[last_dma_pos]);
+          last_dma_pos += 2;
+
+          uint8_t status = static_cast<uint8_t>(RxStatus::MESSAGE_OK);
+          if (!streamMessaging::checksumIsOk(*msg_out))
+              status |= static_cast<uint8_t>(RxStatus::CHECKSUM_ERROR);
+          if (!streamMessaging::magicByteOk(*msg_out))
+              status |= static_cast<uint8_t>(RxStatus::MAGIC_ERROR);
+          return static_cast<RxStatus>(status);
       }
 
-      // Check if we need to switch to the other buffer
-      if (active_dma_channel != current_rx_dma) {
-          // DMA switched buffers - switch our read buffer to the old one
-          current_rx_dma = active_dma_channel;
-          // Read from the NON-active buffer
-          curr_rx_buffer = (active_dma_channel == dma_channel_rx_a) ? rx_buffer_b_word : rx_buffer_a_word;
-          last_dma_pos = 0;
+      // Nothing left in current channel. If it has completed and chained away,
+      // switch to whichever channel is now active.
+      if (!current_busy) {
+          uint other_dma = (current_rx_dma == dma_channel_rx_a)
+              ? dma_channel_rx_b : dma_channel_rx_a;
+          if (dma_channel_is_busy(other_dma)) {
+              current_rx_dma = other_dma;
+              curr_rx_buffer   = (other_dma == dma_channel_rx_a)
+                  ? rx_buffer_a_word : rx_buffer_b_word;
+              last_dma_pos = 0;
+          }
       }
 
-      // If curr_rx_buffer is the same buffer the active DMA is writing (startup phase),
-      // use the active channel's progress to avoid reading ahead of the write pointer.
-      // In steady state curr_rx_buffer is the inactive (fully written) buffer, so all
-      // RX_BUFFER_SIZE_WORDS words are available immediately.
-      size_t* active_write_buffer = (current_rx_dma == dma_channel_rx_a) ? rx_buffer_a_word : rx_buffer_b_word;
-      uint32_t current_dma_pos;
-      if (curr_rx_buffer == active_write_buffer) {
-          uint32_t remaining = dma_channel_hw_addr(current_rx_dma)->transfer_count;
-          current_dma_pos = RX_BUFFER_SIZE_WORDS - remaining;
-      } else {
-          current_dma_pos = RX_BUFFER_SIZE_WORDS;
-      }
-
-      // Check if we've read all messages in current buffer
-      if (last_dma_pos >= RX_BUFFER_SIZE_WORDS) {
-          // Wrapped past end of buffer - try to switch
-          last_dma_pos = 0;
-          // Force re-check on next call
-          return RxStatus::NO_MESSAGE;
-      }
-
-      // Fast path: no message available
-      if (current_dma_pos - last_dma_pos < 2) {
-          return RxStatus::NO_MESSAGE;
-      }
-
-      // Point directly to message in DMA buffer (zero-copy)
-      *msg_out = reinterpret_cast<streamMessaging::msgpacket*>(&curr_rx_buffer[last_dma_pos]);
-
-      // Validate and combine errors into single status byte
-      uint8_t status = static_cast<uint8_t>(RxStatus::MESSAGE_OK);
-
-      if (!streamMessaging::checksumIsOk(*msg_out)) {
-          status |= static_cast<uint8_t>(RxStatus::CHECKSUM_ERROR);
-      }
-      if (!streamMessaging::magicByteOk(*msg_out)) {
-          status |= static_cast<uint8_t>(RxStatus::MAGIC_ERROR);
-      }
-
-      // Advance position
-      last_dma_pos += 2;
-
-      return static_cast<RxStatus>(status);
+      return RxStatus::NO_MESSAGE;
   }
 
   // Pause the receiver - stops DMA and PIO but preserves buffer state
