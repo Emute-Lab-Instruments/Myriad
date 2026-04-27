@@ -390,19 +390,13 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     controlValues[0] = pitchADCQ1418.to_int();
 
 
-    //quantise?
-    // if (!TuningSettings::bypass && TuningSettings::quantPull > 0.f) {
-    //   const float quantCV = std::round(pitchCV * TuningSettings::quantStepInv) * TuningSettings::quantStep;
+    //quantise? - there's a jitter in here somewhere that needs solving - revisit for v1.2
+    // if (!TuningSettings::bypass && TuningSettings::quantPull > Q16_16(0)) {
+    //   const Q16_16 quantCV = round(pitchCV_Q16 * TuningSettings::quantStepInv) * TuningSettings::quantStep;
 
-    //   const float diff = quantCV - pitchCV;
-    //   pitchCV = pitchCV + (diff * TuningSettings::quantAlpha);
+    //   const Q16_16 diff = quantCV - pitchCV_Q16;
+    //   pitchCV_Q16 = pitchCV_Q16 + (diff * TuningSettings::quantAlpha);
     // }
-    if (!TuningSettings::bypass && TuningSettings::quantPull > Q16_16(0)) {
-      const Q16_16 quantCV = round(pitchCV_Q16 * TuningSettings::quantStepInv) * TuningSettings::quantStep;
-
-      const Q16_16 diff = quantCV - pitchCV_Q16;
-      pitchCV_Q16 = pitchCV_Q16 + (diff * TuningSettings::quantAlpha);
-    }
     
     // Q16_16 freq_Q16 = exp_fast(pitchCV_Q16); 
     // pitchVExpCopy = freq_Q16;
@@ -1156,16 +1150,16 @@ void __isr encoder1_switch_callback() {
         spin_unlock(displaySpinlock, save);
         break;
       }
-      case CONTROLMODES::TUNINGMODE:
-      {
-        TuningSettings::save();
-        uint32_t save = spin_lock_blocking(displaySpinlock);  
-        controlMode = CONTROLMODES::QUANTISESETTINGSMODE;
-        display.setQuant(TuningSettings::quantPull.to_int(), TuningSettings::quantNotesPerOct.to_int());
-        display.setScreen(portal::SCREENMODES::QUANTISE);
-        spin_unlock(displaySpinlock, save);
-        break;
-      }
+      // case CONTROLMODES::TUNINGMODE:
+      // {
+      //   TuningSettings::save();
+      //   uint32_t save = spin_lock_blocking(displaySpinlock);  
+      //   controlMode = CONTROLMODES::QUANTISESETTINGSMODE;
+      //   display.setQuant(TuningSettings::quantPull.to_int(), TuningSettings::quantNotesPerOct.to_int());
+      //   display.setScreen(portal::SCREENMODES::QUANTISE);
+      //   spin_unlock(displaySpinlock, save);
+      //   break;
+      // }
     }
   }
   if (controlMode == CONTROLMODES::CALIBRATEMODE)
@@ -1197,12 +1191,12 @@ void __isr encoder2_switch_callback() {
         spin_unlock(displaySpinlock, save);
         break;
       }
-      case CONTROLMODES::QUANTISESETTINGSMODE:
-      {
-        TuningSettings::save();
-        switchToTuningMode();
-        break;
-      }
+      // case CONTROLMODES::QUANTISESETTINGSMODE:
+      // {
+      //   TuningSettings::save();
+      //   switchToTuningMode();
+      //   break;
+      // }
       case CONTROLMODES::TUNINGMODE:
       {
         TuningSettings::bypass = !TuningSettings::bypass;

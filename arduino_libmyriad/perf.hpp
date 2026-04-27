@@ -5,7 +5,7 @@
 #include "hardware/timer.h"
 
 // Configuration
-#define PERF_ENABLED 1  // Set to 0 to completely disable (zero overhead)
+#define PERF_ENABLED 0  // Set to 0 to completely disable (zero overhead)
 #define PERF_WINDOW_SIZE 64  // Number of samples to average (must be power of 2)
 constexpr size_t avgshift = __builtin_ctz(PERF_WINDOW_SIZE);
 

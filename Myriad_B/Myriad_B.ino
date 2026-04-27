@@ -626,20 +626,20 @@ void __not_in_flash_func(loop)() {
     }
   }
 
-  auto now = millis();
-  if (now - serialts > 500) {
-    size_t elapsed = now - serialts;
-    float msgsPerSec = totalMessagesReceived * 1000.f / elapsed;
-    Serial.printf("srx: %d us  msgs: %.0f/s  errs: %u  c0: %d us  c1: %d us\n",
-        PERF_GET_MEAN(SERIALRX),
-        msgsPerSec,
-        errorCount,
-        PERF_GET_MEAN(CALCOSCS0),
-        PERF_GET_MEAN(CALCOSCS1));
-    totalMessagesReceived = 0;
-    errorCount = 0;
-    serialts=now;
-  }
+  // auto now = millis();
+  // if (now - serialts > 500) {
+  //   size_t elapsed = now - serialts;
+  //   float msgsPerSec = totalMessagesReceived * 1000.f / elapsed;
+  //   Serial.printf("srx: %d us  msgs: %.0f/s  errs: %u  c0: %d us  c1: %d us\n",
+  //       PERF_GET_MEAN(SERIALRX),
+  //       msgsPerSec,
+  //       errorCount,
+  //       PERF_GET_MEAN(CALCOSCS0),
+  //       PERF_GET_MEAN(CALCOSCS1));
+  //   totalMessagesReceived = 0;
+  //   errorCount = 0;
+  //   serialts=now;
+  // }
   // delay(1);
   // __wfi();
 }

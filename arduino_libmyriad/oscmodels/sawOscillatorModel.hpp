@@ -66,7 +66,13 @@ class sawOscillatorModel : public virtual oscillatorModel {
 
     void ctrl(const Q16_16 v) override {
       using fptype = Fixed<17,15>;
-      fptype newPhaseMul = fptype(5) + (fptype(40).mulWith(v));
+      fptype newPhaseMul;
+      // if (v < Q16_16(0.01f)) {
+      //   Q16_16 vScaled = v * Q16_16(100.f * 3.f); //0-3
+      //   newPhaseMul = fptype(2.f) + fptype(vScaled);
+      // }else{
+        newPhaseMul = fptype(4.f) + (fptype(41.f).mulWith(v));
+      // }
       phaseMul = newPhaseMul.raw();
     }
 

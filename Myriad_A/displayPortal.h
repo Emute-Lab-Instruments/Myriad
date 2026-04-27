@@ -927,8 +927,8 @@ private:
       iconXPush.pushSprite(75,190);
       tft.drawString("Bypass", 120,195);
 
-      iconYPush.pushSprite(75,205);
-      tft.drawString("Quantise", 120,210);
+      // iconYPush.pushSprite(75,205);
+      // tft.drawString("Quantise", 120,210);
       iconZPush.pushSprite(85,220);
       tft.drawString("Exit", 120,225);
     }

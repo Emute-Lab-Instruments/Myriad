@@ -86,7 +86,7 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
     void ctrl(const Q16_16 v) override
     {
       static fptype maxTeeth(19.f);
-      static fptype minTeeth(1.f);
+      static fptype minTeeth(2.f);
       bite = minTeeth + (fptype(v) * maxTeeth);
       // bite = FixedPoint::floor(bite);
 
