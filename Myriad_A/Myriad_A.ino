@@ -380,7 +380,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     //18, 4078    
     // constexpr Q16_16 adcVRangeInv = Q16_16(10) / Q16_16(4078); 
-    Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) * ADCProfile::adcVRangeInv); // map to 0-10V range
+    Q16_16 pitchCV_Q16 = (Q16_16(pitchADCQ1418) - Q16_16(ADCProfile::cal_data.adc_min)) * ADCProfile::adcVRangeInv; // map to 0-10V range
     
     //old calibration method
     // auto pitchCV_Q16_raw = pitchADCMap.convertFixedInterpolated_Q14_18(pitchADCQ1418);
@@ -1238,7 +1238,8 @@ void __isr encoder3_switch_callback() {
         switch(modTarget) {
           case MODTARGETS::PITCH: {
             modTarget = MODTARGETS::EPSILON;
-            metaModCtrlMul = Q16_16(1);            
+            metaModCtrlMul = Q16_16(1);
+            resetMetaMods();
             break;
           }
           case MODTARGETS::EPSILON: {
