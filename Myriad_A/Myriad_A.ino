@@ -690,7 +690,7 @@ bool __not_in_flash_func(metaModUpdate)(__unused struct repeating_timer *t) {
                   + metamods[6]
                   + metamods[7]
                   + metamods[8]
-                ) * Q16_16(7/9.f)
+                ) * Q16_16(17/9.f)
               )
           ); 
     }
