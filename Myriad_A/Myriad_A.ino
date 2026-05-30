@@ -285,8 +285,8 @@ uint __not_in_flash("adc") dma_chan2;
 
 FixedLpf<18,2> FAST_MEM adcLpf0;
 FixedLpf<12,6> FAST_MEM adcLpf1;
-FixedLpf<12,6> FAST_MEM adcLpf2;    
-FixedLpf<12,6> FAST_MEM adcLpf3;
+FixedLpf<12,6> FAST_MEM adcLpf2;
+FixedLpf<18,2> FAST_MEM adcLpf3;
 using WvlenFPType = Fixed<20,11>;
 
 WvlenFPType __not_in_flash("adc") new_base_wavelen(0);
@@ -459,34 +459,44 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
       epsilon_fixed = one_q16;
     }
 
-    //octaves
     adcLpf3.play(adcReadings[3]);
-    Q16_16 filteredADC3_Q16 = Q16_16(adcLpf3.value()); // + Q16_16(0.5f);
-    filteredADC3_Q16  &= mask4095; 
+    Q16_16 filteredADC3_Q16 = Q16_16(adcLpf3.value());
+
+    filteredADC3_Q16 &= mask4095;
 
     int correctionADC3 = ADCProfile::cal_data.correction[filteredADC3_Q16.to_int()];
     filteredADC3_Q16 = filteredADC3_Q16 + Q16_16(correctionADC3);
-    controlValues[3] = filteredADC3_Q16.to_int();
+    controlValues[3] =  filteredADC3_Q16.to_int();
     static Q16_16 octIdxScale = Q16_16(18.9f/4096.f);
-    const size_t octaveIdx = (filteredADC3_Q16 * octIdxScale).to_int(); 
+    const size_t octaveIdx = (filteredADC3_Q16 * octIdxScale).to_int();
 
     static size_t octaveCtrlMap[19] = {
-      0, 1, 2, 3, 4, 5, 6, 7, 
-      8,8,8, 
+      0, 1, 2, 3, 4, 5, 6, 7,
+      8,8,8,
       9,10,11,12, 13,14,15,16
     };
 
     size_t octaveIdxMapped = octaveCtrlMap[octaveIdx];
 
     if (octaveIdxMapped != lastOctaveIdx) {
-      if (octaveIdxMapped > 16) {
-        octaveIdxMapped = 16;
+      if (octaveIdxMapped > 16) octaveIdxMapped = 16;
+      // Schmitt trigger using calibration-corrected ADC value — same coordinate
+      // system as octaveIdx. H=5 gives chatter protection with minimal range loss.
+      static const int32_t rawStep = 217; // ≈ 4096/18.9 counts per raw octave zone
+      static const int32_t octH   = 15;
+      const int32_t calADC = (int32_t)filteredADC3_Q16.to_int();
+      const bool goingUp = octaveIdxMapped > lastOctaveIdx;
+      const bool commit  = goingUp
+          ? (calADC >= (int32_t)octaveIdx * rawStep + octH)
+          : (calADC <  (int32_t)(octaveIdx + 1) * rawStep - octH);
+      if (commit) {
+        lastOctaveIdx = octaveIdxMapped;
+        octReady = true;
+        sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdxMapped);
+        currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdxMapped];
       }
-      lastOctaveIdx = octaveIdxMapped;
-      octReady = true;
-      sendToMyriadB(streamMessaging::messageTypes::OCTSPREAD, octaveIdxMapped);
-      currentOctaveShifts = (int8_t *)octaveTableShift[octaveIdxMapped];
     }
+    // controlValues[3] = octaveIdxMapped;
 
     oscsReadyToStart = true;
     newFrequenciesReady = true;
