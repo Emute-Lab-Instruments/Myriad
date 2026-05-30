@@ -31,6 +31,17 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       ) : 0;
       int32_t lErr = err0;
 
+      // reset pulse state if pitch changed by more than ~50 cents (wavelen ratio > 2^(1/24))
+      {
+        size_t diff = wlen > prevWlen ? wlen - prevWlen : prevWlen - wlen;
+        if (diff * 34 > prevWlen) {
+          counterFP = Q16_16(0);
+          targetFP = targetIncFPOrg;
+          targetIncFP = targetIncFPOrg;
+          b1 = 0;
+          prevWlen = wlen;
+        }
+      }
 
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
@@ -111,12 +122,14 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       counterFP = Q16_16(0);
       targetIncFP = targetIncFPOrg;
       targetFP = targetIncFPOrg;
+      prevWlen = 0;
     }
 
   private:
     size_t phase=0;
     bool y=0;
     int32_t err0=0;
+    size_t prevWlen=0;
 
 
     int pulselen=10000;

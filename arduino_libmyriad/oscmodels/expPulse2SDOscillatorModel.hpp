@@ -19,6 +19,20 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
     Fixed<16,16> targetIncFPOrg = Q16_16(1000);
     Fixed<16,16> targetFP= Q16_16(1000);
     Fixed<16,16> targIncMul = Q16_16(1.1f);
+    Fixed<16,16> vinvStored = Q16_16(0.5f);
+
+    // void recomputeTargetInc() {
+    //   using fptype = Fixed<16,16>;
+    //   static fptype oneSixteenth = fptype(1.f/16.f);
+    //   static fptype three = fptype::from_int(3);
+    //   fptype targmax = oneSixteenth.mulWith(WvlenFPType(this->wavelen));
+    //   targetIncFPOrg = (vinvStored * targmax) + three;
+    // }
+
+    // void setWavelen(const size_t wlen) {
+    //   oscillatorModel::setWavelen(wlen);
+    //   // recomputeTargetInc();
+    // }
 
     // Fixed<16,16> counterFPPhaseInc = Q16_16(1);
     // Fixed<16,16> counterFPPhaseIncInc = Q16_16(1.01f);
@@ -42,6 +56,24 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
 
       static int32_t FADE_REF = 1 << 12;
 
+      using fptype = Fixed<16,16>;
+      static fptype oneSixteenth = fptype(1.f/16.f);
+      static fptype three = fptype::from_int(3);
+      fptype targmax = oneSixteenth.mulWith(WvlenFPType(this->wavelen));
+      targetIncFPOrg = (vinvStored * targmax) + three;
+
+      // reset pulse state if pitch changed by more than ~50 cents (wavelen ratio > 2^(1/24))
+      {
+        size_t diff = wlen > prevWlen ? wlen - prevWlen : prevWlen - wlen;
+        if (diff * 34 > prevWlen) {
+          counterFP = zerofp;
+          targetFP = targetIncFPOrg;
+          targetIncFP = targetIncFPOrg;
+          b1 = 0;
+          prevWlen = wlen;
+        }
+      }
+
       const bool fading = fadeDirection != 0;
       const int32_t volumePeak = fading ? static_cast<int32_t>(
           (static_cast<int64_t>(FADE_REF) * fadeInvTable[fadeLevel]) >> 16
@@ -52,10 +84,7 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
         size_t word=0U;
         size_t loopbits = 1;
         for (size_t bit = 0U; bit < 32U; bit++) {
-          // uint32_t wrap = (phase < wlen);  // 1 if in range, 0 if needs wrap
-          // phase *= wrap;  // Becomes 0 if phase >= wlen
           phase = phase >= wlen ? 0 : phase; // wrap around
-          // modphase = modphase >= modwlen ? 0 : modphase; // wrap around
 
           [[unlikely]]
           if (phase == 0) {
@@ -65,13 +94,6 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
             b1=0;
           }
 
-          // [[unlikely]]
-          // if (modphase == 0) {
-          //   b2=0;
-          //   counterModFP=zerofp;
-          //   targetModFP = targetModIncFPOrg;
-          //   targetModIncFP = targetModIncFPOrg;
-          // }
 
           [[unlikely]]
           if (counterFP >= targetFP) {
@@ -82,34 +104,8 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
             targetIncFP *= targIncMul;
           }
 
-          // [[unlikely]]
-          // if (counterModFP >= targetModFP) {
-          //   b2 = !b2;
-          //   if (b2) {
-          //     counterFPPhaseInc = Q16_16(1.9); // When b2 is high, speed up the phase increment for a few cycles, creating a wider pulse
-          //   } else {
-          //     counterFPPhaseInc = Q16_16(0.1); // Normal speed
-          //   }
-          //   counterModFP = zerofp;
-          //   targetModFP += targetModIncFP;
-          //   targetModIncFP *= targModIncMul;
-          // }
-
-
           counterFP += onefp;
-          // counterModFP += onefp;
 
-          // counterFPPhaseInc *= counterFPPhaseIncInc;
-          // if (counterFPPhaseInc > Q16_16(1.1)) {
-          //   // counterFPPhaseInc = Q16_16(1);
-          //   counterFPPhaseIncInc = counterFPPhaseIncIncNeg;
-          // }
-          // if (counterFPPhaseInc < Q16_16(0.9)) {
-          //   counterFPPhaseIncInc = counterFPPhaseIncIncPos;
-          // }
-
-          // word <<= 1;
-          // word |= b1;
           int32_t y;
           if (fading) [[unlikely]] {
             int32_t amp = b1 ? FADE_REF : 0;
@@ -134,11 +130,9 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
 
     void ctrl(const Q16_16 v) override {
       using fptype = Fixed<16,16>;
-      fptype vinv = fptype(1) - v;
-
-      fptype targmax = fptype(1/16.f).mulWith(WvlenFPType(this->wavelen));
-      targetIncFPOrg = ((vinv * targmax) + fptype(3));
-      targIncMul = Q16_16(1) - (vinv * Q16_16(0.8f)) ;
+      vinvStored = fptype(1) - v;
+      // recomputeTargetInc();
+      targIncMul = Q16_16(1) - (vinvStored * Q16_16(0.8f));
 
       // counterFPPhaseIncIncNeg = Q16_16(1) - (v * Q16_16(0.05f));
       // counterFPPhaseIncIncPos = Q16_16(1) + (v * Q16_16(0.05f));
@@ -166,11 +160,13 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
       counterFP = Q16_16(0);
       targetIncFP = targetIncFPOrg;
       targetFP = targetIncFPOrg;
+      prevWlen = 0;
     }
 
   private:
     size_t phase=0;
     size_t modphase=0;
+    size_t prevWlen=0;
     int32_t err0=0;
 
 
