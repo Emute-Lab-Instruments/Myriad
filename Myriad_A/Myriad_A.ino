@@ -1,4 +1,4 @@
-#define MYRIAD_VERSION "1.1.0"
+#define MYRIAD_VERSION "1.1.2"
 
 #include <FS.h>
 #include <LittleFS.h>
@@ -179,17 +179,15 @@ void __isr dma_irh() {
   // Serial.println("dma");
   uint32_t triggered_channels = dma_hw->ints1;
   if (triggered_channels & smOsc0_dma_chan_bit) {
-    dma_hw->ints1 = smOsc0_dma_chan_bit;  
+    dma_hw->ints1 = smOsc0_dma_chan_bit;
     dma_hw->ch[smOsc0_dma_chan].al3_read_addr_trig = nextTimingBuffer0;
     bufSent0 = true;
   }
-  else
   if (triggered_channels & smOsc1_dma_chan_bit) {
     dma_hw->ints1 = smOsc1_dma_chan_bit;
     dma_hw->ch[smOsc1_dma_chan].al3_read_addr_trig = nextTimingBuffer1;
     bufSent1 = true;
   }
-  else
   if (triggered_channels & smOsc2_dma_chan_bit) {
     dma_hw->ints1 = smOsc2_dma_chan_bit;
     dma_hw->ch[smOsc2_dma_chan].al3_read_addr_trig = nextTimingBuffer2;
@@ -430,6 +428,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
 
     int correctionADC1 = ADCProfile::cal_data.correction[filteredADC1_Q16.to_int()];
     filteredADC1_Q16 = filteredADC1_Q16 + Q16_16(correctionADC1);
+    if (filteredADC1_Q16.to_int() > 4095) filteredADC1_Q16 = Q16_16(4095);
 
     controlValues[1] = filteredADC1_Q16.to_int();
 
@@ -468,7 +467,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     filteredADC3_Q16 = filteredADC3_Q16 + Q16_16(correctionADC3);
     controlValues[3] =  filteredADC3_Q16.to_int();
     static Q16_16 octIdxScale = Q16_16(18.9f/4096.f);
-    const size_t octaveIdx = (filteredADC3_Q16 * octIdxScale).to_int();
+    const size_t octaveIdx = min((filteredADC3_Q16 * octIdxScale).to_int(), (size_t)18);
 
     static size_t octaveCtrlMap[19] = {
       0, 1, 2, 3, 4, 5, 6, 7,
@@ -481,7 +480,7 @@ void __not_in_flash_func(adcProcessor)(uint16_t adcReadings[]) {
     if (octaveIdxMapped != lastOctaveIdx) {
       if (octaveIdxMapped > 16) octaveIdxMapped = 16;
       // Schmitt trigger using calibration-corrected ADC value — same coordinate
-      // system as octaveIdx. H=5 gives chatter protection with minimal range loss.
+      // system as octaveIdx. H=15 gives chatter protection with minimal range loss.
       static const int32_t rawStep = 217; // ≈ 4096/18.9 counts per raw octave zone
       static const int32_t octH   = 15;
       const int32_t calADC = (int32_t)filteredADC3_Q16.to_int();
@@ -1494,6 +1493,10 @@ void setup() {
   adcSpinlock = spin_lock_init(spin_lock_claim_unused(true));
   serialSpinlock = spin_lock_init(spin_lock_claim_unused(true));
 
+  //set drive strength before PIO takes ownership of the pin
+  gpio_set_drive_strength(12, GPIO_DRIVE_STRENGTH_12MA);
+  gpio_set_slew_rate(12, GPIO_SLEW_RATE_FAST);
+
   //set up serial tx to Myriad B
   bool serialTXOK = streamMessaging::setupTX(pio0, nullptr, 13, 12, DMACH_SERIAL_TX);
   if (!serialTXOK) {
@@ -1550,10 +1553,8 @@ void setup() {
   // display.setMetaOsc(0, metaOscsList[0]);
 
   // Now turn display on
-  // digitalWrite(TFT_BL, HIGH);  // TODO: TFT_BL not defined  
+  // digitalWrite(TFT_BL, HIGH);  // TODO: TFT_BL not defined
 
-  gpio_set_drive_strength(12, GPIO_DRIVE_STRENGTH_12MA);
-  gpio_set_slew_rate(12, GPIO_SLEW_RATE_FAST);
   // comms to Myriad B
   // Serial1.setRX(13);
   // Serial1.setTX(12);
@@ -1577,6 +1578,34 @@ void setup() {
   pinMode(CALIBRATE_BUTTON, INPUT_PULLUP);
   
 
+  //load stored state
+  oscBankTypes[0] = MyriadState::getOscBank(0);
+  oscBankTypes[1] = MyriadState::getOscBank(1);
+  oscBankTypes[2] = MyriadState::getOscBank(2);
+  // Serial.println(oscBankTypes[2]);
+  
+  //on this unit
+  assignOscModels(oscBankTypes[2]);
+
+  //on unit B - delay to allow Myriad B time to complete its own setup/RX init
+  delay(50);
+  sendToMyriadB(streamMessaging::messageTypes::BANK0, oscBankTypes[0]);
+  sendToMyriadB(streamMessaging::messageTypes::BANK1, oscBankTypes[1]);
+
+
+  display.setOscBankModel(0, oscBankTypes[0]);
+  display.setOscBankModel(1, oscBankTypes[1]);
+  display.setOscBankModel(2, oscBankTypes[2]);
+
+  setMetaOscMode(MyriadState::getMetaMod());
+  metaOscsFPList.at(currMetaMod)->restoreDepth(MyriadState::getMetaModDepth());
+  metaOscsFPList.at(currMetaMod)->restoreSpeed(MyriadState::getMetaModSpeed());
+  modTarget = MyriadState::getModTarget();
+  display.setModTarget(modTarget);
+  display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
+  display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
+
+  //attach encoder interrupts after all state is restored
   attachInterrupt(digitalPinToInterrupt(ENCODER1_A_PIN), encoder1_callback,
                     CHANGE);
   attachInterrupt(digitalPinToInterrupt(ENCODER1_B_PIN), encoder1_callback,
@@ -1599,33 +1628,6 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(CALIBRATE_BUTTON), calibrate_button_callback,
                     CHANGE);
-
-
-  //load stored state
-  oscBankTypes[0] = MyriadState::getOscBank(0);
-  oscBankTypes[1] = MyriadState::getOscBank(1);
-  oscBankTypes[2] = MyriadState::getOscBank(2);
-  // Serial.println(oscBankTypes[2]);
-  
-  //on this unit
-  assignOscModels(oscBankTypes[2]);
-
-  //on unit B
-  sendToMyriadB(streamMessaging::messageTypes::BANK0, oscBankTypes[0]);
-  sendToMyriadB(streamMessaging::messageTypes::BANK1, oscBankTypes[1]);
-
-
-  display.setOscBankModel(0, oscBankTypes[0]);
-  display.setOscBankModel(1, oscBankTypes[1]);
-  display.setOscBankModel(2, oscBankTypes[2]);
-
-  setMetaOscMode(MyriadState::getMetaMod());
-  metaOscsFPList.at(currMetaMod)->restoreDepth(MyriadState::getMetaModDepth());
-  metaOscsFPList.at(currMetaMod)->restoreSpeed(MyriadState::getMetaModSpeed());
-  modTarget = MyriadState::getModTarget();
-  display.setModTarget(modTarget);
-  display.setMetaModDepth(metaOscsFPList.at(currMetaMod)->moddepth.getNormalisedValue());
-  display.setMetaModSpeed(metaOscsFPList.at(currMetaMod)->modspeed.getNormalisedValue());
 
   constexpr WvlenFPType Fixed0(0);
   display.setDisplayWavelengths({Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0,Fixed0});
@@ -1964,6 +1966,10 @@ void __not_in_flash_func(loop1)() {
       new_wavelen0_fixed = new_wavelen0_fixed.mulWith(metaModWavelenMul0);
       new_wavelen1_fixed = new_wavelen1_fixed.mulWith(metaModWavelenMul1);
       new_wavelen2_fixed = new_wavelen2_fixed.mulWith(metaModWavelenMul2);
+
+      // guard against negative wavelen (heavy detune at low pitch) wrapping to huge size_t
+      if (new_wavelen1_fixed < minWavelenFP) new_wavelen1_fixed = minWavelenFP;
+      if (new_wavelen2_fixed < minWavelenFP) new_wavelen2_fixed = minWavelenFP;
 
       new_wavelen0_fixed = currentOctaveShifts[0] > 0 ? new_wavelen0_fixed >> currentOctaveShifts[0] : new_wavelen0_fixed.safeShiftLeft(-currentOctaveShifts[0]);
       new_wavelen1_fixed = currentOctaveShifts[0] > 0 ? new_wavelen1_fixed >> currentOctaveShifts[0] : new_wavelen1_fixed.safeShiftLeft(-currentOctaveShifts[0]);

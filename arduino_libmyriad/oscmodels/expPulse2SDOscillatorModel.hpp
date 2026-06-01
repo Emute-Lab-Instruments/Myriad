@@ -59,20 +59,10 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
       using fptype = Fixed<16,16>;
       static fptype oneSixteenth = fptype(1.f/16.f);
       static fptype three = fptype::from_int(3);
-      fptype targmax = oneSixteenth.mulWith(WvlenFPType(this->wavelen));
+      // recompute the pulse-ramp seed from the live wavelen; it is only consumed
+      // at the next phase==0 boundary, so this never disturbs the ramp mid-cycle
+      fptype targmax = oneSixteenth.mulWith(WvlenFPType(wlen));
       targetIncFPOrg = (vinvStored * targmax) + three;
-
-      // reset pulse state if pitch changed by more than ~50 cents (wavelen ratio > 2^(1/24))
-      {
-        size_t diff = wlen > prevWlen ? wlen - prevWlen : prevWlen - wlen;
-        if (diff * 34 > prevWlen) {
-          counterFP = zerofp;
-          targetFP = targetIncFPOrg;
-          targetIncFP = targetIncFPOrg;
-          b1 = 0;
-          prevWlen = wlen;
-        }
-      }
 
       const bool fading = fadeDirection != 0;
       const int32_t volumePeak = fading ? static_cast<int32_t>(
@@ -160,13 +150,11 @@ class expPulse2SDOscillatorModel : public virtual oscillatorModel {
       counterFP = Q16_16(0);
       targetIncFP = targetIncFPOrg;
       targetFP = targetIncFPOrg;
-      prevWlen = 0;
     }
 
   private:
     size_t phase=0;
     size_t modphase=0;
-    size_t prevWlen=0;
     int32_t err0=0;
 
 

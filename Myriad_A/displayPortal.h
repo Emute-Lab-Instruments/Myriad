@@ -537,8 +537,8 @@ private:
       
       const Q16_16 cospos = sine_table.fast_cos(pos);
       const Q16_16 sinpos = sine_table.fast_sin(pos);
-      const size_t cx2 = 120+ (linelen * cospos).to_int();
-      const size_t cy2 = 120+ (linelen * sinpos).to_int();
+      const int cx2 = 120 + (linelen * cospos).to_int();
+      const int cy2 = 120 + (linelen * sinpos).to_int();
       tft.drawLine(120,120, cx2,cy2, oscColArray[i] );
 
       //TODO: restore?

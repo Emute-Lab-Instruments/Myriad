@@ -567,6 +567,10 @@ void __not_in_flash_func(loop)() {
       new_wavelen4_fixed = new_wavelen4_fixed.mulWith(metaModWavelenMul4);
       new_wavelen5_fixed = new_wavelen5_fixed.mulWith(metaModWavelenMul5);
 
+      // guard against negative wavelen (heavy detune at low pitch) wrapping to huge size_t
+      if (new_wavelen3_fixed < minWavelenFP) new_wavelen3_fixed = minWavelenFP;
+      if (new_wavelen4_fixed < minWavelenFP) new_wavelen4_fixed = minWavelenFP;
+      if (new_wavelen5_fixed < minWavelenFP) new_wavelen5_fixed = minWavelenFP;
 
       new_wavelen3_fixed = currentOctaveShifts[1] > 0 ? new_wavelen3_fixed >> currentOctaveShifts[1] : new_wavelen3_fixed.safeShiftLeft(-currentOctaveShifts[1]);
       new_wavelen4_fixed = currentOctaveShifts[1] > 0 ? new_wavelen4_fixed >> currentOctaveShifts[1] : new_wavelen4_fixed.safeShiftLeft(-currentOctaveShifts[1]);
@@ -737,6 +741,10 @@ void __not_in_flash_func(loop1)() {
       new_wavelen7_fixed = new_wavelen7_fixed.mulWith(metaModWavelenMul7);
       new_wavelen8_fixed = new_wavelen8_fixed.mulWith(metaModWavelenMul8);
 
+      // guard against negative wavelen (heavy detune at low pitch) wrapping to huge size_t
+      if (new_wavelen6_fixed < minWavelenFP) new_wavelen6_fixed = minWavelenFP;
+      if (new_wavelen7_fixed < minWavelenFP) new_wavelen7_fixed = minWavelenFP;
+      if (new_wavelen8_fixed < minWavelenFP) new_wavelen8_fixed = minWavelenFP;
 
       new_wavelen6_fixed = currentOctaveShifts[2] > 0 ? new_wavelen6_fixed >> currentOctaveShifts[2] : new_wavelen6_fixed.safeShiftLeft(-currentOctaveShifts[2]);
       new_wavelen7_fixed = currentOctaveShifts[2] > 0 ? new_wavelen7_fixed >> currentOctaveShifts[2] : new_wavelen7_fixed.safeShiftLeft(-currentOctaveShifts[2]);
