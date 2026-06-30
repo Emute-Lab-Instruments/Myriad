@@ -96,6 +96,10 @@ public:
         return Fixed(static_cast<storage_type>(i) << FRACTIONAL_BITS);
     }
     
+    static constexpr Fixed from_size_t(size_t i) {
+        return Fixed(static_cast<storage_type>(i) << FRACTIONAL_BITS);
+    }
+    
     static constexpr Fixed from_raw(storage_type raw) {
         return Fixed(raw);
     }
@@ -372,6 +376,14 @@ public:
         return Fixed(value >> shift);
     }
 
+    constexpr Fixed safeShiftLeft(int n) {
+        const int32_t limit = INT32_MAX >> n;       // max value that survives << n
+        if (value >  limit) return Fixed(INT32_MAX);
+        if (value < ~limit) return Fixed(INT32_MIN);
+        return Fixed(value << n);
+    }
+
+
     // Multiply with another Fixed type, keeping this format
     template<int IntBits2, int FracBits2, typename StorageT2>
     constexpr Fixed<IntBits, FracBits, StorageT> mulWith(
@@ -517,6 +529,26 @@ public:
         }
     }
 
+    // Random, using c++ lib
+    static Fixed random(const Fixed& min_val, const Fixed& max_val) {
+        storage_type range = max_val.value - min_val.value;
+        
+        if (range == 0) return min_val;
+        
+        uint32_t r = rand();
+        
+        // For small ranges, avoid 64-bit math
+        // Safe if range * (r >> 16) fits in 32 bits
+        if (range < (1 << 15)) {
+            // Split r into high and low parts for better distribution
+            storage_type scaled = ((r >> 16) * range) >> 16;
+            return Fixed::from_raw(min_val.value + scaled);
+        } else {
+            // Need 64-bit for larger ranges
+            int64_t scaled = (static_cast<int64_t>(r) * range) >> 32;
+            return Fixed::from_raw(min_val.value + static_cast<storage_type>(scaled));
+        }
+    }
     // Fast [0, 1) range using hardware RNG
     static Fixed random_unit_hw() {
         uint32_t r = get_rand_32();

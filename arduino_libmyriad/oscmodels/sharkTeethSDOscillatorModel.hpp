@@ -70,6 +70,9 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
 
           local_phase++;
           toothPhase += bite;
+          if (toothPhase >= wlenFP) {
+            toothPhase = toothPhase.fmod(wlenFP);
+          }          
         }
 
         *(bufferA + i) = word;
@@ -83,10 +86,16 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
     void ctrl(const Q16_16 v) override
     {
       static fptype maxTeeth(19.f);
-      static fptype minTeeth(1.f);
+      static fptype minTeeth(2.f);
       bite = minTeeth + (fptype(v) * maxTeeth);
-      bite = FixedPoint::floor(bite);
+      // bite = FixedPoint::floor(bite);
 
+      const size_t wlen10k = getWavelenAtFrequency(10000.f);
+      if (wavelen < wlen10k) {
+        fptype scale = fptype::from_int(wavelen) / fptype::from_int(wlen10k);
+        bite = minTeeth + (bite - minTeeth) * scale;
+      }
+      bite = FixedPoint::floor(bite);
     }
 
 
@@ -98,6 +107,10 @@ class sharkTeethSDOscillatorModel : public virtual oscillatorModel {
       return "sdt10";
     }
 
+    void reset() override {
+      phase = 0;
+      err0 = 0;
+    }
 
   private:
     size_t phase=0;

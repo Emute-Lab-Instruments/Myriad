@@ -31,6 +31,20 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       ) : 0;
       int32_t lErr = err0;
 
+      // detect hard pitch jump (not portamento) using a smoothed wavelen tracker
+      // lpfWlen follows slow glides frame-by-frame so diff stays near zero during portamento
+      // on a hard jump, wlen diverges sharply from lpfWlen in a single frame
+      {
+        if (lpfWlen == 0) lpfWlen = wlen;
+        else lpfWlen = (lpfWlen * 3 + wlen) >> 2;
+        size_t diff = wlen > lpfWlen ? wlen - lpfWlen : lpfWlen - wlen;
+        if (diff * 3 > lpfWlen) {
+          counterFP = Q16_16(0);
+          targetFP = targetIncFPOrg;
+          targetIncFP = targetIncFPOrg;
+          lpfWlen = wlen;  // re-sync so LPF doesn't keep triggering during settling
+        }
+      }
 
       for (size_t i = 0; i < loopLength; ++i) {
         size_t word=0U;
@@ -103,11 +117,22 @@ class expPulseSDOscillatorModel : public virtual oscillatorModel {
       return "exp1";
     }
 
+    void reset() override {
+      phase = 0;
+      y = 0;
+      err0 = 0;
+      b1 = 0;
+      counterFP = Q16_16(0);
+      targetIncFP = targetIncFPOrg;
+      targetFP = targetIncFPOrg;
+      lpfWlen = 0;
+    }
 
   private:
     size_t phase=0;
     bool y=0;
     int32_t err0=0;
+    size_t lpfWlen=0;
 
 
     int pulselen=10000;

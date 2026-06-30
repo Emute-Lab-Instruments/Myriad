@@ -112,6 +112,12 @@ class triTeethOscillatorModel : public virtual oscillatorModel {
       return "trv10";
     }
 
+    void reset() override {
+      phase = 0;
+      err0 = 0;
+      toothPhase = fptype(0);
+      toothInc = fptype(1);
+    }
 
   private:
     size_t phase=0;
